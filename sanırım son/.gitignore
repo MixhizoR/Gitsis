@@ -1,0 +1,18 @@
+# Sanal ortam (1.6 GB — başka PC'de yeniden kurulur)
+.venv/
+
+# Python önbellek
+__pycache__/
+*.pyc
+*.pyo
+
+# Claude oturum/bellek
+.claude/
+
+# RAG / üretilen çıktılar
+rag_simple_db.txt
+chroma_db/
+*.html
+
+# Geçici / üretilen dosyalar (gerekiyorsa bu satırları kaldır)
+context_files/*.txt

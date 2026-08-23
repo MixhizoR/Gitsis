@@ -1,0 +1,78 @@
+# ============================================================================
+#  docker-compose.yml  —  EHSIM - GITSIS / RMT kurumsal altyapi.
+#  Iki servis:
+#    db      : PostgreSQL 15 (kalici volume ile veri asla kaybolmaz)
+#    backend : Node/Express + Prisma API (tablolari otomatik olusturur, tek
+#              seferlik resmi seed'i yukler, ardindan 4001 portunda calisir)
+#    frontend: Vite + React SPA (4001 portundaki backend'e baglanir)
+#
+#  Calistirma:  docker compose up --build
+#  Durdurma:    docker compose down            (veri korunur)
+#  Sifir/temiz: docker compose down -v         (volume + veri silinir)
+# ============================================================================
+services:
+  db:
+    image: postgres:15
+    container_name: ehsim_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ehsim
+      POSTGRES_PASSWORD: ehsim_pass
+      POSTGRES_DB: ehsim_rmt
+    # Host'ta 5432 baska bir Postgres tarafindan kullaniliyorsa cakismasin diye
+    # 5433'e maplendi. Backend container ici agdan 'db:5432' ile baglanir; bu
+    # host portu yalnizca yerel bir DB istemcisiyle (psql/pgAdmin) baglanmak
+    # istersen gereklidir. GUVENLIK: yalnizca localhost'a (127.0.0.1) acik —
+    # ayni agdaki baska bir makine, sabit kodlu ehsim/ehsim_pass ile buraya
+    # dogrudan baglanip kullanici tablosunu okuyamasin diye.
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ehsim_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ehsim -d ehsim_rmt"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    container_name: ehsim_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://ehsim:ehsim_pass@db:5432/ehsim_rmt?schema=public"
+      PORT: "4001"
+      # Oturum token'lari (JWT) bu anahtarla imzalanir. Yerel gelistirme icin
+      # varsayilani birakabilirsin; sunucuyu paylasilan/bulut bir ortama
+      # kurarsan MUTLAKA kendine ozel, rastgele, uzun bir degerle degistir.
+      JWT_SECRET: "ehsim-local-dev-secret-change-if-shared"
+      # Bos = /api/auth/register KAPALI (varsayilan, guvenli). Yeni bir PM
+      # hesabi acmak icin buraya gizli bir deger yaz ve istekte
+      # 'x-registration-key' basligiyla ayni degeri gonder.
+      PM_REGISTRATION_KEY: ""
+    ports:
+      - "4001:4001"
+    # 1) semayi DB'ye uygula (tablolari olustur)  2) tek seferlik seed  3) sunucu
+    command: sh -c "npx prisma db push --skip-generate && node src/seed.js && node src/server.js"
+
+  # ====== Frontend Servisi ======
+  frontend:
+    build: .
+    container_name: ehsim_web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Frontend'in backend'e bağlanması için (isteğe bağlı)
+      VITE_API_URL: "http://localhost:4001"
+    ports:
+      - "5173:5173"
+    # Geliştirme modunda canlı reload için:
+    # command: npm run dev -- --host
+    # Yukarıdaki satırı aktif yaparsanız, aşağıdaki build yapılmaz (dev server çalışır)
+
+volumes:
+  ehsim_pgdata:

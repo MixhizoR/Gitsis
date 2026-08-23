@@ -1,0 +1,5 @@
+# EHSIM AI Bridge (api_server.py) icin EK paketler.
+# Mevcut requirements.txt zaten PyMuPDF + requests kuruyor; bunlar sadece API katmani.
+fastapi
+uvicorn[standard]
+python-multipart

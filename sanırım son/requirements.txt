@@ -1,0 +1,25 @@
+# Arayüz / GUI
+pillow
+ttkbootstrap
+tkinterdnd2
+reportlab
+openpyxl
+pandas
+numpy
+
+# PDF / Doküman
+PyMuPDF
+pypdf
+docxtpl
+python-docx
+
+# LangChain + RAG + Embedding
+langchain
+langchain-community
+langchain-huggingface
+langchain-chroma
+sentence-transformers
+chromadb
+
+# HTTP
+requests

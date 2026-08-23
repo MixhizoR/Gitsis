@@ -1,0 +1,29 @@
+{
+  "name": "ehsim-rmt",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EHSIM - GITSIS - Requirements Management & Traceability Tool (IBM DOORS alternatifi, MVP)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "lucide-react": "^1.27.0",
+    "multer": "^2.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "json-server": "^0.17.4",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.3.1"
+  }
+}
