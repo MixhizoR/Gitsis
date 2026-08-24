@@ -20,7 +20,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 - `ai-bridge/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
 - `docker-compose.yml` → Backend + PostgreSQL'i tek komutla ayağa kaldırır
 - `README.md` → (bu dosya)
-- `README_TEKNIK.md` → Ayrıntılı teknik doküman
+- `ARCHITECTURE.md` → Mimari akış, Docker Compose, ortam değişkenleri ve demo veri standardı
 - `AI_KOPRU_ENTEGRASYON.md` → Yapay zeka köprüsünün ayrıntıları
 
 ---
@@ -108,4 +108,4 @@ node scripts/seed-coffee-project.mjs
 3. (opsiyonel) `ai-bridge`'da uvicorn → AI köprüsü (8008) + LM Studio
 4. Tarayıcı: http://localhost:5173
 
-Kolay gelsin! Teknik ayrıntılar için README_TEKNIK.md ve AI_KOPRU_ENTEGRASYON.md dosyalarına bak.
+Kolay gelsin! Teknik ayrıntılar için ARCHITECTURE.md ve AI_KOPRU_ENTEGRASYON.md dosyalarına bak.
