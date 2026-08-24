@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Download, RefreshCw, Search } from 'lucide-react'
+import { IconDownload, IconRefresh, IconSearch } from '../common/Icons.jsx'
 import { ExportModal } from './ExportModal'
 import { get } from '../../services/apiClient'
 
@@ -95,7 +95,7 @@ const loadMatrixData = async () => {
       {/* Toolbar */}
       <div className="flex gap-3 items-center justify-between bg-white p-4 rounded-lg shadow">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+          <IconSearch className="absolute left-3 top-3 text-gray-400" size={18} />
           <input
             type="text"
             placeholder="Gereksinim ara..."
@@ -110,14 +110,14 @@ const loadMatrixData = async () => {
           className="p-2 hover:bg-gray-100 rounded-lg transition"
           title="Yenile"
         >
-          <RefreshCw size={20} className="text-gray-600" />
+          <IconRefresh size={20} className="text-gray-600" />
         </button>
 
         <button
           onClick={() => setIsExportModalOpen(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
-          <Download size={18} />
+          <IconDownload size={18} />
           Excel'e Aktar
         </button>
       </div>

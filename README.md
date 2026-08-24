@@ -36,16 +36,16 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 ## 3. Çalıştırma — 3 terminal
 
 ### Terminal 1 — Backend + Veritabanı
+Proje kökünde:
 ```
-cd ehsim_proje_aktarilacak
 docker compose up --build
 ```
 Bu komut PostgreSQL'i açar, tabloları OTOMATİK oluşturur, tek seferlik örnek
 veriyi yükler ve API'yi http://localhost:4001 üzerinde çalıştırır.
 
 ### Terminal 2 — Frontend (site)
+Proje kökünde:
 ```
-cd ehsim_proje_aktarilacak
 npm install        # sadece ilk sefer
 npm run dev
 ```
@@ -54,10 +54,10 @@ npm run dev
 ### Terminal 3 — Yapay Zeka Köprüsü (opsiyonel)
 LM Studio'yu aç (Local Server + bir Gemma modeli yüklü olsun). Sonra:
 ```
-cd "ehsim_proje_aktarilacak/ai-bridge"
+cd ai-bridge
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install fastapi "uvicorn[standard]" python-multipart requests PyMuPDF
+pip install -r requirements.txt
 python -m uvicorn api_server:app --port 8008 --reload
 ```
 Kontrol: http://localhost:8008/health → "lmstudio_reachable": true görürsen hazır.
@@ -83,21 +83,7 @@ Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendi
 
 ---
 
-## 5. Yapay zeka motoru — embedding modeli (yalnızca eski Arayüz.py için)
-
-Bu kopyada `HuggingFaceEmbeddings/` klasörü yer kaplamasın diye çıkarıldı.
-Entegre ettiğimiz köprü (`api_server.py`) buna ihtiyaç duymaz. Ama arkadaşın
-eski masaüstü arayüzünü (`Arayüz.py`) çalıştıracaksan, modeli bir kez indir:
-
-```
-cd "ai-bridge"
-python -c "from sentence_transformers import SentenceTransformer; import os; m=SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); m.save(os.path.join(os.getcwd(),'HuggingFaceEmbeddings','all-MiniLM-L6-v2'))"
-```
-Ayrıntı: `ai-bridge/KURULUM.md`
-
----
-
-## 6. Veri kalıcılığı ve sıfırlama
+## 5. Veri kalıcılığı ve sıfırlama
 
 - Tüm veriler PostgreSQL'in Docker volume'ünde kalıcıdır; PC kapansa da durur.
 - Tamamen sıfırlamak (tüm veriyi silmek) istersen: `docker compose down -v`
@@ -105,7 +91,7 @@ Ayrıntı: `ai-bridge/KURULUM.md`
 
 ---
 
-## 7. Örnek proje (isteğe bağlı)
+## 6. Örnek proje (isteğe bağlı)
 
 Backend ayaktayken, örnek "Espresso Kahve Otomatı" projesini (58 gereksinim,
 32 test, %100 izlenebilirlik) yüklemek/onarmak için:
@@ -115,7 +101,7 @@ node scripts/seed-coffee-project.mjs
 
 ---
 
-## 8. Özet akış
+## 7. Özet akış
 
 1. `docker compose up --build` → backend + DB (4001)
 2. `npm install` + `npm run dev` → site (5173)

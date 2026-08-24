@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Download, X, Loader } from 'lucide-react'
+import { IconDownload, IconClose, IconLoader } from '../common/Icons.jsx'
 import { get } from '../../services/apiClient'
 
 export function ExportModal({ isOpen, onClose, projectId }) {
@@ -73,14 +73,14 @@ export function ExportModal({ isOpen, onClose, projectId }) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Download size={20} />
+            <IconDownload size={20} />
             Excel'e Aktar
           </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
           >
-            <X size={20} />
+            <IconClose size={20} />
           </button>
         </div>
 
@@ -182,12 +182,12 @@ export function ExportModal({ isOpen, onClose, projectId }) {
           >
             {isLoading ? (
               <>
-                <Loader size={18} className="animate-spin" />
+                <IconLoader size={18} className="animate-spin" />
                 Aktarılıyor...
               </>
             ) : (
               <>
-                <Download size={18} />
+                <IconDownload size={18} />
                 Aktar
               </>
             )}
