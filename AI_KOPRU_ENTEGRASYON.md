@@ -29,7 +29,6 @@ senin mevcut API'nle ve elle yapılır.
 **Yeni (arkadaşının klasörü `ai-bridge/`):**
 - `api_server.py` — PDF/HTML/tkinter üretmeyen, sadece JSON dönen hafif FastAPI.
   Arkadaşının `config.py`'sini (LM Studio adresi + model) aynen kullanır.
-- `requirements-api.txt` — sadece API katmanı paketleri (fastapi, uvicorn, multipart).
 
 **Yeni (frontend):**
 - `src/services/aiEngineService.js` — motora bağlanan köprü servisi (`analyze`,
@@ -53,11 +52,8 @@ gereksinim/hiyerarşi/link mantığı. Yani çalışan düzen korunuyor.
 `ai-bridge/` klasöründe, mevcut sanal ortamı kullanarak:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-api.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
-
-> Not: `PyMuPDF` ve `requests` zaten ana `requirements.txt` ile kurulu; bunlar
-> sadece API katmanı.
 
 ### 2) LM Studio'yu hazırla
 - LM Studio açık olmalı ve **Local Server** çalışıyor olmalı (varsayılan `:1234`).

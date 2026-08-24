@@ -1,25 +1,6 @@
-# Arayüz / GUI
-pillow
-ttkbootstrap
-tkinterdnd2
-reportlab
-openpyxl
-pandas
-numpy
-
-# PDF / Doküman
+# EHSIM AI Bridge (api_server.py)
+fastapi
+uvicorn[standard]
+python-multipart
 PyMuPDF
-pypdf
-docxtpl
-python-docx
-
-# LangChain + RAG + Embedding
-langchain
-langchain-community
-langchain-huggingface
-langchain-chroma
-sentence-transformers
-chromadb
-
-# HTTP
 requests
