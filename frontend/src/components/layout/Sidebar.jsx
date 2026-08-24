@@ -14,9 +14,6 @@ import {
   IconHistory,
   IconSparkle,
   IconChevron,
-  IconTarget,
-  IconCheck,
-  IconDoc,
   IconUsers,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'

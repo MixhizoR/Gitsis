@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { IconDownload, IconRefresh, IconSearch } from '../common/Icons.jsx'
 import { ExportModal } from './ExportModal'
 import { get } from '../../services/apiClient'

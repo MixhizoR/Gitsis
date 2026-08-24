@@ -1,5 +1,4 @@
 // TraceabilityPage.jsx
-import React from 'react'
 import { useParams } from 'react-router-dom'
 import { MatrixView } from '../components/traceability/MatrixView'
 import { useProject } from '../context/ProjectContext.jsx' // Context import edildi

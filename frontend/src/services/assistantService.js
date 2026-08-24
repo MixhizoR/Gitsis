@@ -148,9 +148,6 @@ function parseFilters(text) {
   return filters
 }
 
-// "listeleme" niyeti tetikleyici fiiller (filtre talebi oldugunu gosterir).
-const LIST_VERB_RE = /(listele|getir|göster|goster|filtrele|bul|hangileri|olanlar|olanları|olanlari|görmek istiyorum|gormek istiyorum|ları getir|leri getir)/i
-
 // Aksiyon (deger atama) fiilleri.
 const SET_VERB_RE = /(yap|ayarla|değiştir|degistir|güncelle|guncelle|olsun|olarak ayarla|set et|ata)/i
 // Inceleme fiilleri.

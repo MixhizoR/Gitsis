@@ -1,0 +1,65 @@
+# ============================================================================
+#  CI — lint + test + build.
+#  Not: Prettier `format:check` adimi, kod tabani tek seferlik formatlama
+#  commit'inden SONRA bu dosyaya eklenecektir (bkz. issue #5 karari).
+# ============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend — lint / test / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    name: Backend — lint / test (node:test + supertest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: ehsim
+          POSTGRES_PASSWORD: ehsim_pass
+          POSTGRES_DB: ehsim_rmt_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ehsim"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://ehsim:ehsim_pass@localhost:5432/ehsim_rmt_test
+      JWT_SECRET: ci-test-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm test

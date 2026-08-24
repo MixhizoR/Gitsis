@@ -1,5 +1,5 @@
 // src/pages/TraceabilityImportPage.jsx
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useProject } from '../context/ProjectContext.jsx'
 import { upload } from '../services/apiClient'
 

@@ -315,11 +315,6 @@ router.get('/export/detailed', async (req, res) => {
         l => l.fromId === req.id && l.type === 'Verifies'
       )
       
-      // Gereksinime gelen linkler (geri izlenebilirlik)
-      const backLinks = links.filter(
-        l => l.toId === req.id && l.type === 'Satisfies'
-      )
-      
       if (forwardLinks.length === 0) {
         worksheet.addRow([
           req.text_id,

@@ -96,7 +96,7 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
       }
       if (isEdit) {
         // Tip sunucu tarafinda kilitli; yine de gondermiyoruz.
-        const { type, ...rest } = payload
+        const { type: _lockedType, ...rest } = payload
         await editRequirement(editing.id, rest)
       } else {
         await addRequirement(payload)

@@ -31,7 +31,6 @@ import { TraceabilityImportPage } from './pages/TraceabilityImportPage'
 
 const REQ_KEYS = ['req-user', 'req-system', 'req-subsystem']
 const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
-const TRACEABILITY_KEY = 'traceability-export'
 
 export default function App() {
   const { loading } = useApp()

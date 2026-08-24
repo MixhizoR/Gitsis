@@ -16,7 +16,7 @@ import express from 'express'
 import cors from 'cors'
 import rateLimit from 'express-rate-limit'
 import { PrismaClient } from '@prisma/client'
-import { TYPE_PREFIX, LINK_TYPE, STATUS } from './constants.js'
+import { TYPE_PREFIX, STATUS } from './constants.js'
 import { validateLink, recomputeAllStatuses } from './logic.js'
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js'
 import { cleanRichText } from './sanitize.js'
@@ -568,7 +568,7 @@ async function resolveNode(pid, id) {
 // Tek bir bagi kurar (dogrulama + create + Verifies alan/durum senkron + audit).
 // Cascade CAGRILMAZ; cagiran taraf toplu islem sonunda bir kez cascade eder.
 // idempotent: ayni bag zaten varsa yeniden olusturmaz, mevcut olani doner.
-async function createOneLink(pid, { fromId, toId, type, testStatus }) {
+async function createOneLink(pid, { fromId, toId, type, testStatus: _testStatus }) {
   if (!fromId || !toId || !type) throw bad('fromId, toId, type zorunlu.')
 
   const fromR = await resolveNode(pid, fromId)
@@ -597,8 +597,8 @@ async function createOneLink(pid, { fromId, toId, type, testStatus }) {
 
 app.post('/api/projects/:pid/links', wrap(async (req, res) => {
   const pid = req.params.pid
-  const { fromId, toId, type, testStatus } = req.body || {}
-  const link = await createOneLink(pid, { fromId, toId, type, testStatus })
+  const { fromId, toId, type, testStatus: _testStatus } = req.body || {}
+  const link = await createOneLink(pid, { fromId, toId, type, testStatus: _testStatus })
   await cascade(pid)
   res.status(201).json(link)
 }))
@@ -824,6 +824,12 @@ app.get('/api/projects/:pid/approvals/matrix', wrap(async (req, res) => {
 // --- 404 ---
 app.use((req, res) => res.status(404).json({ error: `Bulunamadi: ${req.method} ${req.path}` }))
 
-app.listen(PORT, () => {
-  console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`)
-})
+// Test ortaminda (node:test + supertest) dinlemeye kapilmayalim; app disa
+// aktarilir, supertest kendi portunu yonetir.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`)
+  })
+}
+
+export default app

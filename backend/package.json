@@ -9,7 +9,11 @@
     "start": "node src/server.js",
     "seed": "node src/seed.js",
     "db:push": "prisma db push",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
@@ -23,6 +27,11 @@
     "sanitize-html": "^2.17.6"
   },
   "devDependencies": {
-    "prisma": "^5.18.0"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "prisma": "^5.18.0",
+    "supertest": "^7.2.2"
   }
 }

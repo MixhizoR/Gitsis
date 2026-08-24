@@ -111,7 +111,7 @@ export function ProjectProvider({ children }) {
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export function useProject() {
   const ctx = useContext(ProjectContext)
   if (!ctx) throw new Error('useProject yalnizca <ProjectProvider> icinde kullanilabilir.')

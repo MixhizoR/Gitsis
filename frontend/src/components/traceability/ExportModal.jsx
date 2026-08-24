@@ -1,7 +1,5 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { IconDownload, IconClose, IconLoader } from '../common/Icons.jsx'
-import { get } from '../../services/apiClient'
-
 export function ExportModal({ isOpen, onClose, projectId }) {
   const [isLoading, setIsLoading] = useState(false)
   const [exportFormat, setExportFormat] = useState('matrix')

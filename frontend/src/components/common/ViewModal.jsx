@@ -11,7 +11,7 @@ import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
 import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 
-export default function ViewModal({ open, row, canWrite = false, showStatus = true, onClose, onSaveDescription, statusLabel }) {
+export default function ViewModal({ open, row, canWrite = false, showStatus = true, onClose, onSaveDescription, statusLabel: _statusLabel }) {
   const { t } = useLang()
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)

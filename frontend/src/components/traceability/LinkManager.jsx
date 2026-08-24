@@ -50,7 +50,6 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
   const reqById = useMemo(() => Object.fromEntries(requirements.map((r) => [r.id, r])), [requirements])
   const testById = useMemo(() => Object.fromEntries(testCases.map((tc) => [tc.id, tc])), [testCases])
   const gloById = useMemo(() => Object.fromEntries(glossary.map((g) => [g.id, g])), [glossary])
-  const nodeById = (id) => reqById[id] || testById[id] || gloById[id] || null
 
   // Bu subject icin baslatilabilir bag secenegi + aday hedefler.
   const config = useMemo(() => {
