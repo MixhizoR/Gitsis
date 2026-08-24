@@ -21,16 +21,28 @@
 //    bag/duzenlemeler korunur. Tekrar tekrar guvenle calistirilabilir.
 //    PostgreSQL volume sayesinde veriler PC kapansa da kalicidir; sadece
 //    "docker compose down -v" siler.
+//
+//  KIMLIK DOGRULAMA:
+//    Tum API uclari JWT ister. Script acilirken POST /api/auth/login ile oturum
+//    acar; kullanici/sifre SEED_USERNAME / SEED_PASSWORD env degiskenleriyle
+//    degistirilebilir (varsayilan: admin/admin — docker compose ilk acilista
+//    bos veritabanina bu ikiliyi olusturur).
 // ============================================================================
 
 const BASE = process.env.API_BASE || 'http://localhost:4001/api'
 const PROJECT_NAME = 'Espresso Bazli Kahve Otomati'
+const SEED_USERNAME = process.env.SEED_USERNAME || 'admin'
+const SEED_PASSWORD = process.env.SEED_PASSWORD || 'admin'
+
+let authToken = null
 
 // --- HTTP yardimcisi --------------------------------------------------------
 async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   const text = await res.text()
@@ -42,6 +54,23 @@ async function api(method, path, body) {
   return data
 }
 const post = (path, body) => api('POST', path, body)
+
+/** Oturum acar ve token'i modul seviyesinde saklar. */
+async function login() {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: SEED_USERNAME, password: SEED_PASSWORD }),
+  })
+  if (!res.ok) {
+    throw new Error(
+      `Giris basarisiz (${res.status}). Backend ayik mi? Kullanici/sifreyi ` +
+        `SEED_USERNAME / SEED_PASSWORD ile gecmek zorundaysan onlari kontrol et.`,
+    )
+  }
+  const data = await res.json()
+  authToken = data.token
+}
 
 // --- Taksonomi sabitleri (backend/src/constants.js ile ayni) ---------------
 const REQ = {
@@ -394,6 +423,10 @@ async function repair(pid) {
 //  YURUTME
 // ============================================================================
 async function main() {
+  // Kimlik dogrulama — tum uclar JWT ister.
+  await login()
+  console.log(`[+] Giris yapildi: ${SEED_USERNAME}`)
+
   // Baglanti kontrolu
   try {
     await api('GET', '/health')
