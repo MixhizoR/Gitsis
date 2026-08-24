@@ -10,46 +10,45 @@ export function MatrixView({ projectId }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
-// Matris verilerini yükle
-useEffect(() => {
-  // projectId değiştiğinde veya yüklendiğinde çalışır
-  if (projectId) {
-    loadMatrixData()
-  } else {
-    // projectId henüz gelmediyse yüklemeyi kapat
-    setIsLoading(false)
+  // Matris verilerini yükle
+  useEffect(() => {
+    // projectId değiştiğinde veya yüklendiğinde çalışır
+    if (projectId) {
+      loadMatrixData()
+    } else {
+      // projectId henüz gelmediyse yüklemeyi kapat
+      setIsLoading(false)
+    }
+  }, [projectId])
+
+  const loadMatrixData = async () => {
+    if (!projectId || projectId === 'undefined') {
+      setIsLoading(false)
+      setError('Geçerli bir proje seçilmedi.')
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const result = await get(`/traceability/matrix`, { pid: projectId })
+
+      const matrixData = result.data || result
+      setMatrixData(matrixData)
+    } catch (err) {
+      console.error('Matris yükleme hatası:', err)
+      setError(err.message || 'Veriler yüklenirken bir hata oluştu.')
+    } finally {
+      setIsLoading(false)
+    }
   }
-}, [projectId])
-
-const loadMatrixData = async () => {
-  if (!projectId || projectId === 'undefined') {
-    setIsLoading(false)
-    setError('Geçerli bir proje seçilmedi.')
-    return
-  }
-
-  setIsLoading(true)
-  setError(null)
-
-  try {
-    const result = await get(`/traceability/matrix`, { pid: projectId })
-    
-    const matrixData = result.data || result
-    setMatrixData(matrixData)
-
-  } catch (err) {
-    console.error('Matris yükleme hatası:', err)
-    setError(err.message || 'Veriler yüklenirken bir hata oluştu.')
-  } finally {
-    setIsLoading(false)
-  }
-}
 
   // Arama filtresi
   const filteredData = matrixData.filter(
     (req) =>
       req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.text_id.toLowerCase().includes(searchTerm.toLowerCase())
+      req.text_id.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   if (isLoading) {
@@ -79,16 +78,10 @@ const loadMatrixData = async () => {
 
   // İstatistik hesapla
   const totalRequirements = matrixData.length
-  const linkedRequirements = matrixData.filter(
-    (r) => r.linkedTests.length > 0
-  ).length
-  const totalLinks = matrixData.reduce(
-    (acc, r) => acc + r.linkedTests.length,
-    0
-  )
-  const avgCoverage = totalRequirements > 0
-    ? Math.round((linkedRequirements / totalRequirements) * 100)
-    : 0
+  const linkedRequirements = matrixData.filter((r) => r.linkedTests.length > 0).length
+  const totalLinks = matrixData.reduce((acc, r) => acc + r.linkedTests.length, 0)
+  const avgCoverage =
+    totalRequirements > 0 ? Math.round((linkedRequirements / totalRequirements) * 100) : 0
 
   return (
     <div className="space-y-4">
@@ -128,21 +121,11 @@ const loadMatrixData = async () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b-2 border-gray-200">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                  Req ID
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                  Başlık
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                  Tip
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                  Durum
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                  Testler
-                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Req ID</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Başlık</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Tip</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Durum</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Testler</th>
                 <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">
                   Kapsama
                 </th>
@@ -151,22 +134,14 @@ const loadMatrixData = async () => {
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan="6"
-                    className="px-4 py-8 text-center text-gray-500"
-                  >
+                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
                     {searchTerm ? 'Sonuç bulunamadı' : 'Veri bulunamadı'}
                   </td>
                 </tr>
               ) : (
                 filteredData.map((req, idx) => (
-                  <tr
-                    key={idx}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition"
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {req.text_id}
-                    </td>
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{req.text_id}</td>
                     <td className="px-4 py-3 text-sm text-gray-800">
                       <div className="font-medium">{req.title}</div>
                       {req.description && (
@@ -176,17 +151,15 @@ const loadMatrixData = async () => {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {req.type}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{req.type}</td>
                     <td className="px-4 py-3 text-sm">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
                           req.status === 'Approved'
                             ? 'bg-green-100 text-green-800'
                             : req.status === 'Rejected'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
                         {req.status}
@@ -194,9 +167,7 @@ const loadMatrixData = async () => {
                     </td>
                     <td className="px-4 py-3 text-sm">
                       {req.linkedTests.length === 0 ? (
-                        <span className="text-red-600 font-medium text-xs">
-                          Bağlantı Yok
-                        </span>
+                        <span className="text-red-600 font-medium text-xs">Bağlantı Yok</span>
                       ) : (
                         <div className="space-y-1">
                           {req.linkedTests.slice(0, 2).map((test, lidx) => (
@@ -223,8 +194,8 @@ const loadMatrixData = async () => {
                           req.coverage === '100%'
                             ? 'bg-green-100 text-green-800'
                             : req.coverage === '0%'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
                         }`}
                       >
                         {req.coverage}
@@ -245,9 +216,7 @@ const loadMatrixData = async () => {
           <p className="text-xs text-gray-600 mt-1">Toplam Gereksinim</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow text-center">
-          <p className="text-2xl font-bold text-green-600">
-            {linkedRequirements}
-          </p>
+          <p className="text-2xl font-bold text-green-600">{linkedRequirements}</p>
           <p className="text-xs text-gray-600 mt-1">İzlenen Gereksinimler</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow text-center">

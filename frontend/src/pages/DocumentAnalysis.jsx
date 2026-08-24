@@ -37,12 +37,7 @@ import {
   IconReset,
   IconTrash,
 } from '../components/common/Icons.jsx'
-import {
-  REQ_TYPES,
-  CATEGORIES,
-  CATEGORY_BAR,
-  REQ_TYPE,
-} from '../utils/constants.js'
+import { REQ_TYPES, CATEGORIES, CATEGORY_BAR, REQ_TYPE } from '../utils/constants.js'
 
 // Tip kirilimi cubuklari icin renk eslemesi.
 const TYPE_BAR = {
@@ -53,20 +48,33 @@ const TYPE_BAR = {
   [REQ_TYPE.TEST_CASE]: 'bg-fuchsia-500',
 }
 
-const MEASURE_RE = /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|db|volt|v\b|bar|°c|mm|cm|metre|m\b|w\b|rpm|pulse|step|kg|g\b)/i
+const MEASURE_RE =
+  /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|db|volt|v\b|bar|°c|mm|cm|metre|m\b|w\b|rpm|pulse|step|kg|g\b)/i
 
 // Kalite rozeti (yalniz OFFLINE motorda anlamli).
 function QualityBadge({ quality }) {
   const { t } = useLang()
   const map = {
-    ok: { cls: 'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800/60', label: t('doc.quality.ok') },
-    warning: { cls: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60', label: t('doc.quality.warning') },
-    error: { cls: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60', label: t('doc.quality.error') },
+    ok: {
+      cls: 'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800/60',
+      label: t('doc.quality.ok'),
+    },
+    warning: {
+      cls: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
+      label: t('doc.quality.warning'),
+    },
+    error: {
+      cls: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
+      label: t('doc.quality.error'),
+    },
   }
   const m = map[quality.status] || map.warning
   return (
     <span
-      className={'inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-bold ring-1 ring-inset ' + m.cls}
+      className={
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-bold ring-1 ring-inset ' +
+        m.cls
+      }
       title={quality.messages.join('\n')}
     >
       {m.label} · %{quality.score}
@@ -118,11 +126,13 @@ export default function DocumentAnalysis() {
         setEngineStatus(
           h.lmstudio_reachable
             ? { state: 'ok', model: h.model }
-            : { state: 'lmoff', model: h.model }
+            : { state: 'lmoff', model: h.model },
         )
       })
       .catch(() => alive && setEngineStatus({ state: 'down' }))
-    return () => { alive = false }
+    return () => {
+      alive = false
+    }
   }, [engine])
 
   // --- Dosya secimi -> metin cikar (her iki motor icin de) ------------------
@@ -146,11 +156,17 @@ export default function DocumentAnalysis() {
   // --- OFFLINE analiz -------------------------------------------------------
   const runOffline = (raw) => {
     const src = (raw ?? text).trim()
-    if (!src) { setError(t('doc.emptyError')); return }
-    setError(''); setImported(0)
+    if (!src) {
+      setError(t('doc.emptyError'))
+      return
+    }
+    setError('')
+    setImported(0)
     const res = analyzeDocument(src)
     setResult({ mode: 'offline', ...res })
-    const next = new Set(res.requirements.filter((r) => r.quality.status !== 'error').map((r) => r.id))
+    const next = new Set(
+      res.requirements.filter((r) => r.quality.status !== 'error').map((r) => r.id),
+    )
     setSelected(next)
     setOverrides({})
   }
@@ -158,9 +174,14 @@ export default function DocumentAnalysis() {
   // --- ONLINE uretim (Gemma) ------------------------------------------------
   const runOnline = async () => {
     const src = text.trim()
-    if (!src) { setError(t('doc.needDocFirst')); return }
-    if ((counts.user + counts.system + counts.subsystem) <= 0) return
-    setError(''); setImported(''); setBusy(true)
+    if (!src) {
+      setError(t('doc.needDocFirst'))
+      return
+    }
+    if (counts.user + counts.system + counts.subsystem <= 0) return
+    setError('')
+    setImported('')
+    setBusy(true)
     try {
       const { requirements, summary } = await analyzeWithEngine({ text: src, counts })
       setSourceText(src)
@@ -180,7 +201,11 @@ export default function DocumentAnalysis() {
   }
 
   const buildOnlineSummary = (reqs, meta) => {
-    const countBy = (key) => reqs.reduce((a, r) => { a[r[key]] = (a[r[key]] || 0) + 1; return a }, {})
+    const countBy = (key) =>
+      reqs.reduce((a, r) => {
+        a[r[key]] = (a[r[key]] || 0) + 1
+        return a
+      }, {})
     const measurable = reqs.filter((r) => MEASURE_RE.test(r.raw)).length
     const n = reqs.length
     return {
@@ -209,7 +234,8 @@ export default function DocumentAnalysis() {
     })
   }
 
-  const allSelected = result && selected.size === result.requirements.length && result.requirements.length > 0
+  const allSelected =
+    result && selected.size === result.requirements.length && result.requirements.length > 0
   const toggleAll = () => {
     if (!result) return
     setSelected(allSelected ? new Set() : new Set(result.requirements.map((r) => r.id)))
@@ -226,23 +252,43 @@ export default function DocumentAnalysis() {
 
   // --- Satir: Sil -----------------------------------------------------------
   const deleteRow = (id) => {
-    setResult((prev) => prev && ({ ...prev, requirements: prev.requirements.filter((r) => r.id !== id) }))
-    setSelected((prev) => { const n = new Set(prev); n.delete(id); return n })
-    setOverrides((prev) => { const n = { ...prev }; delete n[id]; return n })
+    setResult(
+      (prev) => prev && { ...prev, requirements: prev.requirements.filter((r) => r.id !== id) },
+    )
+    setSelected((prev) => {
+      const n = new Set(prev)
+      n.delete(id)
+      return n
+    })
+    setOverrides((prev) => {
+      const n = { ...prev }
+      delete n[id]
+      return n
+    })
   }
 
   // --- Satir: Yeniden Uret (yalniz online) ----------------------------------
   const regenRow = async (row) => {
     if (!row.level) return
-    setRowBusy(row.id); setError('')
+    setRowBusy(row.id)
+    setError('')
     try {
       const avoid = result.requirements.map((r) => r.description)
       const fresh = await regenerateItem({ level: row.level, sourceText, avoid })
-      setResult((prev) => prev && ({
-        ...prev,
-        requirements: prev.requirements.map((r) => (r.id === row.id ? { ...fresh, id: row.id, level: row.level } : r)),
-      }))
-      setOverrides((prev) => { const n = { ...prev }; delete n[row.id]; return n })
+      setResult(
+        (prev) =>
+          prev && {
+            ...prev,
+            requirements: prev.requirements.map((r) =>
+              r.id === row.id ? { ...fresh, id: row.id, level: row.level } : r,
+            ),
+          },
+      )
+      setOverrides((prev) => {
+        const n = { ...prev }
+        delete n[row.id]
+        return n
+      })
     } catch (err) {
       setError(err.message || t('doc.regenerating'))
     } finally {
@@ -273,7 +319,12 @@ export default function DocumentAnalysis() {
   }
 
   const clearAll = () => {
-    setText(''); setSourceText(''); setResult(null); setFileName(''); setError(''); setImported(0)
+    setText('')
+    setSourceText('')
+    setResult(null)
+    setFileName('')
+    setError('')
+    setImported(0)
   }
 
   const summary = result?.summary
@@ -295,30 +346,56 @@ export default function DocumentAnalysis() {
             <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">
               {t('doc.title')}
               {isOnline ? (
-                <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">{t('doc.engine.online.badge')}</span>
+                <span className="ml-2 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
+                  {t('doc.engine.online.badge')}
+                </span>
               ) : (
-                <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">OFFLINE</span>
+                <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  OFFLINE
+                </span>
               )}
             </h2>
             <p className="mt-0.5 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
-              {isOnline ? t('doc.engine.hint') : (<>{t('doc.intro1')}<code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">.txt .md .csv .json .pdf</code>{t('doc.intro2')}</>)}
+              {isOnline ? (
+                t('doc.engine.hint')
+              ) : (
+                <>
+                  {t('doc.intro1')}
+                  <code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">
+                    .txt .md .csv .json .pdf
+                  </code>
+                  {t('doc.intro2')}
+                </>
+              )}
             </p>
           </div>
         </div>
 
         {/* Motor secici + durum */}
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/30">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('doc.engine.label')}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t('doc.engine.label')}
+          </span>
           <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-700">
             <button
               onClick={() => setEngine('online')}
-              className={'px-3 py-1.5 text-xs font-semibold transition-colors ' + (isOnline ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300')}
+              className={
+                'px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                (isOnline
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300')
+              }
             >
               {t('doc.engine.online')}
             </button>
             <button
               onClick={() => setEngine('offline')}
-              className={'px-3 py-1.5 text-xs font-semibold transition-colors ' + (!isOnline ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300')}
+              className={
+                'px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                (!isOnline
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300')
+              }
             >
               {t('doc.engine.offline')}
             </button>
@@ -330,13 +407,19 @@ export default function DocumentAnalysis() {
                 <span className="text-slate-400">● {t('doc.engine.checking')}</span>
               )}
               {engineStatus.state === 'ok' && (
-                <span className="text-emerald-600 dark:text-emerald-400">● {t('doc.engine.connected', { model: engineStatus.model })}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  ● {t('doc.engine.connected', { model: engineStatus.model })}
+                </span>
               )}
               {engineStatus.state === 'lmoff' && (
-                <span className="text-amber-600 dark:text-amber-400">● {t('doc.engine.lmOffline')}</span>
+                <span className="text-amber-600 dark:text-amber-400">
+                  ● {t('doc.engine.lmOffline')}
+                </span>
               )}
               {engineStatus.state === 'down' && (
-                <span className="text-rose-600 dark:text-rose-400">● {t('doc.engine.disconnected', { url: AI_BASE })}</span>
+                <span className="text-rose-600 dark:text-rose-400">
+                  ● {t('doc.engine.disconnected', { url: AI_BASE })}
+                </span>
               )}
             </span>
           )}
@@ -346,13 +429,22 @@ export default function DocumentAnalysis() {
         {isOnline && (
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <span className="text-xs font-semibold text-slate-500">{t('doc.counts.title')}</span>
-            {(['user', 'system', 'subsystem']).map((k) => (
+            {['user', 'system', 'subsystem'].map((k) => (
               <label key={k} className="flex flex-col gap-1">
-                <span className="text-[11px] font-medium text-slate-500">{t('doc.counts.' + k)}</span>
+                <span className="text-[11px] font-medium text-slate-500">
+                  {t('doc.counts.' + k)}
+                </span>
                 <input
-                  type="number" min={0} max={40}
+                  type="number"
+                  min={0}
+                  max={40}
                   value={counts[k]}
-                  onChange={(e) => setCounts((c) => ({ ...c, [k]: Math.max(0, Math.min(40, Number(e.target.value) || 0)) }))}
+                  onChange={(e) =>
+                    setCounts((c) => ({
+                      ...c,
+                      [k]: Math.max(0, Math.min(40, Number(e.target.value) || 0)),
+                    }))
+                  }
                   className="input w-20 !py-1 text-sm"
                 />
               </label>
@@ -375,8 +467,12 @@ export default function DocumentAnalysis() {
               className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/50 dark:border-slate-700 dark:bg-slate-800/40 dark:hover:border-brand-500"
             >
               <IconUpload size={26} className="text-brand-500" />
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('doc.uploadBtn')}</span>
-              <span className="text-xs text-slate-400">{fileName || 'txt · md · csv · json · pdf'}</span>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {t('doc.uploadBtn')}
+              </span>
+              <span className="text-xs text-slate-400">
+                {fileName || 'txt · md · csv · json · pdf'}
+              </span>
             </button>
           </div>
 
@@ -393,12 +489,28 @@ export default function DocumentAnalysis() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button onClick={primaryAction} disabled={busy || (isOnline && engineStatus.state === 'down')} className="btn-primary disabled:opacity-40">
+          <button
+            onClick={primaryAction}
+            disabled={busy || (isOnline && engineStatus.state === 'down')}
+            className="btn-primary disabled:opacity-40"
+          >
             <IconSparkle size={18} />
-            {busy ? (isOnline ? t('doc.generating') : t('doc.analyzing')) : (isOnline ? t('doc.generate') : t('doc.analyze'))}
+            {busy
+              ? isOnline
+                ? t('doc.generating')
+                : t('doc.analyzing')
+              : isOnline
+                ? t('doc.generate')
+                : t('doc.analyze')}
           </button>
           {!isOnline && (
-            <button onClick={() => { setText(EXAMPLE); runOffline(EXAMPLE) }} className="btn-secondary">
+            <button
+              onClick={() => {
+                setText(EXAMPLE)
+                runOffline(EXAMPLE)
+              }}
+              className="btn-secondary"
+            >
               <IconDoc size={16} /> {t('doc.tryExample')}
             </button>
           )}
@@ -427,20 +539,67 @@ export default function DocumentAnalysis() {
           {/* OFFLINE: DO-178C kalite kartlari */}
           {result.mode === 'offline' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label={t('doc.stat.extracted')} value={summary.extracted} sub={t('doc.stat.scanned', { n: result.totalSegments })} icon={<IconList size={18} />} accent="brand" />
-              <StatCard label={t('doc.stat.avgQuality')} value={`%${summary.avgScore}`} sub={t('doc.stat.qualityScore')} icon={<IconShield size={18} />} accent={summary.avgScore >= 75 ? 'emerald' : summary.avgScore >= 50 ? 'amber' : 'rose'} />
-              <StatCard label={t('doc.stat.measurable')} value={`%${summary.measurablePct}`} sub={t('doc.stat.measurableSub', { m: summary.measurable, e: summary.extracted })} icon={<IconCheck size={18} />} accent={summary.measurablePct >= 50 ? 'emerald' : 'amber'} />
-              <StatCard label={t('doc.stat.vague')} value={summary.vague + summary.weak} sub={t('doc.stat.vagueSub', { v: summary.vague, w: summary.weak })} icon={<IconAlert size={18} />} accent={summary.vague + summary.weak > 0 ? 'rose' : 'emerald'} />
+              <StatCard
+                label={t('doc.stat.extracted')}
+                value={summary.extracted}
+                sub={t('doc.stat.scanned', { n: result.totalSegments })}
+                icon={<IconList size={18} />}
+                accent="brand"
+              />
+              <StatCard
+                label={t('doc.stat.avgQuality')}
+                value={`%${summary.avgScore}`}
+                sub={t('doc.stat.qualityScore')}
+                icon={<IconShield size={18} />}
+                accent={
+                  summary.avgScore >= 75 ? 'emerald' : summary.avgScore >= 50 ? 'amber' : 'rose'
+                }
+              />
+              <StatCard
+                label={t('doc.stat.measurable')}
+                value={`%${summary.measurablePct}`}
+                sub={t('doc.stat.measurableSub', { m: summary.measurable, e: summary.extracted })}
+                icon={<IconCheck size={18} />}
+                accent={summary.measurablePct >= 50 ? 'emerald' : 'amber'}
+              />
+              <StatCard
+                label={t('doc.stat.vague')}
+                value={summary.vague + summary.weak}
+                sub={t('doc.stat.vagueSub', { v: summary.vague, w: summary.weak })}
+                icon={<IconAlert size={18} />}
+                accent={summary.vague + summary.weak > 0 ? 'rose' : 'emerald'}
+              />
             </div>
           )}
 
           {/* ONLINE: seviye kirilimi kartlari */}
           {result.mode === 'online' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label={t('doc.online.total')} value={summary.extracted} sub={summary.model} icon={<IconSparkle size={18} />} accent="brand" />
-              <StatCard label={t('doc.counts.user')} value={summary.counts.user} icon={<IconList size={18} />} accent="amber" />
-              <StatCard label={t('doc.counts.system')} value={summary.counts.system} icon={<IconList size={18} />} accent="violet" />
-              <StatCard label={t('doc.counts.subsystem')} value={summary.counts.subsystem} icon={<IconList size={18} />} accent="emerald" />
+              <StatCard
+                label={t('doc.online.total')}
+                value={summary.extracted}
+                sub={summary.model}
+                icon={<IconSparkle size={18} />}
+                accent="brand"
+              />
+              <StatCard
+                label={t('doc.counts.user')}
+                value={summary.counts.user}
+                icon={<IconList size={18} />}
+                accent="amber"
+              />
+              <StatCard
+                label={t('doc.counts.system')}
+                value={summary.counts.system}
+                icon={<IconList size={18} />}
+                accent="violet"
+              />
+              <StatCard
+                label={t('doc.counts.subsystem')}
+                value={summary.counts.subsystem}
+                icon={<IconList size={18} />}
+                accent="emerald"
+              />
             </div>
           )}
 
@@ -452,7 +611,10 @@ export default function DocumentAnalysis() {
               </h3>
               <ul className="space-y-2">
                 {summary.recommendations.map((rec, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300"
+                  >
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
                     {rec}
                   </li>
@@ -476,8 +638,14 @@ export default function DocumentAnalysis() {
                 {t('doc.extractedTitle')} <span className="text-slate-400">({rows.length})</span>
               </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400">{t('doc.selectedCount', { n: selected.size })}</span>
-                <button onClick={importSelected} disabled={busy || selected.size === 0} className="btn-primary !py-1.5 disabled:opacity-40">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {t('doc.selectedCount', { n: selected.size })}
+                </span>
+                <button
+                  onClick={importSelected}
+                  disabled={busy || selected.size === 0}
+                  className="btn-primary !py-1.5 disabled:opacity-40"
+                >
                   <IconCheck size={16} /> {t('doc.importSelected')}
                 </button>
               </div>
@@ -496,12 +664,21 @@ export default function DocumentAnalysis() {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                       <th className="px-3 py-3">
-                        <input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-4 w-4 rounded border-slate-300 accent-brand-600" />
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={toggleAll}
+                          className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+                        />
                       </th>
                       <th className="px-3 py-3">{t('doc.th.candidate')}</th>
                       <th className="px-3 py-3">{t('doc.th.type')}</th>
                       <th className="px-3 py-3">{t('doc.th.domain')}</th>
-                      {isOnline ? <th className="px-3 py-3">{t('doc.th.actions')}</th> : <th className="px-3 py-3">{t('doc.th.quality')}</th>}
+                      {isOnline ? (
+                        <th className="px-3 py-3">{t('doc.th.actions')}</th>
+                      ) : (
+                        <th className="px-3 py-3">{t('doc.th.quality')}</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -510,26 +687,54 @@ export default function DocumentAnalysis() {
                       const isSel = selected.has(r.id)
                       const regenning = rowBusy === r.id
                       return (
-                        <tr key={r.id} className={isSel ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''}>
+                        <tr
+                          key={r.id}
+                          className={isSel ? 'bg-brand-50/30 dark:bg-brand-900/10' : ''}
+                        >
                           <td className="px-3 py-3 align-top">
-                            <input type="checkbox" checked={isSel} onChange={() => toggle(r.id)} className="h-4 w-4 rounded border-slate-300 accent-brand-600" />
+                            <input
+                              type="checkbox"
+                              checked={isSel}
+                              onChange={() => toggle(r.id)}
+                              className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+                            />
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <div className="font-semibold text-slate-800 dark:text-slate-100">{r.title}</div>
-                            <div className="mt-0.5 max-w-xl text-xs text-slate-500 dark:text-slate-400">{r.description}</div>
+                            <div className="font-semibold text-slate-800 dark:text-slate-100">
+                              {r.title}
+                            </div>
+                            <div className="mt-0.5 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+                              {r.description}
+                            </div>
                             <div className="mt-1 flex flex-wrap gap-1">
                               <TypeBadge value={eff.type} />
                               <CategoryBadge value={eff.category} />
                             </div>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <select value={eff.type} onChange={(e) => setOverride(r.id, 'type', e.target.value)} className="input !py-1 !text-xs">
-                              {REQ_TYPES.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
+                            <select
+                              value={eff.type}
+                              onChange={(e) => setOverride(r.id, 'type', e.target.value)}
+                              className="input !py-1 !text-xs"
+                            >
+                              {REQ_TYPES.map((tp) => (
+                                <option key={tp} value={tp}>
+                                  {tp}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           <td className="px-3 py-3 align-top">
-                            <select value={eff.category} onChange={(e) => setOverride(r.id, 'category', e.target.value)} className="input !py-1 !text-xs">
-                              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                            <select
+                              value={eff.category}
+                              onChange={(e) => setOverride(r.id, 'category', e.target.value)}
+                              className="input !py-1 !text-xs"
+                            >
+                              {CATEGORIES.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
                             </select>
                           </td>
                           {isOnline ? (
@@ -540,7 +745,8 @@ export default function DocumentAnalysis() {
                                   disabled={regenning}
                                   className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-40 dark:border-brand-800/60 dark:bg-brand-900/30 dark:text-brand-300"
                                 >
-                                  <IconReset size={13} /> {regenning ? t('doc.regenerating') : t('doc.row.regenerate')}
+                                  <IconReset size={13} />{' '}
+                                  {regenning ? t('doc.regenerating') : t('doc.row.regenerate')}
                                 </button>
                                 <button
                                   onClick={() => deleteRow(r.id)}

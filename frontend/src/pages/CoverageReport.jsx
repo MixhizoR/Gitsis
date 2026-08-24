@@ -18,7 +18,7 @@ export default function CoverageReport() {
 
   // DAL A/B kapsam disi olanlar ozellikle kritik.
   const criticalGaps = cov.uncovered.filter(
-    (r) => r.dal_level === DAL.A || r.dal_level === DAL.B
+    (r) => r.dal_level === DAL.A || r.dal_level === DAL.B,
   ).length
 
   return (
@@ -35,16 +35,28 @@ export default function CoverageReport() {
         <div className="card flex flex-col justify-center gap-3 p-6 lg:col-span-2">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{cov.total}</div>
-              <div className="mt-1 text-xs font-medium uppercase text-slate-400">{t('cov.coverable')}</div>
+              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">
+                {cov.total}
+              </div>
+              <div className="mt-1 text-xs font-medium uppercase text-slate-400">
+                {t('cov.coverable')}
+              </div>
             </div>
             <div>
-              <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{cov.coveredCount}</div>
-              <div className="mt-1 text-xs font-medium uppercase text-slate-400">{t('cov.covered')}</div>
+              <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                {cov.coveredCount}
+              </div>
+              <div className="mt-1 text-xs font-medium uppercase text-slate-400">
+                {t('cov.covered')}
+              </div>
             </div>
             <div>
-              <div className="text-3xl font-extrabold text-rose-600 dark:text-rose-400">{cov.uncoveredCount}</div>
-              <div className="mt-1 text-xs font-medium uppercase text-slate-400">{t('cov.uncovered')}</div>
+              <div className="text-3xl font-extrabold text-rose-600 dark:text-rose-400">
+                {cov.uncoveredCount}
+              </div>
+              <div className="mt-1 text-xs font-medium uppercase text-slate-400">
+                {t('cov.uncovered')}
+              </div>
             </div>
           </div>
           {criticalGaps > 0 && (
@@ -95,14 +107,22 @@ export default function CoverageReport() {
                         </span>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <div className="font-semibold text-slate-800 dark:text-slate-100">{r.title}</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">
+                          {r.title}
+                        </div>
                         <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
                           {r.description}
                         </div>
                       </td>
-                      <td className="px-4 py-3 align-top"><TypeBadge value={r.type} /></td>
-                      <td className="px-4 py-3 align-top"><StatusBadge value={r.status} /></td>
-                      <td className="px-4 py-3 align-top"><DalBadge value={r.dal_level} /></td>
+                      <td className="px-4 py-3 align-top">
+                        <TypeBadge value={r.type} />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <StatusBadge value={r.status} />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <DalBadge value={r.dal_level} />
+                      </td>
                       <td className="px-4 py-3 align-top">
                         <span
                           className={

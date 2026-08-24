@@ -45,8 +45,15 @@ export default function GlossaryForm({ open, onClose, editing }) {
       subtitle={isEdit ? editing?.text_id : t('glo.fill')}
       footer={
         <>
-          <button type="button" onClick={onClose} className="btn-secondary">{t('form.cancel')}</button>
-          <button type="submit" form="glo-form" disabled={saving} className="btn-primary disabled:opacity-60">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            {t('form.cancel')}
+          </button>
+          <button
+            type="submit"
+            form="glo-form"
+            disabled={saving}
+            className="btn-primary disabled:opacity-60"
+          >
             {saving ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.create')}
           </button>
         </>
@@ -60,11 +67,21 @@ export default function GlossaryForm({ open, onClose, editing }) {
         )}
         <div>
           <label className="label">{t('glo.term')}</label>
-          <input className="input" value={form.term} onChange={set('term')} placeholder={t('glo.termPh')} />
+          <input
+            className="input"
+            value={form.term}
+            onChange={set('term')}
+            placeholder={t('glo.termPh')}
+          />
         </div>
         <div>
           <label className="label">{t('glo.definition')}</label>
-          <textarea className="input min-h-[96px] resize-y" value={form.definition} onChange={set('definition')} placeholder={t('glo.definitionPh')} />
+          <textarea
+            className="input min-h-[96px] resize-y"
+            value={form.definition}
+            onChange={set('definition')}
+            placeholder={t('glo.definitionPh')}
+          />
         </div>
       </form>
     </Modal>

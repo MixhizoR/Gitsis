@@ -63,10 +63,7 @@ describe('buildImpactTree', () => {
   })
 
   it('veri hatasindan kaynaklanan dongude sonsuz donguye girmez', () => {
-    const cyclic = [
-      req('REQ-A', REQ_TYPE.SYSTEM),
-      req('REQ-B', REQ_TYPE.SOFTWARE),
-    ]
+    const cyclic = [req('REQ-A', REQ_TYPE.SYSTEM), req('REQ-B', REQ_TYPE.SOFTWARE)]
     const cyclicLinks = [
       { id: 'L1', type: LINK_TYPE.SATISFIES, fromId: 'REQ-A', toId: 'REQ-B' },
       { id: 'L2', type: LINK_TYPE.SATISFIES, fromId: 'REQ-B', toId: 'REQ-A' },

@@ -43,7 +43,8 @@ export default function AuditLogPage() {
       {/* Filtre cubugu */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-slate-500 dark:text-slate-400">
-          <span className="font-bold text-slate-800 dark:text-slate-100">{filtered.length}</span> {t('audit.recordsSuffix')}
+          <span className="font-bold text-slate-800 dark:text-slate-100">{filtered.length}</span>{' '}
+          {t('audit.recordsSuffix')}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative min-w-[220px]">
@@ -57,10 +58,16 @@ export default function AuditLogPage() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <select className="input !py-1.5 text-sm" value={action} onChange={(e) => setAction(e.target.value)}>
+          <select
+            className="input !py-1.5 text-sm"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+          >
             <option value="">{t('audit.allActions')}</option>
             {ACTIONS.map((a) => (
-              <option key={a} value={a}>{a}</option>
+              <option key={a} value={a}>
+                {a}
+              </option>
             ))}
           </select>
         </div>
@@ -92,10 +99,14 @@ export default function AuditLogPage() {
                       {formatDateTime(e.timestamp)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 align-top">
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">{e.user}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        {e.user}
+                      </span>
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${ACTION_STYLES[e.action] || ACTION_STYLES.SEED}`}>
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-bold ${ACTION_STYLES[e.action] || ACTION_STYLES.SEED}`}
+                      >
                         {e.action}
                       </span>
                     </td>

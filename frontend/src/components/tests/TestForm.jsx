@@ -101,14 +101,19 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? t('test.editTitle') : (pageConfig?.addLabel || t('test.newTitle'))}
+      title={isEdit ? t('test.editTitle') : pageConfig?.addLabel || t('test.newTitle')}
       subtitle={isEdit ? editing?.text_id : t('test.fill')}
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary">
             {t('form.cancel')}
           </button>
-          <button type="submit" form="test-form" disabled={saving} className="btn-primary disabled:opacity-60">
+          <button
+            type="submit"
+            form="test-form"
+            disabled={saving}
+            className="btn-primary disabled:opacity-60"
+          >
             {saving ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.create')}
           </button>
         </>
@@ -124,7 +129,12 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label className="label">{t('form.titleLabel')}</label>
-            <input className="input" value={form.title} onChange={set('title')} placeholder={t('test.titlePh')} />
+            <input
+              className="input"
+              value={form.title}
+              onChange={set('title')}
+              placeholder={t('test.titlePh')}
+            />
           </div>
           <div>
             <label className="label">{t('form.type')}</label>
@@ -161,7 +171,9 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             <select className="input" value={form.field} onChange={set('field')}>
               <option value="">{t('form.fieldNone')}</option>
               {fields.map((f) => (
-                <option key={f.id} value={f.name}>{f.name}</option>
+                <option key={f.id} value={f.name}>
+                  {f.name}
+                </option>
               ))}
             </select>
           </div>
@@ -169,7 +181,9 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             <label className="label">{t('form.priority')}</label>
             <select className="input" value={form.priority} onChange={set('priority')}>
               {PRIORITIES.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
           </div>
@@ -177,7 +191,9 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             <label className="label">{t('form.dal')}</label>
             <select className="input" value={form.dal_level} onChange={set('dal_level')}>
               {DAL_LEVELS.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d} value={d}>
+                  {d}
+                </option>
               ))}
             </select>
           </div>
@@ -185,7 +201,9 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             <label className="label">{t('tbl.th.testResult')}</label>
             <select className="input" value={form.status} onChange={set('status')}>
               {TEST_STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{TEST_STATUS_LABELS[s]}</option>
+                <option key={s} value={s}>
+                  {TEST_STATUS_LABELS[s]}
+                </option>
               ))}
             </select>
           </div>

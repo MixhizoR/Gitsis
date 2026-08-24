@@ -38,31 +38,44 @@ export function useUndoableDelete(commitFn, { seconds = 5 } = {}) {
     pendingRef.current = null
     setPending(null)
     if (p && p.ids.length) {
-      try { await commitRef.current(p.ids) } catch { /* sessiz: refresh zaten calisir */ }
+      try {
+        await commitRef.current(p.ids)
+      } catch {
+        /* sessiz: refresh zaten calisir */
+      }
     }
   }, [clearTimers])
 
   // Yeni bir soft-delete zamanla.
-  const schedule = useCallback(async (ids, meta = {}) => {
-    if (!ids || ids.length === 0) return
-    // Onceki bekleyen varsa hemen isle.
-    if (pendingRef.current) {
-      const prev = pendingRef.current
-      clearTimers()
-      pendingRef.current = null
-      if (prev.ids.length) {
-        try { await commitRef.current(prev.ids) } catch { /* yut */ }
+  const schedule = useCallback(
+    async (ids, meta = {}) => {
+      if (!ids || ids.length === 0) return
+      // Onceki bekleyen varsa hemen isle.
+      if (pendingRef.current) {
+        const prev = pendingRef.current
+        clearTimers()
+        pendingRef.current = null
+        if (prev.ids.length) {
+          try {
+            await commitRef.current(prev.ids)
+          } catch {
+            /* yut */
+          }
+        }
       }
-    }
-    const p = { ids: [...ids], ...meta }
-    pendingRef.current = p
-    setPending(p)
-    setSecondsLeft(seconds)
-    intervalRef.current = setInterval(() => {
-      setSecondsLeft((s) => (s > 1 ? s - 1 : s))
-    }, 1000)
-    timeoutRef.current = setTimeout(() => { commitNow() }, seconds * 1000)
-  }, [seconds, clearTimers, commitNow])
+      const p = { ids: [...ids], ...meta }
+      pendingRef.current = p
+      setPending(p)
+      setSecondsLeft(seconds)
+      intervalRef.current = setInterval(() => {
+        setSecondsLeft((s) => (s > 1 ? s - 1 : s))
+      }, 1000)
+      timeoutRef.current = setTimeout(() => {
+        commitNow()
+      }, seconds * 1000)
+    },
+    [seconds, clearTimers, commitNow],
+  )
 
   // Geri al: hicbir sey silme.
   const undo = useCallback(() => {
@@ -72,12 +85,21 @@ export function useUndoableDelete(commitFn, { seconds = 5 } = {}) {
   }, [clearTimers])
 
   // Unmount olursa bekleyeni kaybetme; hemen isle.
-  useEffect(() => () => {
-    const p = pendingRef.current
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    if (p && p.ids.length) { try { commitRef.current(p.ids) } catch { /* yut */ } }
-  }, [])
+  useEffect(
+    () => () => {
+      const p = pendingRef.current
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (p && p.ids.length) {
+        try {
+          commitRef.current(p.ids)
+        } catch {
+          /* yut */
+        }
+      }
+    },
+    [],
+  )
 
   return {
     pending,

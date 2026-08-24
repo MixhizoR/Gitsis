@@ -7,7 +7,16 @@ import { truncate } from '../../utils/format.js'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { COVERABLE_TYPES } from '../../utils/constants.js'
 
-export default function RequirementsTable({ rows, linkCountFor, isUncovered, onEdit, onDelete, onManageLinks, canManageLinks, canDelete }) {
+export default function RequirementsTable({
+  rows,
+  linkCountFor,
+  isUncovered,
+  onEdit,
+  onDelete,
+  onManageLinks,
+  canManageLinks,
+  canDelete,
+}) {
   const { t } = useLang()
   if (rows.length === 0) {
     return (
@@ -66,11 +75,21 @@ export default function RequirementsTable({ rows, linkCountFor, isUncovered, onE
                       {truncate(r.description, 110)}
                     </div>
                   </td>
-                  <td className="px-4 py-3 align-top"><TypeBadge value={r.type} /></td>
-                  <td className="px-4 py-3 align-top"><CategoryBadge value={r.category} /></td>
-                  <td className="px-4 py-3 align-top"><PriorityBadge value={r.priority} /></td>
-                  <td className="px-4 py-3 align-top"><StatusBadge value={r.status} /></td>
-                  <td className="px-4 py-3 align-top"><DalBadge value={r.dal_level} /></td>
+                  <td className="px-4 py-3 align-top">
+                    <TypeBadge value={r.type} />
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <CategoryBadge value={r.category} />
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <PriorityBadge value={r.priority} />
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <StatusBadge value={r.status} />
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    <DalBadge value={r.dal_level} />
+                  </td>
                   <td className="px-4 py-3 text-center align-top">
                     <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-bold tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                       {linkCountFor(r.id)}

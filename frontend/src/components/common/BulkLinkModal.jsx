@@ -10,11 +10,7 @@ import { useMemo, useState, useEffect } from 'react'
 import Modal from './Modal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import {
-  LINK_TYPE,
-  SATISFIES_PARENT_OF,
-  VERIFIES_TARGET_TYPES,
-} from '../../utils/constants.js'
+import { LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES } from '../../utils/constants.js'
 import { IconLink } from './Icons.jsx'
 
 export default function BulkLinkModal({ open, onClose, subjectKind, sources = [], onDone }) {
@@ -25,14 +21,19 @@ export default function BulkLinkModal({ open, onClose, subjectKind, sources = []
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (open) { setTargetId(''); setError('') }
+    if (open) {
+      setTargetId('')
+      setError('')
+    }
   }, [open, sources])
 
   const config = useMemo(() => {
     if (!sources || sources.length === 0) return null
 
     if (subjectKind === 'requirement') {
-      const parentTypes = [...new Set(sources.map((s) => SATISFIES_PARENT_OF[s.type]).filter(Boolean))]
+      const parentTypes = [
+        ...new Set(sources.map((s) => SATISFIES_PARENT_OF[s.type]).filter(Boolean)),
+      ]
       if (parentTypes.length !== 1) return { unavailable: true } // User (tepe) vb.
       const parentType = parentTypes[0]
       return {
@@ -97,7 +98,9 @@ export default function BulkLinkModal({ open, onClose, subjectKind, sources = []
       maxWidth="max-w-lg"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <button onClick={onClose} className="btn-secondary">{t('link.close')}</button>
+          <button onClick={onClose} className="btn-secondary">
+            {t('link.close')}
+          </button>
           <button
             onClick={handleSubmit}
             disabled={busy || !targetId || config?.unavailable}
@@ -126,17 +129,24 @@ export default function BulkLinkModal({ open, onClose, subjectKind, sources = []
 
           <div>
             <label className="label">{t('link.targetLabel')}</label>
-            <select className="input !py-1.5 text-sm" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+            <select
+              className="input !py-1.5 text-sm"
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+            >
               <option value="">{t('link.select')}</option>
               {config.candidates.map((r) => (
-                <option key={r.id} value={r.id}>{r.text_id} — {r.title}</option>
+                <option key={r.id} value={r.id}>
+                  {r.text_id} — {r.title}
+                </option>
               ))}
             </select>
             {config.candidates.length === 0 && (
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('link.noCandidates')}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {t('link.noCandidates')}
+              </p>
             )}
           </div>
-
         </div>
       )}
     </Modal>

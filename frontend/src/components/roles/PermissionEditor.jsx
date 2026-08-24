@@ -15,9 +15,13 @@ function normalize(perms) {
   for (const def of PERMISSION_DEFS) {
     const p = perms[def.key]
     if (!p) continue
-    base[def.key] = def.scope === 'toggle'
-      ? { enabled: Boolean(p.enabled) }
-      : { enabled: Boolean(p.enabled), components: Array.isArray(p.components) ? [...p.components] : [] }
+    base[def.key] =
+      def.scope === 'toggle'
+        ? { enabled: Boolean(p.enabled) }
+        : {
+            enabled: Boolean(p.enabled),
+            components: Array.isArray(p.components) ? [...p.components] : [],
+          }
   }
   return base
 }
@@ -32,7 +36,9 @@ function Toggle({ on, onChange }) {
       }`}
       aria-pressed={on}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`}
+      />
     </button>
   )
 }
@@ -45,8 +51,7 @@ export default function PermissionEditor({ open, role, onClose, onSave }) {
     if (open) setPerms(normalize(role?.permissions))
   }, [open, role])
 
-  const setEnabled = (key, on) =>
-    setPerms((p) => ({ ...p, [key]: { ...p[key], enabled: on } }))
+  const setEnabled = (key, on) => setPerms((p) => ({ ...p, [key]: { ...p[key], enabled: on } }))
 
   const toggleComponent = (key, compKey) =>
     setPerms((p) => {
@@ -56,7 +61,10 @@ export default function PermissionEditor({ open, role, onClose, onSave }) {
     })
 
   const setAllComponents = (key, comps, all) =>
-    setPerms((p) => ({ ...p, [key]: { ...p[key], components: all ? comps.map((c) => c.key) : [] } }))
+    setPerms((p) => ({
+      ...p,
+      [key]: { ...p[key], components: all ? comps.map((c) => c.key) : [] },
+    }))
 
   const handleSave = async () => {
     setSaving(true)
@@ -79,8 +87,14 @@ export default function PermissionEditor({ open, role, onClose, onSave }) {
       maxWidth="max-w-3xl"
       footer={
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-secondary">İptal</button>
-          <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-60">
+          <button onClick={onClose} className="btn-secondary">
+            İptal
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary disabled:opacity-60"
+          >
             <IconCheck size={16} /> {saving ? 'Kaydediliyor…' : 'Kaydet'}
           </button>
         </div>
@@ -94,14 +108,19 @@ export default function PermissionEditor({ open, role, onClose, onSave }) {
           const selected = state.components || []
           const allOn = hasPanel && comps.length > 0 && comps.every((c) => selected.includes(c.key))
           return (
-            <div key={def.key} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <div
+              key={def.key}
+              className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-100 text-[11px] font-bold text-brand-700 dark:bg-brand-900/40 dark:text-brand-300">
                       {def.num}
                     </span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">{def.label}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      {def.label}
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{def.desc}</p>
                 </div>
@@ -111,7 +130,9 @@ export default function PermissionEditor({ open, role, onClose, onSave }) {
               {hasPanel && state.enabled && (
                 <div className="mt-3 rounded-lg bg-slate-50 p-2.5 dark:bg-slate-800/50">
                   <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kapsam bileşenleri</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Kapsam bileşenleri
+                    </span>
                     <button
                       type="button"
                       onClick={() => setAllComponents(def.key, comps, !allOn)}

@@ -50,7 +50,7 @@ http.interceptors.response.use(
       }
     }
     return Promise.reject(err)
-  }
+  },
 )
 
 // Hata mesajlarini backend'in {error} govdesinden okunakli hale getir.

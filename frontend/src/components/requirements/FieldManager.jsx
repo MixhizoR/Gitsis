@@ -18,7 +18,8 @@ export default function FieldManager({ open, onClose }) {
   const handleAdd = async (e) => {
     e.preventDefault()
     if (!name.trim()) return
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
       await addField(name.trim())
       setName('')
@@ -31,7 +32,8 @@ export default function FieldManager({ open, onClose }) {
 
   const handleRemove = async (f) => {
     if (!window.confirm(t('field.deleteConfirm', { name: f.name }))) return
-    setBusy(true); setError('')
+    setBusy(true)
+    setError('')
     try {
       await removeField(f.id)
     } catch (err) {
@@ -47,7 +49,11 @@ export default function FieldManager({ open, onClose }) {
       onClose={onClose}
       title={t('field.title')}
       subtitle={t('field.subtitle')}
-      footer={<button onClick={onClose} className="btn-secondary">{t('link.close')}</button>}
+      footer={
+        <button onClick={onClose} className="btn-secondary">
+          {t('link.close')}
+        </button>
+      }
     >
       <div className="space-y-4">
         {error && (
@@ -58,20 +64,36 @@ export default function FieldManager({ open, onClose }) {
         <form onSubmit={handleAdd} className="flex items-end gap-2.5">
           <div className="flex-1">
             <label className="label">{t('field.newLabel')}</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('field.newPh')} />
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('field.newPh')}
+            />
           </div>
-          <button type="submit" disabled={busy || !name.trim()} className="btn-primary disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={busy || !name.trim()}
+            className="btn-primary disabled:opacity-50"
+          >
             <IconPlus size={16} /> {t('field.add')}
           </button>
         </form>
 
         {fields.length === 0 ? (
-          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 dark:bg-slate-800/50">{t('field.empty')}</p>
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 dark:bg-slate-800/50">
+            {t('field.empty')}
+          </p>
         ) : (
           <ul className="space-y-1.5">
             {fields.map((f) => (
-              <li key={f.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{f.name}</span>
+              <li
+                key={f.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              >
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  {f.name}
+                </span>
                 <button
                   onClick={() => handleRemove(f)}
                   disabled={busy}

@@ -61,7 +61,7 @@ async function readPdfText(file) {
   } catch {
     throw new Error(
       'PDF okuma kutuphanesi yuklenemedi (cevrimdisi olabilirsiniz). ' +
-      'Lutfen belgenin metnini kopyalayip asagidaki alana yapistirin ya da .txt / .md dosyasi kullanin.'
+        'Lutfen belgenin metnini kopyalayip asagidaki alana yapistirin ya da .txt / .md dosyasi kullanin.',
     )
   }
   const buf = await file.arrayBuffer()
@@ -120,9 +120,11 @@ export function splitSegments(text) {
 //  3) GEREKSINIM TESPITI + SINIFLANDIRMA
 // ---------------------------------------------------------------------------
 
-const OBLIGATION_RE = /\b(olmal[iı]d[iı]r|olmal[iı]|zorunludur|gereklidir|gerekir|sa[gğ]lanmal[iı]d[iı]r|yap[iı]lmal[iı]d[iı]r|edilmelidir|verilmelidir|desteklemelidir|i[çc]ermelidir|gostermelidir|g[oö]stermelidir|korumalidir|korumal[iı]d[iı]r|islemelidir|i[şs]lemelidir|sunmal[iı]d[iı]r|tutmal[iı]d[iı]r|shall|must|is\s+required)\b/i
+const OBLIGATION_RE =
+  /\b(olmal[iı]d[iı]r|olmal[iı]|zorunludur|gereklidir|gerekir|sa[gğ]lanmal[iı]d[iı]r|yap[iı]lmal[iı]d[iı]r|edilmelidir|verilmelidir|desteklemelidir|i[çc]ermelidir|gostermelidir|g[oö]stermelidir|korumalidir|korumal[iı]d[iı]r|islemelidir|i[şs]lemelidir|sunmal[iı]d[iı]r|tutmal[iı]d[iı]r|shall|must|is\s+required)\b/i
 const REQCODE_RE = /\bREQ[-_ ]?[A-Z]{1,4}[-_ ]?\d{1,4}\b/i
-const MEASURE_RE = /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|yuzde|kullanici|istek|nit|db|volt|v\b|bar|°c|metre|m\b|kbit|cekirdek|core)/i
+const MEASURE_RE =
+  /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|yuzde|kullanici|istek|nit|db|volt|v\b|bar|°c|metre|m\b|kbit|cekirdek|core)/i
 
 /** Bir segmentin gereksinim niteligi tasiyip tasimadigini soyler. */
 function looksLikeRequirement(seg) {
@@ -134,8 +136,14 @@ function looksLikeRequirement(seg) {
 }
 
 const TYPE_KEYWORDS = [
-  { type: REQ_TYPE.TEST_CASE, re: /\b(test|senaryo|dogrula|do[gğ]rula|olc[uü]l[uü]r|enjekte|verify|verifi|kabul kriteri)\b/i },
-  { type: REQ_TYPE.HARDWARE, re: /\b(donanim|donan[iı]m|devre|kart|islemci|i[şs]lemci|sensor|sens[oö]r|batarya|kablo|cip|[çc]ip|hoparlor|ekran donanim|blendaj|fiziksel|gerilim|guc kayna|g[uü][çc] kayna)\b/i },
+  {
+    type: REQ_TYPE.TEST_CASE,
+    re: /\b(test|senaryo|dogrula|do[gğ]rula|olc[uü]l[uü]r|enjekte|verify|verifi|kabul kriteri)\b/i,
+  },
+  {
+    type: REQ_TYPE.HARDWARE,
+    re: /\b(donanim|donan[iı]m|devre|kart|islemci|i[şs]lemci|sensor|sens[oö]r|batarya|kablo|cip|[çc]ip|hoparlor|ekran donanim|blendaj|fiziksel|gerilim|guc kayna|g[uü][çc] kayna)\b/i,
+  },
   { type: REQ_TYPE.SYSTEM, re: /\b(sistem|sistemin)\b/i },
 ]
 
@@ -148,13 +156,34 @@ export function guessType(seg) {
 }
 
 const CATEGORY_KEYWORDS = [
-  { cat: CATEGORY.HMI, re: /\b(aray[uü]z|arayuz|ekran|buton|menu|men[uü]|renk|pilot.*g[oö]ster|g[oö]rsel|hmi|gosterge|g[oö]sterge|tema|alarm|uyari|uyar[iı]|kullanici dostu|ses)/i },
-  { cat: CATEGORY.DATABASE, re: /\b(veritaban|veri taban|kay[iı]t|kaydet|sakla|depola|database|sql|tablo|indeks|sorgu|tampon|sikistir|s[iı]k[iı][şs]t[iı]r)/i },
-  { cat: CATEGORY.SERVER, re: /\b(sunucu|server|rest|api|telemetri|istemci|client|oturum|yayin|yay[iı]n|backend|servis|yuk|y[uü]k)/i },
-  { cat: CATEGORY.COMMS, re: /\b(haberlesme|haberle[şs]me|paket|crc|arinc|iletim|protokol|veri yolu|bus|baglanti|ba[gğ]lant[iı]|mesaj)/i },
-  { cat: CATEGORY.SAFETY, re: /\b(guvenli|g[uü]venli|yetki|parola|sifre|[şs]ifre|kimlik|ariza|ar[iı]za|fdir|emniyet|denetim|audit|rol|kisitla|k[iı]s[iı]tla)/i },
-  { cat: CATEGORY.PERFORMANCE, re: /\b(\d+\s*(ms|sn|saniye|hz|mhz|ghz)|gecikme|tepki s[uü]re|performans|h[iı]z|throughput|jitter|periyot)/i },
-  { cat: CATEGORY.HARDWARE, re: /\b(donanim|donan[iı]m|devre|islemci|i[şs]lemci|sensor|sens[oö]r|batarya|guc|g[uü][çc]|kablo|blendaj|nit|volt)/i },
+  {
+    cat: CATEGORY.HMI,
+    re: /\b(aray[uü]z|arayuz|ekran|buton|menu|men[uü]|renk|pilot.*g[oö]ster|g[oö]rsel|hmi|gosterge|g[oö]sterge|tema|alarm|uyari|uyar[iı]|kullanici dostu|ses)/i,
+  },
+  {
+    cat: CATEGORY.DATABASE,
+    re: /\b(veritaban|veri taban|kay[iı]t|kaydet|sakla|depola|database|sql|tablo|indeks|sorgu|tampon|sikistir|s[iı]k[iı][şs]t[iı]r)/i,
+  },
+  {
+    cat: CATEGORY.SERVER,
+    re: /\b(sunucu|server|rest|api|telemetri|istemci|client|oturum|yayin|yay[iı]n|backend|servis|yuk|y[uü]k)/i,
+  },
+  {
+    cat: CATEGORY.COMMS,
+    re: /\b(haberlesme|haberle[şs]me|paket|crc|arinc|iletim|protokol|veri yolu|bus|baglanti|ba[gğ]lant[iı]|mesaj)/i,
+  },
+  {
+    cat: CATEGORY.SAFETY,
+    re: /\b(guvenli|g[uü]venli|yetki|parola|sifre|[şs]ifre|kimlik|ariza|ar[iı]za|fdir|emniyet|denetim|audit|rol|kisitla|k[iı]s[iı]tla)/i,
+  },
+  {
+    cat: CATEGORY.PERFORMANCE,
+    re: /\b(\d+\s*(ms|sn|saniye|hz|mhz|ghz)|gecikme|tepki s[uü]re|performans|h[iı]z|throughput|jitter|periyot)/i,
+  },
+  {
+    cat: CATEGORY.HARDWARE,
+    re: /\b(donanim|donan[iı]m|devre|islemci|i[şs]lemci|sensor|sens[oö]r|batarya|guc|g[uü][çc]|kablo|blendaj|nit|volt)/i,
+  },
 ]
 
 /** Segmentin ALAN (kategori/disiplin) tahminini yapar. */
@@ -208,7 +237,11 @@ export function analyzeDocument(text) {
     const quality = analyzeRequirement({ title: '', description: seg })
     // Oncelik: dusuk kaliteli/kritik kelimeli olanlara gore basit kural.
     const isCritical = /\b(kritik|guvenli|g[uü]venli|ariza|ar[iı]za|acil|emniyet)\b/i.test(seg)
-    const priority = isCritical ? PRIORITY.HIGH : MEASURE_RE.test(seg) ? PRIORITY.MEDIUM : PRIORITY.LOW
+    const priority = isCritical
+      ? PRIORITY.HIGH
+      : MEASURE_RE.test(seg)
+        ? PRIORITY.MEDIUM
+        : PRIORITY.LOW
 
     requirements.push({
       id: ++idSeq,
@@ -243,9 +276,7 @@ function summarize(segments, requirements) {
       return acc
     }, {})
 
-  const avgScore = n
-    ? Math.round(requirements.reduce((s, r) => s + r.quality.score, 0) / n)
-    : 0
+  const avgScore = n ? Math.round(requirements.reduce((s, r) => s + r.quality.score, 0) / n) : 0
 
   const measurable = requirements.filter((r) => MEASURE_RE.test(r.raw)).length
   const vague = requirements.filter((r) => r.quality.vagueWords.length > 0).length
@@ -255,28 +286,30 @@ function summarize(segments, requirements) {
   if (n === 0) {
     recommendations.push(
       'Belgede "olmalidir / zorunludur / shall" gibi zorunluluk dili tasiyan net bir gereksinim cumlesi bulunamadi. ' +
-      'Cumleleri DO-178C shall-diliyle yeniden yazmaniz onerilir.'
+        'Cumleleri DO-178C shall-diliyle yeniden yazmaniz onerilir.',
     )
   } else {
     if (measurable / n < 0.5) {
       recommendations.push(
         `Gereksinimlerin yalnizca %${Math.round((measurable / n) * 100)}'i olculebilir bir kriter iceriyor. ` +
-        'Sure, esik veya yuzde gibi sayisal degerler ekleyin (orn. "200 ms icinde").'
+          'Sure, esik veya yuzde gibi sayisal degerler ekleyin (orn. "200 ms icinde").',
       )
     }
     if (vague > 0) {
       recommendations.push(
         `${vague} gereksinimde mugla ifade (orn. "hizli", "kullanici dostu") tespit edildi. ` +
-        'Bunlar test edilebilir degildir; netlestirilmelidir.'
+          'Bunlar test edilebilir degildir; netlestirilmelidir.',
       )
     }
     if (weak > 0) {
       recommendations.push(
-        `${weak} gereksinim "test edilemez" olarak isaretlendi. Iceri aktarmadan once gozden gecirin.`
+        `${weak} gereksinim "test edilemez" olarak isaretlendi. Iceri aktarmadan once gozden gecirin.`,
       )
     }
     if (recommendations.length === 0) {
-      recommendations.push('Belge genel olarak iyi yapilandirilmis; cikarilan gereksinimler iceri aktarmaya hazirdir.')
+      recommendations.push(
+        'Belge genel olarak iyi yapilandirilmis; cikarilan gereksinimler iceri aktarmaya hazirdir.',
+      )
     }
   }
 

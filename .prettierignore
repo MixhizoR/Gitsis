@@ -14,3 +14,8 @@ prisma/migrations/
 # Python koprusu ayri bir formata tabidir
 ai-bridge/
 scripts/
+
+# El yazimi dokumanlar ve altyapi tanimlari (prose bozulmasin)
+*.md
+docker-compose.yml
+.github/

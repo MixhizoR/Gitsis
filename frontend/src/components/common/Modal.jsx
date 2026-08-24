@@ -4,7 +4,15 @@
 import { useEffect } from 'react'
 import { IconClose } from './Icons.jsx'
 
-export default function Modal({ open, onClose, title, subtitle, children, footer, maxWidth = 'max-w-2xl' }) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+  maxWidth = 'max-w-2xl',
+}) {
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onClose?.()
@@ -37,7 +45,11 @@ export default function Modal({ open, onClose, title, subtitle, children, footer
               <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
             )}
           </div>
-          <button onClick={onClose} className="btn-ghost -mr-2 -mt-1 rounded-lg p-2" aria-label="Kapat">
+          <button
+            onClick={onClose}
+            className="btn-ghost -mr-2 -mt-1 rounded-lg p-2"
+            aria-label="Kapat"
+          >
             <IconClose size={20} />
           </button>
         </div>

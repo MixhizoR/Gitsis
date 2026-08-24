@@ -21,16 +21,19 @@ export const deleteField = (pid, id) => api.del(`/projects/${pid}/fields/${id}`)
 // --- Gereksinimler ----------------------------------------------------------
 export const listRequirements = (pid) => api.get(`/projects/${pid}/requirements`)
 export const createRequirement = (pid, data) => api.post(`/projects/${pid}/requirements`, data)
-export const updateRequirement = (pid, id, data) => api.put(`/projects/${pid}/requirements/${id}`, data)
+export const updateRequirement = (pid, id, data) =>
+  api.put(`/projects/${pid}/requirements/${id}`, data)
 export const deleteRequirement = (pid, id) => api.del(`/projects/${pid}/requirements/${id}`)
-export const bulkDeleteRequirements = (pid, ids) => api.post(`/projects/${pid}/requirements/batch-delete`, { ids })
+export const bulkDeleteRequirements = (pid, ids) =>
+  api.post(`/projects/${pid}/requirements/batch-delete`, { ids })
 
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)
 export const createTestCase = (pid, data) => api.post(`/projects/${pid}/testcases`, data)
 export const updateTestCase = (pid, id, data) => api.put(`/projects/${pid}/testcases/${id}`, data)
 export const deleteTestCase = (pid, id) => api.del(`/projects/${pid}/testcases/${id}`)
-export const bulkDeleteTestCases = (pid, ids) => api.post(`/projects/${pid}/testcases/batch-delete`, { ids })
+export const bulkDeleteTestCases = (pid, ids) =>
+  api.post(`/projects/${pid}/testcases/batch-delete`, { ids })
 
 // --- Izlenebilirlik baglari -------------------------------------------------
 export const listLinks = (pid) => api.get(`/projects/${pid}/links`)
@@ -43,7 +46,8 @@ export const listGlossary = (pid) => api.get(`/projects/${pid}/glossary`)
 export const createGlossary = (pid, data) => api.post(`/projects/${pid}/glossary`, data)
 export const updateGlossary = (pid, id, data) => api.put(`/projects/${pid}/glossary/${id}`, data)
 export const deleteGlossary = (pid, id) => api.del(`/projects/${pid}/glossary/${id}`)
-export const bulkDeleteGlossary = (pid, ids) => api.post(`/projects/${pid}/glossary/batch-delete`, { ids })
+export const bulkDeleteGlossary = (pid, ids) =>
+  api.post(`/projects/${pid}/glossary/batch-delete`, { ids })
 
 // --- Roller (dinamik roller + 12 kademeli izin) -----------------------------
 export const listRoles = (pid) => api.get(`/projects/${pid}/roles`)

@@ -84,7 +84,7 @@ export default function App() {
           {page === 'glossary' && <Glossary />}
           {page === 'traceability' && <Traceability projectId={activeProjectId} />}
           {page === 'traceability-export' && <TraceabilityPage projectId={activeProjectId} />}
-          {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId}/>}
+          {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}
           {page === 'coverage' && <CoverageReport onNavigate={setPage} />}
           {page === 'documents' && <DocumentAnalysis />}
           {page === 'audit' && <AuditLogPage />}

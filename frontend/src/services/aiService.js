@@ -6,19 +6,28 @@
 
 // --- Muğlak / belirsiz kelime desenleri (DO-178C §6.3b Testability ihlali) -
 const VAGUE_PATTERNS = [
-  { pattern: /\b(h[iı]zl[iı]|yavaş|hızlıca|yavaşça)\b/i,       label: 'hızlı/yavaş' },
-  { pattern: /\b(iyi|güzel|kötü|berbat|süper)\b/i,               label: 'iyi/kötü/güzel' },
-  { pattern: /\b(verimli|etkin|etkili|verimsiz)\b/i,             label: 'verimli/etkin' },
-  { pattern: /\b(g[uü][çc]l[uü]|zayıf|güçsüz)\b/i,              label: 'güçlü/zayıf' },
-  { pattern: /\b(güvenilir|kararlı|stabil|güvenilmez)\b/i,       label: 'güvenilir/stabil' },
-  { pattern: /\b(uygun|yeterli|yeterliyse|makul|kabul\s*edilebilir)\b/i, label: 'uygun/yeterli/makul' },
-  { pattern: /\b(modern|gelişmiş|ileri|eski|eskimiş)\b/i,        label: 'modern/gelişmiş' },
-  { pattern: /\b(kolay|basit|karmaşık|zor|simple)\b/i,           label: 'kolay/basit/zor' },
+  { pattern: /\b(h[iı]zl[iı]|yavaş|hızlıca|yavaşça)\b/i, label: 'hızlı/yavaş' },
+  { pattern: /\b(iyi|güzel|kötü|berbat|süper)\b/i, label: 'iyi/kötü/güzel' },
+  { pattern: /\b(verimli|etkin|etkili|verimsiz)\b/i, label: 'verimli/etkin' },
+  { pattern: /\b(g[uü][çc]l[uü]|zayıf|güçsüz)\b/i, label: 'güçlü/zayıf' },
+  { pattern: /\b(güvenilir|kararlı|stabil|güvenilmez)\b/i, label: 'güvenilir/stabil' },
+  {
+    pattern: /\b(uygun|yeterli|yeterliyse|makul|kabul\s*edilebilir)\b/i,
+    label: 'uygun/yeterli/makul',
+  },
+  { pattern: /\b(modern|gelişmiş|ileri|eski|eskimiş)\b/i, label: 'modern/gelişmiş' },
+  { pattern: /\b(kolay|basit|karmaşık|zor|simple)\b/i, label: 'kolay/basit/zor' },
   { pattern: /\b(user[\s-]friendly|kullanıcı\s*dostu|sezgisel)\b/i, label: 'user-friendly' },
   { pattern: /\b(büyük|küçük|az|çok|birçok|birkaç|fazla|sınırlı)\b/i, label: 'büyük/küçük/az/çok' },
-  { pattern: /\b(optimal|maksimal|minimal|robust|esnek|flexible)\b/i, label: 'optimal/robust/esnek' },
-  { pattern: /\b(yüksek|düşük|orta)\s+(performans|kalite|seviye)\b/i, label: 'yüksek/düşük performans' },
-  { pattern: /\b(pratik|kullanışlı|işlevsel)\b/i,                label: 'pratik/kullanışlı' },
+  {
+    pattern: /\b(optimal|maksimal|minimal|robust|esnek|flexible)\b/i,
+    label: 'optimal/robust/esnek',
+  },
+  {
+    pattern: /\b(yüksek|düşük|orta)\s+(performans|kalite|seviye)\b/i,
+    label: 'yüksek/düşük performans',
+  },
+  { pattern: /\b(pratik|kullanışlı|işlevsel)\b/i, label: 'pratik/kullanışlı' },
 ]
 
 // --- Ölçülebilirlik desenleri (sayısal kriter varlığı) --------------------
@@ -82,7 +91,7 @@ export function analyzeRequirement({ title = '', description = '' }) {
     score -= Math.min(vagueWords.length * 18, 54)
     messages.push(
       `Muğlak ifade tespit edildi: "${vagueWords.join('", "')}". ` +
-      `DO-178C §6.3 gereği gereksinimler test edilebilir olmalıdır — net ölçüt belirtin (ör: "< 200 ms içinde").`
+        `DO-178C §6.3 gereği gereksinimler test edilebilir olmalıdır — net ölçüt belirtin (ör: "< 200 ms içinde").`,
     )
   }
 
@@ -92,7 +101,7 @@ export function analyzeRequirement({ title = '', description = '' }) {
     score -= 15
     messages.push(
       `Sayısal kriter bulunamadı. Süre, boyut veya eşik değeri eklemeniz önerilir ` +
-      `(ör: "200 ms içinde", "en fazla 3 deneme", "%99,9 uptime").`
+        `(ör: "200 ms içinde", "en fazla 3 deneme", "%99,9 uptime").`,
     )
   }
 
@@ -102,7 +111,7 @@ export function analyzeRequirement({ title = '', description = '' }) {
     score -= 10
     messages.push(
       `Zorunluluk fiili eksik. "olmalıdır", "zorunludur", "sağlanmalıdır" gibi ` +
-      `ifadeler kullanın (DO-178C shall-dili geregi).`
+        `ifadeler kullanın (DO-178C shall-dili geregi).`,
     )
   }
 
@@ -112,7 +121,7 @@ export function analyzeRequirement({ title = '', description = '' }) {
     score -= 10
     messages.push(
       `Birden fazla gereksinim tek cümlede görünüyor. Her gereksinim bağımsız olmalıdır ` +
-      `(DO-178C atomicity kuralı).`
+        `(DO-178C atomicity kuralı).`,
     )
   }
 
@@ -123,10 +132,7 @@ export function analyzeRequirement({ title = '', description = '' }) {
   if (hasVagueAndNoMeasurable || score < 40) {
     return {
       status: 'error',
-      messages: [
-        'Gereksinim test edilebilir değil — lütfen netleştirin.',
-        ...messages,
-      ],
+      messages: ['Gereksinim test edilebilir değil — lütfen netleştirin.', ...messages],
       score,
       vagueWords,
     }
@@ -143,7 +149,10 @@ export function analyzeRequirement({ title = '', description = '' }) {
 
   return {
     status: score >= 75 ? 'ok' : 'warning',
-    messages: messages.length > 0 ? messages : ['Gereksinim genel olarak uygundur, küçük iyileştirmeler önerilebilir.'],
+    messages:
+      messages.length > 0
+        ? messages
+        : ['Gereksinim genel olarak uygundur, küçük iyileştirmeler önerilebilir.'],
     score,
     vagueWords,
   }

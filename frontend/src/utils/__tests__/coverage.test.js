@@ -39,7 +39,9 @@ describe('computeCoverage', () => {
       req('REQ-SYS-001', REQ_TYPE.SYSTEM),
       req('REQ-SW-001', REQ_TYPE.SOFTWARE),
     ]
-    const links = [{ id: 'L1', type: LINK_TYPE.VERIFIES, fromId: 'REQ-USR-001', toId: 'TC-ACC-001' }]
+    const links = [
+      { id: 'L1', type: LINK_TYPE.VERIFIES, fromId: 'REQ-USR-001', toId: 'TC-ACC-001' },
+    ]
 
     const result = computeCoverage(requirements, links)
 
@@ -75,7 +77,9 @@ describe('computeSatisfyCoverage', () => {
       req('REQ-SW-001', REQ_TYPE.SOFTWARE),
     ]
     // Satisfies depolama yonu: from = UST, to = ALT.
-    const links = [{ id: 'L1', type: LINK_TYPE.SATISFIES, fromId: 'REQ-SYS-001', toId: 'REQ-SW-001' }]
+    const links = [
+      { id: 'L1', type: LINK_TYPE.SATISFIES, fromId: 'REQ-SYS-001', toId: 'REQ-SW-001' },
+    ]
 
     const result = computeSatisfyCoverage(requirements, links)
 

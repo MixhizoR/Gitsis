@@ -17,7 +17,8 @@ function enabledCount(permissions) {
 }
 
 export default function Roles() {
-  const { roles, personnel, addRole, removeRole, editRole, addPersonnel, removePersonnel } = useApp()
+  const { roles, personnel, addRole, removeRole, editRole, addPersonnel, removePersonnel } =
+    useApp()
   const { isPM, can } = useAuth()
 
   const [roleName, setRoleName] = useState('')
@@ -45,7 +46,9 @@ export default function Roles() {
     return (
       <div className="card flex flex-col items-center justify-center gap-2 py-16 text-center">
         <IconUsers size={40} className="text-slate-300" />
-        <p className="text-base font-semibold text-slate-600 dark:text-slate-300">Bu sayfaya erişim yetkiniz yok.</p>
+        <p className="text-base font-semibold text-slate-600 dark:text-slate-300">
+          Bu sayfaya erişim yetkiniz yok.
+        </p>
       </div>
     )
   }
@@ -74,7 +77,11 @@ export default function Roles() {
     setErr('')
     setBusy(true)
     try {
-      await addPersonnel({ firstName: pForm.firstName.trim(), lastName: pForm.lastName.trim(), roleId: pForm.roleId })
+      await addPersonnel({
+        firstName: pForm.firstName.trim(),
+        lastName: pForm.lastName.trim(),
+        roleId: pForm.roleId,
+      })
       setPForm({ firstName: '', lastName: '', roleId: pForm.roleId })
     } catch (e2) {
       setErr(e2?.message || 'Personel eklenemedi.')
@@ -88,7 +95,9 @@ export default function Roles() {
       await navigator.clipboard.writeText(code)
       setCopied(code)
       setTimeout(() => setCopied(''), 1500)
-    } catch { /* yoksay */ }
+    } catch {
+      /* yoksay */
+    }
   }
 
   return (
@@ -96,7 +105,8 @@ export default function Roles() {
       <div>
         <h2 className="text-lg font-bold text-slate-900 dark:text-white">Roller ve Personel</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Dinamik roller tanımlayın, 12 kademeli izni yönetin ve personele benzersiz passcode üretin.
+          Dinamik roller tanımlayın, 12 kademeli izni yönetin ve personele benzersiz passcode
+          üretin.
         </p>
       </div>
 
@@ -108,7 +118,9 @@ export default function Roles() {
 
       {/* --- ROLLER --- */}
       <section className="space-y-3">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Roller</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Roller
+        </h3>
 
         <form onSubmit={handleAddRole} className="flex gap-2">
           <input
@@ -117,20 +129,28 @@ export default function Roles() {
             value={roleName}
             onChange={(e) => setRoleName(e.target.value)}
           />
-          <button type="submit" disabled={busy} className="btn-primary shrink-0 disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn-primary shrink-0 disabled:opacity-60"
+          >
             <IconPlus size={18} /> Rol Ekle
           </button>
         </form>
 
         {roles.length === 0 ? (
-          <div className="card py-8 text-center text-sm text-slate-400">Henüz rol tanımlanmadı.</div>
+          <div className="card py-8 text-center text-sm text-slate-400">
+            Henüz rol tanımlanmadı.
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {roles.map((r) => (
               <div key={r.id} className="card flex flex-col gap-2 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-base font-bold text-slate-900 dark:text-white">{r.name}</div>
+                    <div className="text-base font-bold text-slate-900 dark:text-white">
+                      {r.name}
+                    </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400">
                       {enabledCount(r.permissions)} / {PERMISSION_DEFS.length} izin ·{' '}
                       {personnelCountByRole[r.id] || 0} personel
@@ -144,7 +164,10 @@ export default function Roles() {
                     <IconTrash size={16} />
                   </button>
                 </div>
-                <button onClick={() => setEditing(r)} className="btn-secondary mt-1 w-full justify-center text-xs">
+                <button
+                  onClick={() => setEditing(r)}
+                  className="btn-secondary mt-1 w-full justify-center text-xs"
+                >
                   İzinleri Yönet
                 </button>
               </div>
@@ -155,7 +178,9 @@ export default function Roles() {
 
       {/* --- PERSONEL --- */}
       <section className="space-y-3">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Personel &amp; Passcode</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Personel &amp; Passcode
+        </h3>
 
         <form onSubmit={handleAddPersonnel} className="grid grid-cols-1 gap-2 sm:grid-cols-4">
           <input
@@ -177,16 +202,24 @@ export default function Roles() {
           >
             <option value="">Rol seçin…</option>
             {roles.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
             ))}
           </select>
-          <button type="submit" disabled={busy || roles.length === 0} className="btn-primary shrink-0 justify-center disabled:opacity-60">
+          <button
+            type="submit"
+            disabled={busy || roles.length === 0}
+            className="btn-primary shrink-0 justify-center disabled:opacity-60"
+          >
             <IconKey size={16} /> Passcode Oluştur
           </button>
         </form>
 
         {personnel.length === 0 ? (
-          <div className="card py-8 text-center text-sm text-slate-400">Henüz personel eklenmedi.</div>
+          <div className="card py-8 text-center text-sm text-slate-400">
+            Henüz personel eklenmedi.
+          </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
             <table className="w-full text-sm">
@@ -201,8 +234,12 @@ export default function Roles() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {personnel.map((p) => (
                   <tr key={p.id} className="text-slate-700 dark:text-slate-200">
-                    <td className="px-4 py-2.5 font-semibold">{p.firstName} {p.lastName}</td>
-                    <td className="px-4 py-2.5">{p.role?.name || roleById[p.roleId]?.name || '—'}</td>
+                    <td className="px-4 py-2.5 font-semibold">
+                      {p.firstName} {p.lastName}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {p.role?.name || roleById[p.roleId]?.name || '—'}
+                    </td>
                     <td className="px-4 py-2.5">
                       <button
                         onClick={() => copyCode(p.passcode)}

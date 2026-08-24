@@ -34,8 +34,12 @@ function ImpactNode({ node, isRoot, t }) {
             : 'border-amber-300 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-900/20')
         }
       >
-        <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{req.text_id}</span>
-        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{req.title}</span>
+        <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
+          {req.text_id}
+        </span>
+        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          {req.title}
+        </span>
         <TypeBadge value={req.type} />
         <span
           className={
@@ -54,11 +58,16 @@ function ImpactNode({ node, isRoot, t }) {
           <Arrow />
           <div className="ml-4 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900/40">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              {isRoot ? t('impact.testsRerun', { n: tests.length }) : t('impact.testsReview', { n: tests.length })}
+              {isRoot
+                ? t('impact.testsRerun', { n: tests.length })
+                : t('impact.testsReview', { n: tests.length })}
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {tests.map((tc) => (
-                <span key={tc.id} className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">
+                <span
+                  key={tc.id}
+                  className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5"
+                >
                   {tc.text_id}
                 </span>
               ))}
@@ -76,7 +85,10 @@ function ImpactNode({ node, isRoot, t }) {
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {documents.map((d) => (
-                <span key={d} className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">
+                <span
+                  key={d}
+                  className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5"
+                >
                   {d}
                 </span>
               ))}
@@ -113,7 +125,8 @@ export default function ImpactAnalysisModal({ open, onClose, requirement }) {
   }, [open, requirement, requirements, links])
 
   const summary = useMemo(() => (tree ? summarizeImpact(tree) : null), [tree])
-  const isEmpty = tree && tree.tests.length === 0 && tree.documents.length === 0 && tree.parents.length === 0
+  const isEmpty =
+    tree && tree.tests.length === 0 && tree.documents.length === 0 && tree.parents.length === 0
 
   return (
     <Modal
@@ -123,7 +136,9 @@ export default function ImpactAnalysisModal({ open, onClose, requirement }) {
       subtitle={requirement ? t('impact.subtitle', { id: requirement.text_id }) : ''}
       maxWidth="max-w-2xl"
       footer={
-        <button onClick={onClose} className="btn-secondary">{t('view.close')}</button>
+        <button onClick={onClose} className="btn-secondary">
+          {t('view.close')}
+        </button>
       }
     >
       {!tree ? (
@@ -136,16 +151,28 @@ export default function ImpactAnalysisModal({ open, onClose, requirement }) {
             </span>
             <div className="flex gap-2 text-center">
               <div className="rounded-lg bg-brand-50 px-3 py-1.5 dark:bg-brand-900/20">
-                <div className="text-lg font-extrabold text-brand-600 dark:text-brand-300">{summary.testCount}</div>
-                <div className="text-[10px] font-semibold uppercase text-slate-400">{t('impact.summary.tests')}</div>
+                <div className="text-lg font-extrabold text-brand-600 dark:text-brand-300">
+                  {summary.testCount}
+                </div>
+                <div className="text-[10px] font-semibold uppercase text-slate-400">
+                  {t('impact.summary.tests')}
+                </div>
               </div>
               <div className="rounded-lg bg-amber-50 px-3 py-1.5 dark:bg-amber-900/20">
-                <div className="text-lg font-extrabold text-amber-600 dark:text-amber-300">{summary.parentCount}</div>
-                <div className="text-[10px] font-semibold uppercase text-slate-400">{t('impact.summary.parents')}</div>
+                <div className="text-lg font-extrabold text-amber-600 dark:text-amber-300">
+                  {summary.parentCount}
+                </div>
+                <div className="text-[10px] font-semibold uppercase text-slate-400">
+                  {t('impact.summary.parents')}
+                </div>
               </div>
               <div className="rounded-lg bg-violet-50 px-3 py-1.5 dark:bg-violet-900/20">
-                <div className="text-lg font-extrabold text-violet-600 dark:text-violet-300">{summary.documentCount}</div>
-                <div className="text-[10px] font-semibold uppercase text-slate-400">{t('impact.summary.docs')}</div>
+                <div className="text-lg font-extrabold text-violet-600 dark:text-violet-300">
+                  {summary.documentCount}
+                </div>
+                <div className="text-[10px] font-semibold uppercase text-slate-400">
+                  {t('impact.summary.docs')}
+                </div>
               </div>
             </div>
           </div>

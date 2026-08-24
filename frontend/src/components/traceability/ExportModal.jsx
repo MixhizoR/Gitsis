@@ -18,14 +18,11 @@ export function ExportModal({ isOpen, onClose, projectId }) {
           ? `/traceability/export/matrix?pid=${projectId}`
           : `/traceability/export/detailed?pid=${projectId}`
 
-      const response = await fetch(
-        `http://localhost:4001/api${endpoint}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`  // ← Adicione o token
-          }
-        }
-      )
+      const response = await fetch(`http://localhost:4001/api${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${token}`, // ← Adicione o token
+        },
+      })
 
       if (!response.ok) {
         throw new Error('Export başarısız oldu')
@@ -74,10 +71,7 @@ export function ExportModal({ isOpen, onClose, projectId }) {
             <IconDownload size={20} />
             Excel'e Aktar
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <IconClose size={20} />
           </button>
         </div>
@@ -86,15 +80,12 @@ export function ExportModal({ isOpen, onClose, projectId }) {
         <div className="p-6 space-y-4">
           {/* Format Seçimi */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Export Formatı
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Export Formatı</label>
             <div className="space-y-2">
               <label
                 className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
                 style={{
-                  borderColor:
-                    exportFormat === 'matrix' ? '#3b82f6' : '#e5e7eb',
+                  borderColor: exportFormat === 'matrix' ? '#3b82f6' : '#e5e7eb',
                 }}
               >
                 <input
@@ -116,8 +107,7 @@ export function ExportModal({ isOpen, onClose, projectId }) {
               <label
                 className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
                 style={{
-                  borderColor:
-                    exportFormat === 'detailed' ? '#3b82f6' : '#e5e7eb',
+                  borderColor: exportFormat === 'detailed' ? '#3b82f6' : '#e5e7eb',
                 }}
               >
                 <input
@@ -141,9 +131,8 @@ export function ExportModal({ isOpen, onClose, projectId }) {
           {/* Bilgi Kutusu */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-sm text-blue-800">
-              💡 <strong>İpucu:</strong> Dosya tüm gereksinimler ve test
-              bağlantılarını içerecektir. Özet sayfası kapsama oranını
-              gösterecektir.
+              💡 <strong>İpucu:</strong> Dosya tüm gereksinimler ve test bağlantılarını içerecektir.
+              Özet sayfası kapsama oranını gösterecektir.
             </p>
           </div>
 
@@ -157,9 +146,7 @@ export function ExportModal({ isOpen, onClose, projectId }) {
           {/* Başarı Mesajı */}
           {success && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm text-green-800">
-                ✓ Export başarıyla tamamlandı!
-              </p>
+              <p className="text-sm text-green-800">✓ Export başarıyla tamamlandı!</p>
             </div>
           )}
         </div>

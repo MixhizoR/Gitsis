@@ -33,14 +33,28 @@ function ManagerLogin() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <ErrorBox msg={error} />}
-      <Field label={t('login.username')} type="text" value={username}
-        onChange={setUsername} placeholder={t('login.ph.username')}
-        autoComplete="username" autoFocus />
-      <Field label={t('login.password')} type="password" value={password}
-        onChange={setPassword} placeholder="••••••••"
-        autoComplete="current-password" />
-      <button type="submit" disabled={loading}
-        className="btn-primary w-full justify-center disabled:opacity-60">
+      <Field
+        label={t('login.username')}
+        type="text"
+        value={username}
+        onChange={setUsername}
+        placeholder={t('login.ph.username')}
+        autoComplete="username"
+        autoFocus
+      />
+      <Field
+        label={t('login.password')}
+        type="password"
+        value={password}
+        onChange={setPassword}
+        placeholder="••••••••"
+        autoComplete="current-password"
+      />
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn-primary w-full justify-center disabled:opacity-60"
+      >
         {loading ? t('login.signingIn') : t('login.signIn')}
       </button>
     </form>
@@ -84,8 +98,11 @@ function PasscodeLogin() {
         />
         <p className="mt-1.5 text-center text-[11px] text-slate-400">{t('login.passcodeHint')}</p>
       </div>
-      <button type="submit" disabled={loading || code.length < 5}
-        className="btn-primary w-full justify-center disabled:opacity-60">
+      <button
+        type="submit"
+        disabled={loading || code.length < 5}
+        className="btn-primary w-full justify-center disabled:opacity-60"
+      >
         {loading ? t('login.signingIn') : t('login.signIn')}
       </button>
     </form>
@@ -127,7 +144,10 @@ function LangSwitch() {
         {t('lang.label')}
       </div>
       <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-        {[{ key: 'tr', label: t('lang.tr') }, { key: 'en', label: t('lang.en') }].map(({ key, label }) => (
+        {[
+          { key: 'tr', label: t('lang.tr') },
+          { key: 'en', label: t('lang.en') },
+        ].map(({ key, label }) => (
           <button
             key={key}
             type="button"
@@ -161,9 +181,7 @@ export default function Login() {
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             {t('app.name')}
           </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            {t('app.tagline')}
-          </p>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t('app.tagline')}</p>
         </div>
 
         <div className="card">
@@ -193,9 +211,7 @@ export default function Login() {
           {mode === 'manager' ? <ManagerLogin /> : <PasscodeLogin />}
         </div>
 
-        <p className="mt-4 text-center text-[11px] text-slate-400">
-          {t('login.footer')}
-        </p>
+        <p className="mt-4 text-center text-[11px] text-slate-400">{t('login.footer')}</p>
       </div>
     </div>
   )

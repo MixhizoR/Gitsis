@@ -6,7 +6,7 @@ import { useProject } from '../context/ProjectContext.jsx' // Context import edi
 export function TraceabilityPage({ projectId: propProjectId }) {
   // 1. URL parametresini al
   const { projectId: routeProjectId } = useParams()
-  
+
   // 2. Global ProjectContext'ten aktif proje ID'sini al
   const { activeProjectId } = useProject()
 

@@ -28,7 +28,9 @@ export default function ApprovalMatrixModal({ open, entityType, row, onClose, on
         }
       })()
     }
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [open, row, entityType, onFetch])
 
   if (!row) return null
@@ -55,11 +57,17 @@ export default function ApprovalMatrixModal({ open, entityType, row, onClose, on
       maxWidth="max-w-xl"
       footer={
         locked ? (
-          <button onClick={handleUnlock} disabled={unlocking} className="btn-primary disabled:opacity-60">
+          <button
+            onClick={handleUnlock}
+            disabled={unlocking}
+            className="btn-primary disabled:opacity-60"
+          >
             <IconUnlock size={16} /> {unlocking ? t('apm.unlocking') : t('apm.unlock')}
           </button>
         ) : (
-          <button onClick={onClose} className="btn-secondary">{t('view.close')}</button>
+          <button onClick={onClose} className="btn-secondary">
+            {t('view.close')}
+          </button>
         )
       }
     >
@@ -67,17 +75,17 @@ export default function ApprovalMatrixModal({ open, entityType, row, onClose, on
         <div className="py-10 text-center text-sm text-slate-400">…</div>
       ) : (
         <>
-          <div className={`mb-4 rounded-lg px-3 py-2 text-sm font-medium ${
-            locked
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-          }`}>
+          <div
+            className={`mb-4 rounded-lg px-3 py-2 text-sm font-medium ${
+              locked
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+            }`}
+          >
             {locked ? t('apm.locked') : t('apm.pending')}
           </div>
 
-          {voters.length <= 1 && (
-            <p className="mb-3 text-xs text-slate-400">{t('apm.noVoters')}</p>
-          )}
+          {voters.length <= 1 && <p className="mb-3 text-xs text-slate-400">{t('apm.noVoters')}</p>}
 
           <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
             <table className="w-full text-sm">

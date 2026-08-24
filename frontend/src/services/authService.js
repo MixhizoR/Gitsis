@@ -28,7 +28,12 @@ export const ROLE_LABELS = {
 
 // --- Izin matrisi -----------------------------------------------------------
 export const PERMISSIONS = {
-  [ROLES.SYSTEM_ENGINEER]: ['requirement:approve', 'requirement:delete', 'link:manage', 'project:manage'],
+  [ROLES.SYSTEM_ENGINEER]: [
+    'requirement:approve',
+    'requirement:delete',
+    'link:manage',
+    'project:manage',
+  ],
   [ROLES.DEVELOPER]: [],
 }
 

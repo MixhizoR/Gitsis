@@ -17,12 +17,7 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import {
-  PRIORITIES,
-  DAL_LEVELS,
-  PRIORITY,
-  DAL,
-} from '../../utils/constants.js'
+import { PRIORITIES, DAL_LEVELS, PRIORITY, DAL } from '../../utils/constants.js'
 
 export default function RequirementForm({ open, onClose, editing, pageConfig }) {
   const { addRequirement, editRequirement, fields, addField } = useApp()
@@ -92,7 +87,10 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         field: form.field || null,
         priority: form.priority,
         dal_level: form.dal_level,
-        relatedDocuments: form.relatedDocuments.split(',').map((s) => s.trim()).filter(Boolean),
+        relatedDocuments: form.relatedDocuments
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
       }
       if (isEdit) {
         // Tip sunucu tarafinda kilitli; yine de gondermiyoruz.
@@ -113,14 +111,19 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? t('form.editTitle') : (pageConfig?.addLabel || t('form.newTitle'))}
+      title={isEdit ? t('form.editTitle') : pageConfig?.addLabel || t('form.newTitle')}
       subtitle={isEdit ? editing?.text_id : t('form.fillAll')}
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary">
             {t('form.cancel')}
           </button>
-          <button type="submit" form="req-form" disabled={saving} className="btn-primary disabled:opacity-60">
+          <button
+            type="submit"
+            form="req-form"
+            disabled={saving}
+            className="btn-primary disabled:opacity-60"
+          >
             {saving ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.create')}
           </button>
         </>
@@ -137,14 +140,21 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label className="label">{t('form.titleLabel')}</label>
-            <input className="input" value={form.title} onChange={set('title')} placeholder={t('form.titlePh')} />
+            <input
+              className="input"
+              value={form.title}
+              onChange={set('title')}
+              placeholder={t('form.titlePh')}
+            />
           </div>
           <div>
             <label className="label">{t('form.type')}</label>
             {typeChoice ? (
               <select className="input" value={form.type} onChange={set('type')}>
                 {typeOptions.map((tp) => (
-                  <option key={tp} value={tp}>{tp}</option>
+                  <option key={tp} value={tp}>
+                    {tp}
+                  </option>
                 ))}
               </select>
             ) : (
@@ -196,7 +206,9 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
             <select className="input" value={form.field} onChange={set('field')}>
               <option value="">{t('form.fieldNone')}</option>
               {fields.map((f) => (
-                <option key={f.id} value={f.name}>{f.name}</option>
+                <option key={f.id} value={f.name}>
+                  {f.name}
+                </option>
               ))}
             </select>
           </div>
@@ -204,7 +216,9 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
             <label className="label">{t('form.priority')}</label>
             <select className="input" value={form.priority} onChange={set('priority')}>
               {PRIORITIES.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
           </div>
@@ -212,7 +226,9 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
             <label className="label">{t('form.dal')}</label>
             <select className="input" value={form.dal_level} onChange={set('dal_level')}>
               {DAL_LEVELS.map((d) => (
-                <option key={d} value={d}>{d}</option>
+                <option key={d} value={d}>
+                  {d}
+                </option>
               ))}
             </select>
           </div>

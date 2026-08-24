@@ -11,7 +11,15 @@ import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
 import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 
-export default function ViewModal({ open, row, canWrite = false, showStatus = true, onClose, onSaveDescription, statusLabel: _statusLabel }) {
+export default function ViewModal({
+  open,
+  row,
+  canWrite = false,
+  showStatus = true,
+  onClose,
+  onSaveDescription,
+  statusLabel: _statusLabel,
+}) {
   const { t } = useLang()
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)
@@ -42,7 +50,9 @@ export default function ViewModal({ open, row, canWrite = false, showStatus = tr
       maxWidth="max-w-3xl"
       footer={
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-secondary">{t('view.close')}</button>
+          <button onClick={onClose} className="btn-secondary">
+            {t('view.close')}
+          </button>
           {editable && (
             <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-60">
               <IconCheck size={16} /> {saving ? t('view.saving') : t('view.save')}
@@ -65,7 +75,9 @@ export default function ViewModal({ open, row, canWrite = false, showStatus = tr
       </div>
 
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('view.description')}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {t('view.description')}
+        </span>
         {!editable && <span className="text-[11px] text-slate-400">{t('view.readonly')}</span>}
       </div>
       <RichTextEditor value={html} onChange={setHtml} readOnly={!editable} />

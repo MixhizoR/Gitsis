@@ -24,8 +24,10 @@ const LEVEL_TO_TYPE = {
 }
 
 /** Basit olculebilirlik sezgisi (oncelik/DAL tahmini icin). */
-const MEASURE_RE = /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|db|volt|v\b|bar|°c|mm|cm|metre|m\b|w\b|rpm|pulse|step|kg|g\b)/i
-const CRITICAL_RE = /\b(kritik|guvenli|g[uü]venli|ariza|ar[iı]za|acil|emniyet|tasma|ta[şs]ma|kilit)\b/i
+const MEASURE_RE =
+  /\d+\s*(ms|sn|s\b|saniye|dk|dakika|saat|mb|gb|kb|hz|mhz|ghz|%|db|volt|v\b|bar|°c|mm|cm|metre|m\b|w\b|rpm|pulse|step|kg|g\b)/i
+const CRITICAL_RE =
+  /\b(kritik|guvenli|g[uü]venli|ariza|ar[iı]za|acil|emniyet|tasma|ta[şs]ma|kilit)\b/i
 
 /**
  * Motorun dondurdugu ham maddeyi, DocumentAnalysis tablosunun bekledigi
@@ -38,7 +40,7 @@ export function toDraft(item, idx) {
   const measurable = MEASURE_RE.test(desc)
   return {
     id: item.id ?? idx + 1,
-    level: item.level || null,           // regenerate icin seviye korunur
+    level: item.level || null, // regenerate icin seviye korunur
     raw: desc,
     title: item.title || desc.slice(0, 60),
     description: desc,
