@@ -1,16 +1,42 @@
-# ============================================================================
-#  CI — format:check + lint + test + build.
-# ============================================================================
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+
+# Ayni PR'a ust uste commit atilirsa eski run'lari iptal et (Action dakikasi tasarrufu).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Pipeline sadece kod cekip test kosuyor; token'i read-only birak (least privilege).
+permissions:
+  contents: read
 
 jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+
   frontend:
     name: Frontend — lint / test / build
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -29,7 +55,9 @@ jobs:
       - run: npm run build
 
   backend:
-    name: Backend — lint / test (node:test + supertest)
+    name: Backend — lint / test
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,19 +66,21 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: ehsim
-          POSTGRES_PASSWORD: ehsim_pass
-          POSTGRES_DB: ehsim_rmt_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ehsim"
+          --health-cmd "pg_isready -U test_user"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
     env:
-      TEST_DATABASE_URL: postgresql://ehsim:ehsim_pass@localhost:5432/ehsim_rmt_test
-      JWT_SECRET: ci-test-secret
+      # api.test.js db'yi kendisi kuruyor (--force-reset); DATABASE_URL iki yonden de gecerli olsun.
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,3 +93,23 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm test
+
+  ci-status:
+    name: CI Pipeline Status
+    runs-on: ubuntu-latest
+    needs: [detect-changes, frontend, backend]
+    if: always()
+    steps:
+      - name: Pipeline Basarisizlik Kontrolu
+        env:
+          DETECT: ${{ needs.detect-changes.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          BACKEND: ${{ needs.backend.result }}
+        run: |
+          for r in "$DETECT" "$FRONTEND" "$BACKEND"; do
+            if [ "$r" == "failure" ] || [ "$r" == "cancelled" ]; then
+              echo "❌ Pipeline basarisiz oldu veya iptal edildi ($r)."
+              exit 1
+            fi
+          done
+          echo "✅ Degisiklik olan tum servisler basariyla build edildi ve testten gecti."
