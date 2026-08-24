@@ -26,7 +26,7 @@ senin mevcut API'nle ve elle yapılır.
 
 ## Ne eklendi / ne değişti
 
-**Yeni (arkadaşının klasörü `sanırım son/`):**
+**Yeni (arkadaşının klasörü `ai-bridge/`):**
 - `api_server.py` — PDF/HTML/tkinter üretmeyen, sadece JSON dönen hafif FastAPI.
   Arkadaşının `config.py`'sini (LM Studio adresi + model) aynen kullanır.
 - `requirements-api.txt` — sadece API katmanı paketleri (fastapi, uvicorn, multipart).
@@ -50,7 +50,7 @@ gereksinim/hiyerarşi/link mantığı. Yani çalışan düzen korunuyor.
 
 ### 1) AI köprü servisini kur (arkadaşının PC'sinde / motorun olduğu makinede)
 
-`sanırım son/` klasöründe, mevcut sanal ortamı kullanarak:
+`ai-bridge/` klasöründe, mevcut sanal ortamı kullanarak:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-api.txt

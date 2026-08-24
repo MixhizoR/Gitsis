@@ -17,7 +17,7 @@
 #    POST /analyze             -> belge (dosya/metin) + adetler => gereksinim JSON
 #    POST /regenerate          -> tek bir maddeyi (begenilmeyeni) yeniden uretir
 #
-#  CALISTIRMA (proje klasoru = "sanirim son"):
+#  CALISTIRMA (proje klasoru = "ai-bridge"):
 #    .\.venv\Scripts\python.exe -m pip install fastapi uvicorn python-multipart
 #    .\.venv\Scripts\python.exe -m uvicorn api_server:app --host 0.0.0.0 --port 8008
 #  (LM Studio acik ve config.py'daki MODEL_NAME yuklu olmali.)
