@@ -24,11 +24,7 @@ import { useMemo, useState, useEffect } from 'react'
 import Modal from '../common/Modal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import {
-  LINK_TYPE,
-  SATISFIES_PARENT_OF,
-  VERIFIES_TARGET_TYPES,
-} from '../../utils/constants.js'
+import { LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES } from '../../utils/constants.js'
 import { IconLink, IconUnlink, IconPlus } from '../common/Icons.jsx'
 import { TypeBadge, StatusBadge } from '../common/Badge.jsx'
 
@@ -47,10 +43,15 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
   }, [open, subject])
 
   // id -> nesne haritalari
-  const reqById = useMemo(() => Object.fromEntries(requirements.map((r) => [r.id, r])), [requirements])
-  const testById = useMemo(() => Object.fromEntries(testCases.map((tc) => [tc.id, tc])), [testCases])
+  const reqById = useMemo(
+    () => Object.fromEntries(requirements.map((r) => [r.id, r])),
+    [requirements],
+  )
+  const testById = useMemo(
+    () => Object.fromEntries(testCases.map((tc) => [tc.id, tc])),
+    [testCases],
+  )
   const gloById = useMemo(() => Object.fromEntries(glossary.map((g) => [g.id, g])), [glossary])
-  const nodeById = (id) => reqById[id] || testById[id] || gloById[id] || null
 
   // Bu subject icin baslatilabilir bag secenegi + aday hedefler.
   const config = useMemo(() => {
@@ -59,9 +60,13 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
       const parentType = SATISFIES_PARENT_OF[subject.type]
       if (!parentType) return null // User: yukari Satisfies yok (tepe)
       const alreadyParents = new Set(
-        links.filter((l) => l.type === LINK_TYPE.SATISFIES && l.toId === subject.id).map((l) => l.fromId)
+        links
+          .filter((l) => l.type === LINK_TYPE.SATISFIES && l.toId === subject.id)
+          .map((l) => l.fromId),
       )
-      const candidates = requirements.filter((r) => r.type === parentType && !alreadyParents.has(r.id))
+      const candidates = requirements.filter(
+        (r) => r.type === parentType && !alreadyParents.has(r.id),
+      )
       return {
         type: LINK_TYPE.SATISFIES,
         label: t('link.satisfiesUp', { parent: parentType }),
@@ -75,9 +80,13 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
       // Bir test BIRDEN FAZLA gereksinimi dogrulayabilir; zaten bagli olanlari
       // aday listesinden cikar.
       const alreadyReqs = new Set(
-        links.filter((l) => l.type === LINK_TYPE.VERIFIES && l.toId === subject.id).map((l) => l.fromId)
+        links
+          .filter((l) => l.type === LINK_TYPE.VERIFIES && l.toId === subject.id)
+          .map((l) => l.fromId),
       )
-      const candidates = requirements.filter((r) => allowed.includes(r.type) && !alreadyReqs.has(r.id))
+      const candidates = requirements.filter(
+        (r) => allowed.includes(r.type) && !alreadyReqs.has(r.id),
+      )
       return {
         type: LINK_TYPE.VERIFIES,
         label: t('link.verifies', { types: allowed.join(' / ') }),
@@ -88,7 +97,9 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
     }
     if (subjectKind === 'glossary') {
       const alreadyReqs = new Set(
-        links.filter((l) => l.type === LINK_TYPE.ASSIGNED_TO && l.toId === subject.id).map((l) => l.fromId)
+        links
+          .filter((l) => l.type === LINK_TYPE.ASSIGNED_TO && l.toId === subject.id)
+          .map((l) => l.fromId),
       )
       const candidates = requirements.filter((r) => !alreadyReqs.has(r.id))
       return {
@@ -123,7 +134,8 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
         .filter((l) => l.type === LINK_TYPE.ASSIGNED_TO && l.fromId === subject.id)
         .map((l) => ({ l, node: gloById[l.toId] }))
         .filter((x) => x.node)
-      if (SATISFIES_PARENT_OF[subject.type]) secs.push({ title: t('link.sec.satisfiesUp'), items: satisfiesUp, showStatus: false })
+      if (SATISFIES_PARENT_OF[subject.type])
+        secs.push({ title: t('link.sec.satisfiesUp'), items: satisfiesUp, showStatus: false })
       secs.push({ title: t('link.sec.satisfiedBy'), items: satisfiedByDown, showStatus: false })
       secs.push({ title: t('link.sec.verifiedBy'), items: verifiedBy, showStatus: true })
       secs.push({ title: t('link.sec.assignedGlossary'), items: assigned, showStatus: false })
@@ -182,7 +194,11 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
       title={t('link.title')}
       subtitle={subjectLabel}
       maxWidth="max-w-3xl"
-      footer={<button onClick={onClose} className="btn-secondary">{t('link.close')}</button>}
+      footer={
+        <button onClick={onClose} className="btn-secondary">
+          {t('link.close')}
+        </button>
+      }
     >
       <div className="space-y-6">
         {config && config.locked && (
@@ -204,10 +220,16 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
             <div className="flex flex-wrap items-end gap-2.5">
               <div className="min-w-[240px] flex-1">
                 <label className="label">{t('link.targetLabel')}</label>
-                <select className="input !py-1.5 text-sm" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+                <select
+                  className="input !py-1.5 text-sm"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                >
                   <option value="">{t('link.select')}</option>
                   {config.candidates.map((r) => (
-                    <option key={r.id} value={r.id}>{r.text_id} — {r.title}</option>
+                    <option key={r.id} value={r.id}>
+                      {r.text_id} — {r.title}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -220,7 +242,9 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
               </button>
             </div>
             {config.candidates.length === 0 && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t('link.noCandidates')}</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                {t('link.noCandidates')}
+              </p>
             )}
           </div>
         )}
@@ -233,14 +257,23 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
                 {sec.title} <span className="text-slate-400">({sec.items.length})</span>
               </h4>
               {sec.items.length === 0 ? (
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 dark:bg-slate-800/50">—</p>
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-400 dark:bg-slate-800/50">
+                  —
+                </p>
               ) : (
                 <ul className="space-y-1.5">
                   {sec.items.map(({ l, node }) => (
-                    <li key={l.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                    <li
+                      key={l.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+                    >
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="font-mono text-xs font-bold text-brand-600 dark:text-brand-400">{node.text_id}</span>
-                        <span className="truncate text-sm text-slate-700 dark:text-slate-200">{node.title || node.term}</span>
+                        <span className="font-mono text-xs font-bold text-brand-600 dark:text-brand-400">
+                          {node.text_id}
+                        </span>
+                        <span className="truncate text-sm text-slate-700 dark:text-slate-200">
+                          {node.title || node.term}
+                        </span>
                         {node.type && <TypeBadge value={node.type} />}
                         {sec.showStatus && node.status && <StatusBadge value={node.status} />}
                       </div>

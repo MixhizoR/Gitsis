@@ -3,7 +3,14 @@
 //  Saf (pure) fonksiyonlar: gireni gereksinimler + baglar, cikani metrikler.
 //  Hicbir yan etki yok -> kolayca test edilebilir.
 // ============================================================================
-import { LINK_TYPE, COVERABLE_TYPES, SATISFY_REQUIRED_TYPES, DAL_WEIGHT, REQ_TYPE, STATUS } from './constants.js'
+import {
+  LINK_TYPE,
+  COVERABLE_TYPES,
+  SATISFY_REQUIRED_TYPES,
+  DAL_WEIGHT,
+  REQ_TYPE,
+  STATUS,
+} from './constants.js'
 
 /**
  * Bir gereksinimin "kapsanmis" sayilmasi icin en az bir Test Case'e
@@ -42,7 +49,7 @@ export function computeCoverage(requirements, links) {
   uncovered.sort(
     (a, b) =>
       (DAL_WEIGHT[b.dal_level] || 0) - (DAL_WEIGHT[a.dal_level] || 0) ||
-      a.text_id.localeCompare(b.text_id)
+      a.text_id.localeCompare(b.text_id),
   )
 
   const total = coverableReqs.length
@@ -83,7 +90,7 @@ export function computeSatisfyCoverage(requirements, links) {
   open.sort(
     (a, b) =>
       (DAL_WEIGHT[b.dal_level] || 0) - (DAL_WEIGHT[a.dal_level] || 0) ||
-      a.text_id.localeCompare(b.text_id)
+      a.text_id.localeCompare(b.text_id),
   )
   const total = needing.length
   const score = total === 0 ? 100 : Math.round((satisfied.length / total) * 100)

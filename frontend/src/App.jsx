@@ -31,7 +31,6 @@ import { TraceabilityImportPage } from './pages/TraceabilityImportPage'
 
 const REQ_KEYS = ['req-user', 'req-system', 'req-subsystem']
 const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
-const TRACEABILITY_KEY = 'traceability-export'
 
 export default function App() {
   const { loading } = useApp()
@@ -85,7 +84,7 @@ export default function App() {
           {page === 'glossary' && <Glossary />}
           {page === 'traceability' && <Traceability projectId={activeProjectId} />}
           {page === 'traceability-export' && <TraceabilityPage projectId={activeProjectId} />}
-          {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId}/>}
+          {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}
           {page === 'coverage' && <CoverageReport onNavigate={setPage} />}
           {page === 'documents' && <DocumentAnalysis />}
           {page === 'audit' && <AuditLogPage />}

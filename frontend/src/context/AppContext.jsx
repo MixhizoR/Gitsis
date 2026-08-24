@@ -56,9 +56,15 @@ export function AppProvider({ children }) {
   // --- Aktif projenin tum koleksiyonlarini tazele ---------------------------
   const refresh = useCallback(async () => {
     if (!activeProjectId) {
-      setRequirements(EMPTY); setTestCases(EMPTY); setLinks(EMPTY)
-      setGlossary(EMPTY); setFields(EMPTY); setAuditLog(EMPTY)
-      setRoles(EMPTY); setPersonnel(EMPTY); setApprovals(EMPTY)
+      setRequirements(EMPTY)
+      setTestCases(EMPTY)
+      setLinks(EMPTY)
+      setGlossary(EMPTY)
+      setFields(EMPTY)
+      setAuditLog(EMPTY)
+      setRoles(EMPTY)
+      setPersonnel(EMPTY)
+      setApprovals(EMPTY)
       return
     }
     const pid = activeProjectId
@@ -102,7 +108,9 @@ export function AppProvider({ children }) {
         if (!cancelled) setLoading(false)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [activeProjectId, refresh])
 
   // --- Action'lar (UI bunlari cagirir) --------------------------------------
@@ -281,7 +289,6 @@ export function AppProvider({ children }) {
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useApp() {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error('useApp yalnizca <AppProvider> icinde kullanilabilir.')

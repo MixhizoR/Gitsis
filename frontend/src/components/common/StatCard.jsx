@@ -18,7 +18,9 @@ export function StatCard({ label, value, sub, icon, accent = 'brand' }) {
           {label}
         </span>
         {icon && (
-          <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${accents[accent]}`}>
+          <span
+            className={`flex h-9 w-9 items-center justify-center rounded-lg ${accents[accent]}`}
+          >
             {icon}
           </span>
         )}
@@ -56,9 +58,7 @@ export function BreakdownBar({ title, data, colorMap }) {
             </div>
           </div>
         ))}
-        {entries.length === 0 && (
-          <p className="text-sm text-slate-400">{t('stat.noData')}</p>
-        )}
+        {entries.length === 0 && <p className="text-sm text-slate-400">{t('stat.noData')}</p>}
       </div>
     </div>
   )
@@ -74,7 +74,10 @@ export function ScoreRing({ score, size = 132 }) {
   const color =
     score >= 80 ? 'stroke-emerald-500' : score >= 50 ? 'stroke-amber-500' : 'stroke-rose-500'
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2}

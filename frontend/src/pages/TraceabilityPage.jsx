@@ -1,5 +1,4 @@
 // TraceabilityPage.jsx
-import React from 'react'
 import { useParams } from 'react-router-dom'
 import { MatrixView } from '../components/traceability/MatrixView'
 import { useProject } from '../context/ProjectContext.jsx' // Context import edildi
@@ -7,7 +6,7 @@ import { useProject } from '../context/ProjectContext.jsx' // Context import edi
 export function TraceabilityPage({ projectId: propProjectId }) {
   // 1. URL parametresini al
   const { projectId: routeProjectId } = useParams()
-  
+
   // 2. Global ProjectContext'ten aktif proje ID'sini al
   const { activeProjectId } = useProject()
 

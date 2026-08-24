@@ -26,7 +26,16 @@ import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 
 export default function TestCases({ pageKey }) {
   const cfg = TEST_PAGES[pageKey]
-  const { testCases, links, approvals, bulkRemoveTestCases, editTestCase, voteApproval, unlockApproval, getApprovalMatrix } = useApp()
+  const {
+    testCases,
+    links,
+    approvals,
+    bulkRemoveTestCases,
+    editTestCase,
+    voteApproval,
+    unlockApproval,
+    getApprovalMatrix,
+  } = useApp()
   const { t } = useLang()
   const { can, isPM, currentUser } = useAuth()
   const [q, setQ] = useState('')
@@ -53,7 +62,11 @@ export default function TestCases({ pageKey }) {
     const needle = q.trim().toLowerCase()
     return testCases
       .filter((tc) => tc.type === cfg?.lockedType)
-      .filter((tc) => (!needle ? true : `${tc.text_id} ${tc.title} ${tc.description}`.toLowerCase().includes(needle)))
+      .filter((tc) =>
+        !needle
+          ? true
+          : `${tc.text_id} ${tc.title} ${tc.description}`.toLowerCase().includes(needle),
+      )
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
   }, [testCases, cfg, q])
 
@@ -66,7 +79,9 @@ export default function TestCases({ pageKey }) {
   // --- Onay bilgisi ----------------------------------------------------------
   const approvalInfoFor = (r) => ({
     approved: r.approvalStatus === 'Approved',
-    voted: approvals.some((a) => a.entityType === 'testcase' && a.entityId === r.id && a.voterId === myVoterId),
+    voted: approvals.some(
+      (a) => a.entityType === 'testcase' && a.entityId === r.id && a.voterId === myVoterId,
+    ),
   })
 
   const toggleApprove = (r) => {
@@ -79,11 +94,19 @@ export default function TestCases({ pageKey }) {
     })
   }
 
-  const openCreate = () => { setEditing(null); setFormOpen(true) }
-  const openEdit = (tc) => { setEditing(tc); setFormOpen(true) }
+  const openCreate = () => {
+    setEditing(null)
+    setFormOpen(true)
+  }
+  const openEdit = (tc) => {
+    setEditing(tc)
+    setFormOpen(true)
+  }
   const saveDescription = (r, html) => editTestCase(r.id, { description: html })
 
-  const handleDelete = (tc) => { del.schedule([tc.id]) }
+  const handleDelete = (tc) => {
+    del.schedule([tc.id])
+  }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
     const ids = sel.selectedIds
@@ -93,7 +116,7 @@ export default function TestCases({ pageKey }) {
 
   const selectedRows = useMemo(
     () => visibleRows.filter((r) => sel.selectedSet.has(r.id)),
-    [visibleRows, sel.selectedSet]
+    [visibleRows, sel.selectedSet],
   )
 
   if (!cfg) return null
@@ -104,7 +127,10 @@ export default function TestCases({ pageKey }) {
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">{cfg.navLabel}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">{visibleRows.length}</span> {t('test.records')}
+            <span className="font-bold text-slate-800 dark:text-slate-100">
+              {visibleRows.length}
+            </span>{' '}
+            {t('test.records')}
           </p>
         </div>
         {canAdd && (
@@ -155,7 +181,12 @@ export default function TestCases({ pageKey }) {
         someSelected={sel.someSelected}
       />
 
-      <TestForm open={formOpen} onClose={() => setFormOpen(false)} editing={editing} pageConfig={cfg} />
+      <TestForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        editing={editing}
+        pageConfig={cfg}
+      />
       <LinkManager
         open={Boolean(linkTarget)}
         onClose={() => setLinkTarget(null)}

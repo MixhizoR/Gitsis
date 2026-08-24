@@ -25,10 +25,12 @@ function CreateModal({ open, onClose }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!name.trim()) return setError(t('proj.nameRequired'))
-    setSaving(true); setError('')
+    setSaving(true)
+    setError('')
     try {
       await createProject(name.trim(), description.trim())
-      setName(''); setDescription('')
+      setName('')
+      setDescription('')
       onClose()
     } catch (err) {
       setError(err.message || t('form.saveError'))
@@ -45,8 +47,15 @@ function CreateModal({ open, onClose }) {
       subtitle={t('proj.newSub')}
       footer={
         <>
-          <button type="button" onClick={onClose} className="btn-secondary">{t('form.cancel')}</button>
-          <button type="submit" form="proj-form" disabled={saving} className="btn-primary disabled:opacity-60">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            {t('form.cancel')}
+          </button>
+          <button
+            type="submit"
+            form="proj-form"
+            disabled={saving}
+            className="btn-primary disabled:opacity-60"
+          >
             {saving ? t('form.saving') : t('proj.create')}
           </button>
         </>
@@ -60,11 +69,22 @@ function CreateModal({ open, onClose }) {
         )}
         <div>
           <label className="label">{t('proj.name')}</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('proj.namePh')} autoFocus />
+          <input
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('proj.namePh')}
+            autoFocus
+          />
         </div>
         <div>
           <label className="label">{t('proj.desc')}</label>
-          <textarea className="input min-h-[80px] resize-y" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('proj.descPh')} />
+          <textarea
+            className="input min-h-[80px] resize-y"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t('proj.descPh')}
+          />
         </div>
       </form>
     </Modal>
@@ -90,21 +110,31 @@ export default function ProjectSelect() {
         <div className="flex items-center gap-3">
           <Logo size={36} />
           <div className="leading-tight">
-            <div className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">{t('app.name')}</div>
+            <div className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {t('app.name')}
+            </div>
             <div className="text-[11px] text-slate-400">{t('proj.pickToStart')}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={toggleLang} className="btn-secondary !px-2.5 text-xs font-bold">{lang === 'tr' ? 'TR' : 'EN'}</button>
-          <span className="hidden text-sm text-slate-500 sm:inline dark:text-slate-400">{currentUser?.name}</span>
-          <button onClick={logout} className="btn-ghost text-sm">{t('topbar.logout')}</button>
+          <button onClick={toggleLang} className="btn-secondary !px-2.5 text-xs font-bold">
+            {lang === 'tr' ? 'TR' : 'EN'}
+          </button>
+          <span className="hidden text-sm text-slate-500 sm:inline dark:text-slate-400">
+            {currentUser?.name}
+          </span>
+          <button onClick={logout} className="btn-ghost text-sm">
+            {t('topbar.logout')}
+          </button>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">{t('proj.savedTitle')}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {t('proj.savedTitle')}
+            </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('proj.savedSub')}</p>
           </div>
           {canManageProjects && (
@@ -126,7 +156,9 @@ export default function ProjectSelect() {
           </div>
         ) : projects.length === 0 ? (
           <div className="card flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <p className="text-base font-semibold text-slate-600 dark:text-slate-300">{t('proj.empty')}</p>
+            <p className="text-base font-semibold text-slate-600 dark:text-slate-300">
+              {t('proj.empty')}
+            </p>
             <p className="max-w-md text-sm text-slate-400">{t('proj.emptySub')}</p>
             {canManageProjects && (
               <button onClick={() => setCreateOpen(true)} className="btn-primary mt-2">
@@ -145,7 +177,9 @@ export default function ProjectSelect() {
                   className="card group flex flex-col gap-3 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-400">{p.name}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-400">
+                      {p.name}
+                    </h3>
                     {canManageProjects && (
                       <span
                         onClick={(e) => handleDelete(e, p)}
@@ -156,11 +190,19 @@ export default function ProjectSelect() {
                       </span>
                     )}
                   </div>
-                  <p className="min-h-[40px] flex-1 text-sm text-slate-500 dark:text-slate-400">{p.description || t('proj.noDesc')}</p>
+                  <p className="min-h-[40px] flex-1 text-sm text-slate-500 dark:text-slate-400">
+                    {p.description || t('proj.noDesc')}
+                  </p>
                   <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">{c.requirements ?? 0} {t('proj.stat.reqs')}</span>
-                    <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">{c.testCases ?? 0} {t('proj.stat.tests')}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">{c.links ?? 0} {t('proj.stat.links')}</span>
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                      {c.requirements ?? 0} {t('proj.stat.reqs')}
+                    </span>
+                    <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+                      {c.testCases ?? 0} {t('proj.stat.tests')}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {c.links ?? 0} {t('proj.stat.links')}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 text-xs font-bold text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-400">
                     {t('proj.open')} <IconChevron size={14} />

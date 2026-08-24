@@ -6,12 +6,7 @@
 //  Yalnızca OTURUM bilgisi tarayıcıda (LocalStorage) tutulur.
 // ============================================================================
 import { createContext, useContext, useState, useCallback } from 'react'
-import {
-  ROLES,
-  authenticate,
-  passcodeAuthenticate,
-  toInitials,
-} from '../services/authService.js'
+import { ROLES, authenticate, passcodeAuthenticate, toInitials } from '../services/authService.js'
 import { hasPermission } from '../utils/permissions.js'
 
 const SESSION_KEY = 'ehsim_auth_session'
@@ -91,7 +86,7 @@ export function AuthProvider({ children }) {
       if (currentUser.isPM) return true
       return hasPermission(currentUser.permissions, permKey, componentKey)
     },
-    [currentUser]
+    [currentUser],
   )
 
   const isPM = Boolean(currentUser?.isPM)
@@ -103,7 +98,6 @@ export function AuthProvider({ children }) {
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth yalnızca <AuthProvider> içinde kullanılabilir.')

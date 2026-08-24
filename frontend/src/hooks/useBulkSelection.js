@@ -11,7 +11,7 @@ export function useBulkSelection(visibleIds) {
   // Yalnizca hala gorunur olan secimler gecerlidir.
   const effective = useMemo(
     () => visibleIds.filter((id) => selected.has(id)),
-    [visibleIds, selected]
+    [visibleIds, selected],
   )
   const selectedSet = useMemo(() => new Set(effective), [effective])
   const count = effective.length
@@ -39,5 +39,14 @@ export function useBulkSelection(visibleIds) {
 
   const clear = useCallback(() => setSelected(new Set()), [])
 
-  return { selectedSet, selectedIds: effective, count, allSelected, someSelected, toggleRow, toggleAll, clear }
+  return {
+    selectedSet,
+    selectedIds: effective,
+    count,
+    allSelected,
+    someSelected,
+    toggleRow,
+    toggleAll,
+    clear,
+  }
 }

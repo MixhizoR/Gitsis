@@ -44,22 +44,63 @@ export default function Logo({ size = 40, className = '' }) {
       </defs>
 
       {/* Dış madalyon */}
-      <circle cx="60" cy="60" r="58" fill={`url(#${core})`} stroke={`url(#${ring})`} strokeWidth="4" />
-      <circle cx="60" cy="60" r="52" fill="none" stroke={`url(#${ring})`} strokeWidth="1.4" opacity="0.65" />
+      <circle
+        cx="60"
+        cy="60"
+        r="58"
+        fill={`url(#${core})`}
+        stroke={`url(#${ring})`}
+        strokeWidth="4"
+      />
+      <circle
+        cx="60"
+        cy="60"
+        r="52"
+        fill="none"
+        stroke={`url(#${ring})`}
+        strokeWidth="1.4"
+        opacity="0.65"
+      />
 
       {/* Tepedeki parlayan nokta */}
       <circle cx="60" cy="27" r="13" fill={`url(#${glow})`} />
       <circle cx="60" cy="27" r="5" fill={`url(#${cyan})`} />
 
       {/* Baykuş kaş kemerleri (alından gözlere inen gümüş yaylar) */}
-      <path d="M60 30 C 36 30, 22 46, 24 70" fill="none" stroke={`url(#${ring})`} strokeWidth="3.4" strokeLinecap="round" />
-      <path d="M60 30 C 84 30, 98 46, 96 70" fill="none" stroke={`url(#${ring})`} strokeWidth="3.4" strokeLinecap="round" />
+      <path
+        d="M60 30 C 36 30, 22 46, 24 70"
+        fill="none"
+        stroke={`url(#${ring})`}
+        strokeWidth="3.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M60 30 C 84 30, 98 46, 96 70"
+        fill="none"
+        stroke={`url(#${ring})`}
+        strokeWidth="3.4"
+        strokeLinecap="round"
+      />
 
       {/* Sol göz */}
       <g>
         <circle cx="41" cy="66" r="17" fill="none" stroke={`url(#${ring})`} strokeWidth="3.2" />
-        <path d="M41 49 A17 17 0 0 0 41 83" fill="none" stroke={`url(#${cyan})`} strokeWidth="2.6" strokeLinecap="round" />
-        <circle cx="41" cy="66" r="11.5" fill="none" stroke={`url(#${cyan})`} strokeWidth="2.2" opacity="0.85" />
+        <path
+          d="M41 49 A17 17 0 0 0 41 83"
+          fill="none"
+          stroke={`url(#${cyan})`}
+          strokeWidth="2.6"
+          strokeLinecap="round"
+        />
+        <circle
+          cx="41"
+          cy="66"
+          r="11.5"
+          fill="none"
+          stroke={`url(#${cyan})`}
+          strokeWidth="2.2"
+          opacity="0.85"
+        />
         <circle cx="41" cy="66" r="7.5" fill="#05080d" />
         <circle cx="38.5" cy="63.5" r="2.2" fill="#9fe9f5" opacity="0.8" />
       </g>
@@ -67,8 +108,22 @@ export default function Logo({ size = 40, className = '' }) {
       {/* Sağ göz */}
       <g>
         <circle cx="79" cy="66" r="17" fill="none" stroke={`url(#${ring})`} strokeWidth="3.2" />
-        <path d="M79 49 A17 17 0 0 1 79 83" fill="none" stroke={`url(#${cyan})`} strokeWidth="2.6" strokeLinecap="round" />
-        <circle cx="79" cy="66" r="11.5" fill="none" stroke={`url(#${cyan})`} strokeWidth="2.2" opacity="0.85" />
+        <path
+          d="M79 49 A17 17 0 0 1 79 83"
+          fill="none"
+          stroke={`url(#${cyan})`}
+          strokeWidth="2.6"
+          strokeLinecap="round"
+        />
+        <circle
+          cx="79"
+          cy="66"
+          r="11.5"
+          fill="none"
+          stroke={`url(#${cyan})`}
+          strokeWidth="2.2"
+          opacity="0.85"
+        />
         <circle cx="79" cy="66" r="7.5" fill="#05080d" />
         <circle cx="76.5" cy="63.5" r="2.2" fill="#9fe9f5" opacity="0.8" />
       </g>

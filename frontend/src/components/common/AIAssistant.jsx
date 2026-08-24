@@ -68,7 +68,10 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
     }
     const current = req[intent.field]
     if (current === intent.value) {
-      addMessage({ from: 'ai', text: `ℹ️ ${req.text_id} zaten "${intent.value}" değerinde. Değişiklik yapmadım.` })
+      addMessage({
+        from: 'ai',
+        text: `ℹ️ ${req.text_id} zaten "${intent.value}" değerinde. Değişiklik yapmadım.`,
+      })
       return
     }
     try {
@@ -78,7 +81,10 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
         text: `✅ ${req.text_id} güncellendi.\n${intent.fieldLabel}: ${current} → ${intent.value}`,
       })
     } catch (err) {
-      addMessage({ from: 'ai', text: `❌ Güncelleme başarısız: ${err.message || 'bilinmeyen hata'}` })
+      addMessage({
+        from: 'ai',
+        text: `❌ Güncelleme başarısız: ${err.message || 'bilinmeyen hata'}`,
+      })
     }
   }
 
@@ -109,8 +115,10 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
     const tcs = trace.verifiedBy
     const passed = tcs.filter((x) => x.req.status === 'Approved').length
     let verdict
-    if (tcs.length === 0) verdict = 'Bağlı test senaryosu yok → otomatik durum "In Review" (kapsam dışı!).'
-    else if (passed === tcs.length) verdict = `Bağlı ${tcs.length} test senaryosunun tümü geçti → "Approved".`
+    if (tcs.length === 0)
+      verdict = 'Bağlı test senaryosu yok → otomatik durum "In Review" (kapsam dışı!).'
+    else if (passed === tcs.length)
+      verdict = `Bağlı ${tcs.length} test senaryosunun tümü geçti → "Approved".`
     else verdict = `${tcs.length} test senaryosundan ${passed} tanesi geçti → "Rejected".`
 
     addMessage({
@@ -184,32 +192,57 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className={`fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
-          open ? 'bg-slate-600 rotate-45 scale-90' : 'bg-violet-600 hover:bg-violet-700 hover:scale-110'
+          open
+            ? 'bg-slate-600 rotate-45 scale-90'
+            : 'bg-violet-600 hover:bg-violet-700 hover:scale-110'
         }`}
         title="AI Asistan"
         aria-label="AI Asistan"
       >
         {open ? (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z"/>
-            <path d="M19 16l.75 2.25L22 19l-2.25.75L19 22l-.75-2.25L16 19l2.25-.75z"/>
-            <path d="M5 16l.5 1.5L7 18l-1.5.5L5 20l-.5-1.5L3 18l1.5-.5z"/>
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5z" />
+            <path d="M19 16l.75 2.25L22 19l-2.25.75L19 22l-.75-2.25L16 19l2.25-.75z" />
+            <path d="M5 16l.5 1.5L7 18l-1.5.5L5 20l-.5-1.5L3 18l1.5-.5z" />
           </svg>
         )}
       </button>
 
       {/* ---- Chat Paneli ---- */}
-      <div className={`fixed bottom-24 right-6 z-40 w-80 rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 transition-all duration-300 origin-bottom-right ${
-        open ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'
-      }`}>
-
+      <div
+        className={`fixed bottom-24 right-6 z-40 w-80 rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 transition-all duration-300 origin-bottom-right ${
+          open
+            ? 'opacity-100 scale-100 pointer-events-auto'
+            : 'opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 rounded-t-2xl bg-violet-600 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg">✦</div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg">
+            ✦
+          </div>
           <div className="flex-1 leading-tight">
             <div className="text-sm font-bold text-white">{t('ai.title')}</div>
             <div className="flex items-center gap-1.5 text-[11px] text-violet-200">
@@ -225,18 +258,30 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
             msg.welcome ? (
               <WelcomeCard key={msg.id} user={currentUser} t={t} />
             ) : msg.from === 'ai' ? (
-              <AiMessage key={msg.id} text={msg.text} time={msg.time} suggestions={msg.suggestions} onSuggest={handleSend} />
+              <AiMessage
+                key={msg.id}
+                text={msg.text}
+                time={msg.time}
+                suggestions={msg.suggestions}
+                onSuggest={handleSend}
+              />
             ) : (
               <UserMessage key={msg.id} text={msg.text} time={msg.time} />
-            )
+            ),
           )}
 
           {typing && (
             <div className="flex items-end gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-sm dark:bg-violet-900/40">✦</div>
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-sm dark:bg-violet-900/40">
+                ✦
+              </div>
               <div className="flex gap-1 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3 dark:bg-slate-800">
-                {[0,1,2].map((i) => (
-                  <span key={i} className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  />
                 ))}
               </div>
             </div>
@@ -260,8 +305,18 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
             disabled={!input.trim()}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-white transition hover:bg-violet-700 disabled:opacity-40"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
           </button>
         </div>
@@ -279,9 +334,7 @@ function WelcomeCard({ user, t }) {
       <p className="mb-1.5 font-semibold text-violet-700 dark:text-violet-300">
         {t('ai.welcome', { name })}
       </p>
-      <p className="text-slate-500 dark:text-slate-400">
-        {t('ai.welcomeHint')}
-      </p>
+      <p className="text-slate-500 dark:text-slate-400">{t('ai.welcomeHint')}</p>
     </div>
   )
 }
@@ -289,7 +342,9 @@ function WelcomeCard({ user, t }) {
 function AiMessage({ text, time, suggestions, onSuggest }) {
   return (
     <div className="flex items-end gap-2">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm dark:bg-violet-900/40">✦</div>
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm dark:bg-violet-900/40">
+        ✦
+      </div>
       <div className="max-w-[85%]">
         <div className="whitespace-pre-line rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
           {text}

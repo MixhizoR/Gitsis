@@ -14,9 +14,6 @@ import {
   IconHistory,
   IconSparkle,
   IconChevron,
-  IconTarget,
-  IconCheck,
-  IconDoc,
   IconUsers,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
@@ -26,24 +23,24 @@ import { useAuth } from '../../context/AuthContext.jsx'
 
 // Hiyerarsi alt ogeleri (sirali).
 const HIER = [
-  { key: 'req-user',        labelKey: 'nav.reqUser' },
-  { key: 'req-system',      labelKey: 'nav.reqSystem' },
-  { key: 'req-subsystem',   labelKey: 'nav.reqSubsystem' },
+  { key: 'req-user', labelKey: 'nav.reqUser' },
+  { key: 'req-system', labelKey: 'nav.reqSystem' },
+  { key: 'req-subsystem', labelKey: 'nav.reqSubsystem' },
   { key: 'test-acceptance', labelKey: 'nav.testAcceptance' },
-  { key: 'test-system',     labelKey: 'nav.testSystem' },
-  { key: 'test-subsystem',  labelKey: 'nav.testSubsystem' },
-  { key: 'glossary',        labelKey: 'nav.glossary' },
+  { key: 'test-system', labelKey: 'nav.testSystem' },
+  { key: 'test-subsystem', labelKey: 'nav.testSubsystem' },
+  { key: 'glossary', labelKey: 'nav.glossary' },
 ]
 const HIER_KEYS = HIER.map((h) => h.key)
 
 const TOP = [{ key: 'dashboard', labelKey: 'nav.dashboard', icon: IconDashboard }]
 const BOTTOM = [
-  { key: 'coverage',     labelKey: 'nav.coverage',     icon: IconShield },
+  { key: 'coverage', labelKey: 'nav.coverage', icon: IconShield },
   { key: 'traceability', labelKey: 'nav.traceability', icon: IconMatrix },
   { key: 'traceability-export', labelKey: 'nav.traceabilityExport', icon: IconMatrix },
   { key: 'traceability-import', labelKey: 'nav.traceabilityImport', icon: IconMatrix },
-  { key: 'documents',    labelKey: 'nav.documents',    icon: IconSparkle },
-  { key: 'audit',        labelKey: 'nav.audit',        icon: IconHistory },
+  { key: 'documents', labelKey: 'nav.documents', icon: IconSparkle },
+  { key: 'audit', labelKey: 'nav.audit', icon: IconHistory },
 ]
 
 function NavButton({ active, onClick, Icon, label, indent = false }) {
@@ -80,8 +77,12 @@ export default function Sidebar({ active, onNavigate }) {
         <div className="flex items-center gap-3">
           <Logo size={38} className="shrink-0 drop-shadow-sm" />
           <div className="min-w-0 leading-tight">
-            <div className="truncate text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">{t('app.name')}</div>
-            <div className="truncate text-[11px] font-medium text-slate-400">{activeProject?.name || t('app.subtitle')}</div>
+            <div className="truncate text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {t('app.name')}
+            </div>
+            <div className="truncate text-[11px] font-medium text-slate-400">
+              {activeProject?.name || t('app.subtitle')}
+            </div>
           </div>
         </div>
         <button
@@ -95,12 +96,24 @@ export default function Sidebar({ active, onNavigate }) {
       {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-3">
         {TOP.map((item) => (
-          <NavButton key={item.key} active={active === item.key} onClick={() => onNavigate(item.key)} Icon={item.icon} label={t(item.labelKey)} />
+          <NavButton
+            key={item.key}
+            active={active === item.key}
+            onClick={() => onNavigate(item.key)}
+            Icon={item.icon}
+            label={t(item.labelKey)}
+          />
         ))}
 
         {/* Roller — Dashboard ile Hiyerarsi ARASINDA (yalnizca yetkiliye) */}
         {canSeeRoles && (
-          <NavButton key="roles" active={active === 'roles'} onClick={() => onNavigate('roles')} Icon={IconUsers} label={t('nav.roles')} />
+          <NavButton
+            key="roles"
+            active={active === 'roles'}
+            onClick={() => onNavigate('roles')}
+            Icon={IconUsers}
+            label={t('nav.roles')}
+          />
         )}
 
         {/* Hiyerarsi (acilir) */}
@@ -115,12 +128,22 @@ export default function Sidebar({ active, onNavigate }) {
         >
           <IconList size={19} />
           <span className="flex-1 text-left">{t('nav.hierarchy')}</span>
-          <IconChevron size={15} className={hierOpen ? 'rotate-90 transition-transform' : 'transition-transform'} />
+          <IconChevron
+            size={15}
+            className={hierOpen ? 'rotate-90 transition-transform' : 'transition-transform'}
+          />
         </button>
         {hierOpen && (
           <div className="space-y-0.5">
             {HIER.map((item) => (
-              <NavButton key={item.key} active={active === item.key} onClick={() => onNavigate(item.key)} Icon={null} label={t(item.labelKey)} indent />
+              <NavButton
+                key={item.key}
+                active={active === item.key}
+                onClick={() => onNavigate(item.key)}
+                Icon={null}
+                label={t(item.labelKey)}
+                indent
+              />
             ))}
           </div>
         )}
@@ -128,7 +151,13 @@ export default function Sidebar({ active, onNavigate }) {
         <div className="my-2 border-t border-slate-100 dark:border-slate-800" />
 
         {BOTTOM.map((item) => (
-          <NavButton key={item.key} active={active === item.key} onClick={() => onNavigate(item.key)} Icon={item.icon} label={t(item.labelKey)} />
+          <NavButton
+            key={item.key}
+            active={active === item.key}
+            onClick={() => onNavigate(item.key)}
+            Icon={item.icon}
+            label={t(item.labelKey)}
+          />
         ))}
       </nav>
 

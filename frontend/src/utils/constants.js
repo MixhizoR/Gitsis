@@ -46,7 +46,12 @@ export const VERIFIES_TARGET_TYPES = {
   [TEST_TYPE.SYSTEM]: [REQ_TYPE.SYSTEM],
   [TEST_TYPE.SUBSYSTEM]: [REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
 }
-export const ASSIGNABLE_REQ_TYPES = [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE]
+export const ASSIGNABLE_REQ_TYPES = [
+  REQ_TYPE.USER,
+  REQ_TYPE.SYSTEM,
+  REQ_TYPE.SOFTWARE,
+  REQ_TYPE.HARDWARE,
+]
 
 // --- Gereksinim alani / disiplini (Category / Domain) -----------------------
 // 10 sistem gereksiniminin alt gereksinimlere ayristirilmasinda, her alt
@@ -206,7 +211,12 @@ export const LINK_INITIATION = {
 // Test ile dogrulanabilen (Verifies hedefi olabilen) TUM gereksinim tipleri.
 // Kabul testi -> Kullanici, Sistem testi -> Sistem, Alt-sistem testi -> Yazilim/Donanim.
 // Boylece kapsam paydasi TOPLAM gereksinim sayisidir (or. 58), 36 degil.
-export const COVERABLE_TYPES = [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE]
+export const COVERABLE_TYPES = [
+  REQ_TYPE.USER,
+  REQ_TYPE.SYSTEM,
+  REQ_TYPE.SOFTWARE,
+  REQ_TYPE.HARDWARE,
+]
 
 // Ust gereksinime (Satisfies) baglanmasi GEREKEN tipler. Kullanici en tepe
 // oldugu icin ust bag gerektirmez; digerleri bir ust seviyeyi karsilamalidir.
@@ -214,30 +224,46 @@ export const SATISFY_REQUIRED_TYPES = [REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_T
 
 // --- Renk / stil eslemeleri (Tailwind sinif setleri) ------------------------
 export const STATUS_STYLES = {
-  [STATUS.DRAFT]: 'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
-  [STATUS.IN_REVIEW]: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
-  [STATUS.APPROVED]: 'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800/60',
-  [STATUS.REJECTED]: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
+  [STATUS.DRAFT]:
+    'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+  [STATUS.IN_REVIEW]:
+    'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
+  [STATUS.APPROVED]:
+    'bg-emerald-100 text-emerald-800 ring-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800/60',
+  [STATUS.REJECTED]:
+    'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
 }
 
 export const PRIORITY_STYLES = {
-  [PRIORITY.HIGH]: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
-  [PRIORITY.MEDIUM]: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
-  [PRIORITY.LOW]: 'bg-sky-100 text-sky-800 ring-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800/60',
+  [PRIORITY.HIGH]:
+    'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
+  [PRIORITY.MEDIUM]:
+    'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
+  [PRIORITY.LOW]:
+    'bg-sky-100 text-sky-800 ring-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800/60',
 }
 
 export const TYPE_STYLES = {
-  [REQ_TYPE.USER]: 'bg-indigo-100 text-indigo-800 ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60',
-  [REQ_TYPE.SYSTEM]: 'bg-violet-100 text-violet-800 ring-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800/60',
-  [REQ_TYPE.SOFTWARE]: 'bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800/60',
-  [REQ_TYPE.HARDWARE]: 'bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800/60',
-  [REQ_TYPE.TEST_CASE]: 'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-300 dark:bg-fuchsia-950/50 dark:text-fuchsia-300 dark:ring-fuchsia-800/60',
+  [REQ_TYPE.USER]:
+    'bg-indigo-100 text-indigo-800 ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60',
+  [REQ_TYPE.SYSTEM]:
+    'bg-violet-100 text-violet-800 ring-violet-300 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800/60',
+  [REQ_TYPE.SOFTWARE]:
+    'bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800/60',
+  [REQ_TYPE.HARDWARE]:
+    'bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800/60',
+  [REQ_TYPE.TEST_CASE]:
+    'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-300 dark:bg-fuchsia-950/50 dark:text-fuchsia-300 dark:ring-fuchsia-800/60',
   // Test tipleri
-  [TEST_TYPE.ACCEPTANCE]: 'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-300 dark:bg-fuchsia-950/50 dark:text-fuchsia-300 dark:ring-fuchsia-800/60',
-  [TEST_TYPE.SYSTEM]: 'bg-purple-100 text-purple-800 ring-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:ring-purple-800/60',
-  [TEST_TYPE.SUBSYSTEM]: 'bg-pink-100 text-pink-800 ring-pink-300 dark:bg-pink-950/50 dark:text-pink-300 dark:ring-pink-800/60',
+  [TEST_TYPE.ACCEPTANCE]:
+    'bg-fuchsia-100 text-fuchsia-800 ring-fuchsia-300 dark:bg-fuchsia-950/50 dark:text-fuchsia-300 dark:ring-fuchsia-800/60',
+  [TEST_TYPE.SYSTEM]:
+    'bg-purple-100 text-purple-800 ring-purple-300 dark:bg-purple-950/50 dark:text-purple-300 dark:ring-purple-800/60',
+  [TEST_TYPE.SUBSYSTEM]:
+    'bg-pink-100 text-pink-800 ring-pink-300 dark:bg-pink-950/50 dark:text-pink-300 dark:ring-pink-800/60',
   // Sozluk terimi
-  'Glossary Term': 'bg-cyan-100 text-cyan-800 ring-cyan-300 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800/60',
+  'Glossary Term':
+    'bg-cyan-100 text-cyan-800 ring-cyan-300 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800/60',
 }
 
 export const DAL_STYLES = {
@@ -249,15 +275,24 @@ export const DAL_STYLES = {
 }
 
 export const CATEGORY_STYLES = {
-  [CATEGORY.HMI]: 'bg-pink-100 text-pink-800 ring-pink-300 dark:bg-pink-950/50 dark:text-pink-300 dark:ring-pink-800/60',
-  [CATEGORY.SOFTWARE]: 'bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800/60',
-  [CATEGORY.HARDWARE]: 'bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800/60',
-  [CATEGORY.DATABASE]: 'bg-indigo-100 text-indigo-800 ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60',
-  [CATEGORY.SERVER]: 'bg-cyan-100 text-cyan-800 ring-cyan-300 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800/60',
-  [CATEGORY.COMMS]: 'bg-sky-100 text-sky-800 ring-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800/60',
-  [CATEGORY.SAFETY]: 'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
-  [CATEGORY.PERFORMANCE]: 'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
-  [CATEGORY.GENERAL]: 'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+  [CATEGORY.HMI]:
+    'bg-pink-100 text-pink-800 ring-pink-300 dark:bg-pink-950/50 dark:text-pink-300 dark:ring-pink-800/60',
+  [CATEGORY.SOFTWARE]:
+    'bg-brand-100 text-brand-800 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-300 dark:ring-brand-800/60',
+  [CATEGORY.HARDWARE]:
+    'bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-950/50 dark:text-teal-300 dark:ring-teal-800/60',
+  [CATEGORY.DATABASE]:
+    'bg-indigo-100 text-indigo-800 ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800/60',
+  [CATEGORY.SERVER]:
+    'bg-cyan-100 text-cyan-800 ring-cyan-300 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800/60',
+  [CATEGORY.COMMS]:
+    'bg-sky-100 text-sky-800 ring-sky-300 dark:bg-sky-950/50 dark:text-sky-300 dark:ring-sky-800/60',
+  [CATEGORY.SAFETY]:
+    'bg-rose-100 text-rose-800 ring-rose-300 dark:bg-rose-950/50 dark:text-rose-300 dark:ring-rose-800/60',
+  [CATEGORY.PERFORMANCE]:
+    'bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:ring-amber-800/60',
+  [CATEGORY.GENERAL]:
+    'bg-slate-100 text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
 }
 
 // Dashboard kirilim cubuklari icin sade kategori renkleri.
@@ -283,7 +318,7 @@ export const REQ_PAGES = {
     key: 'req-user',
     label: 'User Requirements',
     navLabel: 'Kullanici Gereksinimleri',
-    lockedType: REQ_TYPE.USER,          // tip kilitli
+    lockedType: REQ_TYPE.USER, // tip kilitli
     typeOptions: [REQ_TYPE.USER],
     addLabel: 'Kullanici Gereksinimi Ekle',
   },
@@ -299,7 +334,7 @@ export const REQ_PAGES = {
     key: 'req-subsystem',
     label: 'Sub-system Requirements',
     navLabel: 'Alt Sistem Gereksinimleri',
-    lockedType: null,                    // SW/HW arasinda secim
+    lockedType: null, // SW/HW arasinda secim
     typeOptions: [REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
     addLabel: 'Alt Sistem Gereksinimi Ekle',
   },
@@ -319,7 +354,7 @@ export const TEST_PAGES = {
     label: 'System Test',
     navLabel: 'Sistem Testleri',
     lockedType: TEST_TYPE.SYSTEM,
-    verifiesTypes: VERIFIES_TARGET_TYPES[TEST_TYPE.SYSTEM],     // [System]
+    verifiesTypes: VERIFIES_TARGET_TYPES[TEST_TYPE.SYSTEM], // [System]
     addLabel: 'Test Senaryosu Ekle',
   },
   'test-subsystem': {
@@ -327,7 +362,7 @@ export const TEST_PAGES = {
     label: 'Sub-system Test',
     navLabel: 'Alt Sistem Testleri',
     lockedType: TEST_TYPE.SUBSYSTEM,
-    verifiesTypes: VERIFIES_TARGET_TYPES[TEST_TYPE.SUBSYSTEM],  // [Software, Hardware]
+    verifiesTypes: VERIFIES_TARGET_TYPES[TEST_TYPE.SUBSYSTEM], // [Software, Hardware]
     addLabel: 'Test Senaryosu Ekle',
   },
 }

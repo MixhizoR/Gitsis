@@ -76,7 +76,8 @@ export const STRINGS = {
 
     // --- Topbar aksiyonlar ---
     'topbar.reset': 'Demo Sıfırla',
-    'topbar.resetConfirm': 'Tüm veriler silinip demo veri seti yeniden yüklenecek. Onaylıyor musunuz?',
+    'topbar.resetConfirm':
+      'Tüm veriler silinip demo veri seti yeniden yüklenecek. Onaylıyor musunuz?',
     'topbar.logout': 'Çıkış yap',
     'topbar.logoutConfirm': 'Çıkış yapmak istiyor musunuz?',
     'topbar.theme': 'Tema değiştir',
@@ -90,7 +91,8 @@ export const STRINGS = {
     'ai.online': 'Çevrimiçi · Yerel motor',
     'ai.placeholder': 'Komut yazın: filtrele, düzenle, git…',
     'ai.welcome': 'Merhaba{name}! 👋',
-    'ai.welcomeHint': 'Yazmanız yeterli — sayfalarda gezdirir, gereksinimleri filtreler ve düzenlerim. Örn: “DAL B”, “test case olanlar”, “REQ-SW-001 önceliğini Low yap”.',
+    'ai.welcomeHint':
+      'Yazmanız yeterli — sayfalarda gezdirir, gereksinimleri filtreler ve düzenlerim. Örn: “DAL B”, “test case olanlar”, “REQ-SW-001 önceliğini Low yap”.',
 
     // --- Dashboard ---
     'dash.totalReq': 'Toplam Gereksinim',
@@ -104,11 +106,13 @@ export const STRINGS = {
     'dash.satisfy': 'Açık Satisfy Bağı',
     'dash.satisfy.sub': '{linked} / {total} gereksinim üst-bağlı',
     'dash.satisfyTitle': 'Satisfy Bağı Açığı — Üst Gereksinime Bağlı Olmayanlar',
-    'dash.satisfyDesc': 'DO-178C çift yönlü izlenebilirlik: her Sistem gereksinimi bir Kullanıcı, her Yazılım/Donanım gereksinimi bir Sistem gereksinimini karşılamalıdır.',
+    'dash.satisfyDesc':
+      'DO-178C çift yönlü izlenebilirlik: her Sistem gereksinimi bir Kullanıcı, her Yazılım/Donanım gereksinimi bir Sistem gereksinimini karşılamalıdır.',
     'dash.allSatisfied': 'Tüm alt gereksinimler bir üst gereksinime bağlı.',
     'dash.moreSat': '+ {n} bağsız gereksinim daha…',
     'dash.scoreTitle': 'İzlenebilirlik % Skoru',
-    'dash.scoreDesc': 'DO-178C kapsam metriği — tüm gereksinimlerin (Kullanıcı/Sistem/Yazılım/Donanım) test senaryolarıyla doğrulanma oranı.',
+    'dash.scoreDesc':
+      'DO-178C kapsam metriği — tüm gereksinimlerin (Kullanıcı/Sistem/Yazılım/Donanım) test senaryolarıyla doğrulanma oranı.',
     'dash.critTitle': 'Kritik Güvenlik Açığı Özeti',
     'dash.fullReport': 'Tam rapor',
     'dash.allCovered': 'Tüm gereksinimler test kapsamında.',
@@ -124,7 +128,8 @@ export const STRINGS = {
     // --- Gereksinimler sayfası ---
     'req.shownSuffix': 'gereksinim gösteriliyor',
     'req.new': 'Yeni Gereksinim',
-    'req.deleteConfirm': '"{id} — {title}" silinecek. İlişkili tüm bağlar da koparılacak. Onaylıyor musunuz?',
+    'req.deleteConfirm':
+      '"{id} — {title}" silinecek. İlişkili tüm bağlar da koparılacak. Onaylıyor musunuz?',
 
     // --- Gereksinim filtreleri ---
     'filt.allOf': '{label}: Tümü',
@@ -213,7 +218,8 @@ export const STRINGS = {
     'cov.coverable': 'Kapsanabilir Gereksinim',
     'cov.covered': 'Kapsanan',
     'cov.uncovered': 'Kapsam Dışı',
-    'cov.criticalWarn': '{n} adet DAL A/B seviyesinde gereksinim test edilmemiş — acil aksiyon gerektirir.',
+    'cov.criticalWarn':
+      '{n} adet DAL A/B seviyesinde gereksinim test edilmemiş — acil aksiyon gerektirir.',
     'cov.reportTitle': 'Kritik Güvenlik Açığı Raporu — Test Kapsamı Dışındaki Gereksinimler',
     'cov.allCoveredTitle': 'Tüm gereksinimler test kapsamında.',
     'cov.allCoveredSub': 'DO-178C izlenebilirlik hedefi karşılandı.',
@@ -241,15 +247,19 @@ export const STRINGS = {
     // --- İzlenebilirlik matrisi ---
     'mtx.insufficient': 'Bu matris için yeterli gereksinim bulunmuyor.',
     'mtx.sourceTarget': 'Kaynak \\ Hedef',
-    'trace.intro': 'Çift yönlü izlenebilirlik haritası. Dolu hücreler kurulmuş bağları gösterir. Bağları {req} sayfasından kurabilir/koparabilirsiniz.',
+    'trace.intro':
+      'Çift yönlü izlenebilirlik haritası. Dolu hücreler kurulmuş bağları gösterir. Bağları {req} sayfasından kurabilir/koparabilirsiniz.',
     'trace.m1Title': '① Satisfies Matrisi · System Requirement → Software / Hardware Requirement',
-    'trace.m1Desc': 'Hangi yazılım/donanım gereksiniminin hangi sistem gereksinimini karşıladığını gösterir.',
+    'trace.m1Desc':
+      'Hangi yazılım/donanım gereksiniminin hangi sistem gereksinimini karşıladığını gösterir.',
     'trace.m2Title': '② Verifies Matrisi · System / Software / Hardware Requirement → Test Case',
-    'trace.m2Desc': 'Hangi test senaryosunun hangi gereksinimi doğruladığını gösterir. Boş satırlar kapsam dışıdır.',
+    'trace.m2Desc':
+      'Hangi test senaryosunun hangi gereksinimi doğruladığını gösterir. Boş satırlar kapsam dışıdır.',
 
     // --- Etki Analizi (Impact Analysis) ---
     'impact.title': 'Etki Analizi',
-    'impact.subtitle': '{id} değiştiğinde etkilenen testler, üst gereksinimler ve dokümanlar (Satisfies / Verifies bağlarından hesaplanır).',
+    'impact.subtitle':
+      '{id} değiştiğinde etkilenen testler, üst gereksinimler ve dokümanlar (Satisfies / Verifies bağlarından hesaplanır).',
     'impact.changed': 'Değişti',
     'impact.reviewNeeded': 'Gözden geçirilmeli',
     'impact.testsRerun': '{n} bağlı test tekrar çalıştırılmalı',
@@ -264,7 +274,8 @@ export const STRINGS = {
     // --- AI Belge Analizi ---
     'doc.title': 'Yapay Zeka Belge Analizi',
     'doc.intro1': 'Bir gereksinim belgesi yükleyin (',
-    'doc.intro2': ') veya metni yapıştırın. Motor belgeyi okur; gereksinim cümlelerini bulur, tip ve alan tahmini yapar, her birini DO-178C kalite kurallarına göre puanlar ve seçtiklerinizi uygulamaya aktarır.',
+    'doc.intro2':
+      ') veya metni yapıştırın. Motor belgeyi okur; gereksinim cümlelerini bulur, tip ve alan tahmini yapar, her birini DO-178C kalite kurallarına göre puanlar ve seçtiklerinizi uygulamaya aktarır.',
     'doc.uploadBtn': 'Belge Yükle',
     'doc.pastePh': '…veya gereksinim metnini buraya yapıştırın.',
     'doc.analyzing': 'Analiz ediliyor…',
@@ -317,8 +328,10 @@ export const STRINGS = {
     'doc.row.delete': 'Sil',
     'doc.regenerating': 'Yeniden üretiliyor…',
     'doc.needDocFirst': 'Önce bir belge yükleyin ya da metin yapıştırın.',
-    'doc.engine.hint': 'Yapay zeka motoru belgeyi okur, istenen sayıda Kullanıcı/Sistem/Alt Sistem gereksinimi üretir. Beğendiklerinizi seçip sisteme aktarırsınız; test eşleştirmelerini her zamanki gibi kendiniz yaparsınız.',
-    'doc.aiReviewNote': 'Bunlar yapay zeka üretimi taslaklardır; içe aktarmadan önce gözden geçirin. Beğenmediklerinizi "Sil" veya "Yeniden Üret" ile düzenleyin.',
+    'doc.engine.hint':
+      'Yapay zeka motoru belgeyi okur, istenen sayıda Kullanıcı/Sistem/Alt Sistem gereksinimi üretir. Beğendiklerinizi seçip sisteme aktarırsınız; test eşleştirmelerini her zamanki gibi kendiniz yaparsınız.',
+    'doc.aiReviewNote':
+      'Bunlar yapay zeka üretimi taslaklardır; içe aktarmadan önce gözden geçirin. Beğenmediklerinizi "Sil" veya "Yeniden Üret" ile düzenleyin.',
     'doc.online.total': 'Üretilen Gereksinim',
     'doc.th.actions': 'İşlem',
 
@@ -363,7 +376,8 @@ export const STRINGS = {
     'link.select': 'Seçiniz…',
     'link.linkBtn': 'Bağla',
     'link.noCandidates': 'Bu tip için uygun (ve henüz bağlı olmayan) hedef bulunmuyor.',
-    'link.topLevelNote': '{type} en üst katman bir gereksinimdir; yukarı doğru bağ başlatamaz. Alt bileşenler (Yazılım / Donanım / Test Senaryosu) bu gereksinime aşağıdan bağlanır.',
+    'link.topLevelNote':
+      '{type} en üst katman bir gereksinimdir; yukarı doğru bağ başlatamaz. Alt bileşenler (Yazılım / Donanım / Test Senaryosu) bu gereksinime aşağıdan bağlanır.',
     'link.sec.satisfiedBy': 'Karşılayan Yazılım/Donanım Gereksinimleri (Satisfies)',
     'link.sec.satisfies': 'Karşıladığı Sistem Gereksinimleri',
     'link.sec.verifiedBy': 'Doğrulayan Test Senaryoları (Verifies)',
@@ -431,7 +445,8 @@ export const STRINGS = {
     'form.typeLocked': 'Tip bu sayfada sabittir',
     'form.relatedDocs': 'İlgili Doküman(lar)',
     'form.relatedDocsPh': 'Örn: SRS v2.1, ICD-014',
-    'form.relatedDocsHint': 'Virgülle ayırın. Etki analizinde "güncellenmesi gereken dokümanlar" olarak listelenir.',
+    'form.relatedDocsHint':
+      'Virgülle ayırın. Etki analizinde "güncellenmesi gereken dokümanlar" olarak listelenir.',
     'field.title': 'Alanları Yönet',
     'field.subtitle': 'Gereksinim alanlarını (disiplin) ekleyin veya silin.',
     'field.manage': 'Alan Yönet',
@@ -479,7 +494,8 @@ export const STRINGS = {
     'link.testStatus': 'Test Durumu',
     'link.selectStatus': 'Durum seçiniz…',
     'link.statusRequired': 'Test durumu seçilmelidir.',
-    'link.testAlready': 'Bu test zaten bir gereksinimi doğruluyor. Yeni bağ için önce mevcut bağı koparın.',
+    'link.testAlready':
+      'Bu test zaten bir gereksinimi doğruluyor. Yeni bağ için önce mevcut bağı koparın.',
     'link.sec.satisfiesUp': 'Karşıladığı Üst Gereksinim',
     'link.sec.assignedGlossary': 'Atanan Sözlük Terimleri',
     'link.sec.assignedTo': 'Atandığı Gereksinimler',
@@ -590,7 +606,8 @@ export const STRINGS = {
     'ai.online': 'Online · Local engine',
     'ai.placeholder': 'Type a command: filter, edit, go…',
     'ai.welcome': 'Hello{name}! 👋',
-    'ai.welcomeHint': 'Just type — I navigate pages, filter and edit requirements. E.g. “DAL B”, “test cases”, “set REQ-SW-001 priority to Low”.',
+    'ai.welcomeHint':
+      'Just type — I navigate pages, filter and edit requirements. E.g. “DAL B”, “test cases”, “set REQ-SW-001 priority to Low”.',
 
     // --- Dashboard ---
     'dash.totalReq': 'Total Requirements',
@@ -604,11 +621,13 @@ export const STRINGS = {
     'dash.satisfy': 'Open Satisfy Links',
     'dash.satisfy.sub': '{linked} / {total} requirements traced up',
     'dash.satisfyTitle': 'Satisfy Gap — Requirements Not Linked to a Parent',
-    'dash.satisfyDesc': 'DO-178C bidirectional traceability: every System requirement must satisfy a User requirement, and every Software/Hardware requirement a System requirement.',
+    'dash.satisfyDesc':
+      'DO-178C bidirectional traceability: every System requirement must satisfy a User requirement, and every Software/Hardware requirement a System requirement.',
     'dash.allSatisfied': 'All lower requirements are linked to a parent.',
     'dash.moreSat': '+ {n} more unlinked requirements…',
     'dash.scoreTitle': 'Traceability % Score',
-    'dash.scoreDesc': 'DO-178C coverage metric — the share of all requirements (User/System/Software/Hardware) verified by test cases.',
+    'dash.scoreDesc':
+      'DO-178C coverage metric — the share of all requirements (User/System/Software/Hardware) verified by test cases.',
     'dash.critTitle': 'Critical Safety Gap Summary',
     'dash.fullReport': 'Full report',
     'dash.allCovered': 'All requirements are covered by tests.',
@@ -624,7 +643,8 @@ export const STRINGS = {
     // --- Requirements page ---
     'req.shownSuffix': 'requirements shown',
     'req.new': 'New Requirement',
-    'req.deleteConfirm': '"{id} — {title}" will be deleted. All related links will also be removed. Are you sure?',
+    'req.deleteConfirm':
+      '"{id} — {title}" will be deleted. All related links will also be removed. Are you sure?',
 
     // --- Requirement filters ---
     'filt.allOf': '{label}: All',
@@ -702,7 +722,8 @@ export const STRINGS = {
     'apm.pending': 'Not all approvals are complete yet — status is “Pending”.',
     'apm.unlock': 'Unlock (withdraw PM approval)',
     'apm.unlocking': 'Unlocking…',
-    'apm.noVoters': 'No personnel have approval rights for this component; only PM approval is required.',
+    'apm.noVoters':
+      'No personnel have approval rights for this component; only PM approval is required.',
 
     // --- StatCard / BreakdownBar / ScoreRing ---
     'stat.noData': 'No data.',
@@ -713,7 +734,8 @@ export const STRINGS = {
     'cov.coverable': 'Coverable Requirements',
     'cov.covered': 'Covered',
     'cov.uncovered': 'Uncovered',
-    'cov.criticalWarn': '{n} requirement(s) at DAL A/B level are untested — immediate action required.',
+    'cov.criticalWarn':
+      '{n} requirement(s) at DAL A/B level are untested — immediate action required.',
     'cov.reportTitle': 'Critical Safety Gap Report — Requirements Outside Test Coverage',
     'cov.allCoveredTitle': 'All system and software requirements are covered by tests.',
     'cov.allCoveredSub': 'DO-178C traceability objective met.',
@@ -741,7 +763,8 @@ export const STRINGS = {
     // --- Traceability matrix ---
     'mtx.insufficient': 'Not enough requirements for this matrix.',
     'mtx.sourceTarget': 'Source \\ Target',
-    'trace.intro': 'Bidirectional traceability map. Filled cells show established links. You can create/remove links from the {req} page.',
+    'trace.intro':
+      'Bidirectional traceability map. Filled cells show established links. You can create/remove links from the {req} page.',
     'trace.m1Title': '① Satisfies Matrix · System Requirement → Software / Hardware Requirement',
     'trace.m1Desc': 'Shows which software/hardware requirement satisfies which system requirement.',
     'trace.m2Title': '② Verifies Matrix · System / Software / Hardware Requirement → Test Case',
@@ -749,14 +772,16 @@ export const STRINGS = {
 
     // --- Impact Analysis ---
     'impact.title': 'Impact Analysis',
-    'impact.subtitle': 'Tests, parent requirements and documents affected when {id} changes (computed from Satisfies / Verifies links).',
+    'impact.subtitle':
+      'Tests, parent requirements and documents affected when {id} changes (computed from Satisfies / Verifies links).',
     'impact.changed': 'Changed',
     'impact.reviewNeeded': 'Review needed',
     'impact.testsRerun': '{n} linked test(s) must be rerun',
     'impact.testsReview': '{n} linked test(s) may be affected, review them',
     'impact.docsUpdate': '{n} related document(s) must be updated',
     'impact.topOfChain': 'Top of the traceability chain — no further parent requirement.',
-    'impact.empty': 'No linked tests, parent requirements, or related documents found for this requirement.',
+    'impact.empty':
+      'No linked tests, parent requirements, or related documents found for this requirement.',
     'impact.summary.tests': 'Affected Tests',
     'impact.summary.parents': 'Parent Requirements',
     'impact.summary.docs': 'Documents',
@@ -764,7 +789,8 @@ export const STRINGS = {
     // --- AI Document Analysis ---
     'doc.title': 'AI Document Analysis',
     'doc.intro1': 'Upload a requirements document (',
-    'doc.intro2': ') or paste text. The engine reads the document, finds requirement sentences, predicts type and domain, scores each against DO-178C quality rules, and imports your selection.',
+    'doc.intro2':
+      ') or paste text. The engine reads the document, finds requirement sentences, predicts type and domain, scores each against DO-178C quality rules, and imports your selection.',
     'doc.uploadBtn': 'Upload Document',
     'doc.pastePh': '…or paste the requirement text here.',
     'doc.analyzing': 'Analyzing…',
@@ -804,7 +830,8 @@ export const STRINGS = {
     'doc.engine.offline': 'Local Engine (Offline)',
     'doc.engine.online.badge': 'LIVE AI',
     'doc.engine.connected': 'Engine connected · {model}',
-    'doc.engine.disconnected': 'Cannot reach AI engine ({url}). Are the service and LM Studio running?',
+    'doc.engine.disconnected':
+      'Cannot reach AI engine ({url}). Are the service and LM Studio running?',
     'doc.engine.checking': 'Checking engine…',
     'doc.engine.lmOffline': 'Service is up but LM Studio is unreachable.',
     'doc.counts.title': 'How many requirements to generate?',
@@ -817,8 +844,10 @@ export const STRINGS = {
     'doc.row.delete': 'Delete',
     'doc.regenerating': 'Regenerating…',
     'doc.needDocFirst': 'Upload a document or paste text first.',
-    'doc.engine.hint': 'The AI engine reads the document and generates the requested number of User/System/Sub-system requirements. Pick the ones you like and add them to the system; you still create test links yourself as usual.',
-    'doc.aiReviewNote': 'These are AI-generated drafts; review them before importing. Use "Delete" or "Regenerate" for the ones you do not like.',
+    'doc.engine.hint':
+      'The AI engine reads the document and generates the requested number of User/System/Sub-system requirements. Pick the ones you like and add them to the system; you still create test links yourself as usual.',
+    'doc.aiReviewNote':
+      'These are AI-generated drafts; review them before importing. Use "Delete" or "Regenerate" for the ones you do not like.',
     'doc.online.total': 'Generated Requirements',
     'doc.th.actions': 'Action',
 
@@ -863,7 +892,8 @@ export const STRINGS = {
     'link.select': 'Select…',
     'link.linkBtn': 'Link',
     'link.noCandidates': 'No suitable (and not yet linked) target for this type.',
-    'link.topLevelNote': '{type} is a top-layer requirement; it cannot initiate links upward. Lower components (Software / Hardware / Test Case) link to it from below.',
+    'link.topLevelNote':
+      '{type} is a top-layer requirement; it cannot initiate links upward. Lower components (Software / Hardware / Test Case) link to it from below.',
     'link.sec.satisfiedBy': 'Satisfying Software/Hardware Requirements (Satisfies)',
     'link.sec.satisfies': 'System Requirements It Satisfies',
     'link.sec.verifiedBy': 'Verifying Test Cases (Verifies)',
@@ -952,7 +982,8 @@ export const STRINGS = {
     'test.fill': 'Enter a title and description',
     'test.titlePh': 'Short test title',
     'test.descPh': 'Test steps / expected result',
-    'test.autoNote': 'Field, priority, DAL and status are auto-assigned when linked to a requirement.',
+    'test.autoNote':
+      'Field, priority, DAL and status are auto-assigned when linked to a requirement.',
     'test.deleteConfirm': 'Test case "{id} — {title}" will be deleted. Are you sure?',
 
     // --- Glossary ---
@@ -979,7 +1010,8 @@ export const STRINGS = {
     'link.testStatus': 'Test Status',
     'link.selectStatus': 'Select status…',
     'link.statusRequired': 'A test status must be selected.',
-    'link.testAlready': 'This test already verifies a requirement. Remove the existing link before creating a new one.',
+    'link.testAlready':
+      'This test already verifies a requirement. Remove the existing link before creating a new one.',
     'link.sec.satisfiesUp': 'Parent Requirement It Satisfies',
     'link.sec.assignedGlossary': 'Assigned Glossary Terms',
     'link.sec.assignedTo': 'Requirements It Is Assigned To',

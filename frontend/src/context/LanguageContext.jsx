@@ -47,14 +47,13 @@ export function LanguageProvider({ children }) {
       }
       return str
     },
-    [lang]
+    [lang],
   )
 
   const value = { lang, setLang, toggleLang, t }
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useLang() {
   const ctx = useContext(LanguageContext)
   if (!ctx) throw new Error('useLang yalnızca <LanguageProvider> içinde kullanılabilir.')

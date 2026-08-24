@@ -22,34 +22,37 @@ export default function Traceability() {
   const softwareReqs = useMemo(() => byType(REQ_TYPE.SOFTWARE), [requirements])
   const hardwareReqs = useMemo(() => byType(REQ_TYPE.HARDWARE), [requirements])
   const testCases = useMemo(
-    () => [...allTestCases].sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })),
-    [allTestCases]
+    () =>
+      [...allTestCases].sort((a, b) =>
+        a.text_id.localeCompare(b.text_id, undefined, { numeric: true }),
+      ),
+    [allTestCases],
   )
   // Satisfies: hem Yazilim hem Donanim, Sistem gereksinimlerini karsilar.
   const satisfierReqs = useMemo(
     () => [...softwareReqs, ...hardwareReqs],
-    [softwareReqs, hardwareReqs]
+    [softwareReqs, hardwareReqs],
   )
   // Verifies: Sistem / Yazilim / Donanim gereksinimleri test ile dogrulanabilir.
   const verifiableReqs = useMemo(
     () => [...systemReqs, ...softwareReqs, ...hardwareReqs],
-    [systemReqs, softwareReqs, hardwareReqs]
+    [systemReqs, softwareReqs, hardwareReqs],
   )
 
   // Hizli arama icin bag kumeleri.
   const satisfiesSet = useMemo(
     () =>
       new Set(
-        links.filter((l) => l.type === LINK_TYPE.SATISFIES).map((l) => `${l.fromId}|${l.toId}`)
+        links.filter((l) => l.type === LINK_TYPE.SATISFIES).map((l) => `${l.fromId}|${l.toId}`),
       ),
-    [links]
+    [links],
   )
   const verifiesSet = useMemo(
     () =>
       new Set(
-        links.filter((l) => l.type === LINK_TYPE.VERIFIES).map((l) => `${l.fromId}|${l.toId}`)
+        links.filter((l) => l.type === LINK_TYPE.VERIFIES).map((l) => `${l.fromId}|${l.toId}`),
       ),
-    [links]
+    [links],
   )
 
   const totalSatisfies = satisfiesSet.size
@@ -68,11 +71,15 @@ export default function Traceability() {
         </div>
         <div className="flex gap-3 text-center">
           <div className="rounded-lg bg-violet-50 px-4 py-2 dark:bg-violet-900/20">
-            <div className="text-xl font-extrabold text-violet-600 dark:text-violet-300">{totalSatisfies}</div>
+            <div className="text-xl font-extrabold text-violet-600 dark:text-violet-300">
+              {totalSatisfies}
+            </div>
             <div className="text-[11px] font-semibold uppercase text-slate-400">Satisfies</div>
           </div>
           <div className="rounded-lg bg-brand-50 px-4 py-2 dark:bg-brand-900/20">
-            <div className="text-xl font-extrabold text-brand-600 dark:text-brand-300">{totalVerifies}</div>
+            <div className="text-xl font-extrabold text-brand-600 dark:text-brand-300">
+              {totalVerifies}
+            </div>
             <div className="text-[11px] font-semibold uppercase text-slate-400">Verifies</div>
           </div>
         </div>

@@ -157,7 +157,9 @@ export default function Dashboard({ onNavigate }) {
       <div className="card p-6">
         <div className="mb-1 flex items-center gap-2">
           <IconLink size={18} className="text-brand-500" />
-          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('dash.satisfyTitle')}</h3>
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+            {t('dash.satisfyTitle')}
+          </h3>
         </div>
         <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">{t('dash.satisfyDesc')}</p>
 
@@ -174,10 +176,16 @@ export default function Dashboard({ onNavigate }) {
                 className="flex items-center justify-between gap-3 rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2 dark:border-rose-900/40 dark:bg-rose-950/20"
               >
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">{r.text_id}</span>
-                  <span className="truncate text-sm text-slate-700 dark:text-slate-200">{r.title}</span>
+                  <span className="font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
+                    {r.text_id}
+                  </span>
+                  <span className="truncate text-sm text-slate-700 dark:text-slate-200">
+                    {r.title}
+                  </span>
                 </div>
-                <span className="shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{r.dal_level}</span>
+                <span className="shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {r.dal_level}
+                </span>
               </li>
             ))}
             {sat.open.length > 8 && (
@@ -203,7 +211,9 @@ export default function Dashboard({ onNavigate }) {
 
       {/* Son aktiviteler */}
       <div className="card p-5">
-        <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">{t('dash.recent')}</h3>
+        <h3 className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+          {t('dash.recent')}
+        </h3>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {recentAudit.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">

@@ -6,7 +6,14 @@
 import { IconCheck } from '../common/Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 
-export default function TraceabilityMatrix({ title, description, rows, cols, hasLink, accent = 'brand' }) {
+export default function TraceabilityMatrix({
+  title,
+  description,
+  rows,
+  cols,
+  hasLink,
+  accent = 'brand',
+}) {
   const { t } = useLang()
   const accentText = {
     brand: 'text-brand-600 dark:text-brand-400',
@@ -28,9 +35,7 @@ export default function TraceabilityMatrix({ title, description, rows, cols, has
       </div>
 
       {rows.length === 0 || cols.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-slate-400">
-          {t('mtx.insufficient')}
-        </div>
+        <div className="px-5 py-10 text-center text-sm text-slate-400">{t('mtx.insufficient')}</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="border-collapse text-sm">

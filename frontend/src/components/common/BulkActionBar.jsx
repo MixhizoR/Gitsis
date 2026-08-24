@@ -6,13 +6,7 @@
 import { IconTrash, IconLink, IconClose } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 
-export default function BulkActionBar({
-  count,
-  onDelete,
-  onLink,
-  onClear,
-  canLink = true,
-}) {
+export default function BulkActionBar({ count, onDelete, onLink, onClear, canLink = true }) {
   const { t } = useLang()
   if (!count || count < 2) return null
 
@@ -24,7 +18,9 @@ export default function BulkActionBar({
         </span>
         <div className="text-sm">
           <div className="font-bold text-brand-800 dark:text-brand-200">{t('bulk.title')}</div>
-          <div className="text-xs text-brand-600 dark:text-brand-300">{t('bulk.selected', { count })}</div>
+          <div className="text-xs text-brand-600 dark:text-brand-300">
+            {t('bulk.selected', { count })}
+          </div>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

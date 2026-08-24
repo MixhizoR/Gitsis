@@ -20,12 +20,8 @@ export default function UndoToast({ open, count = 1, secondsLeft = 5, total = 5,
             <IconTrash size={18} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">
-              {t('bulk.undo.deleted', { count })}
-            </p>
-            <p className="text-xs text-slate-300">
-              {t('bulk.undo.hint', { s: secondsLeft })}
-            </p>
+            <p className="text-sm font-semibold">{t('bulk.undo.deleted', { count })}</p>
+            <p className="text-xs text-slate-300">{t('bulk.undo.hint', { s: secondsLeft })}</p>
           </div>
           <button
             onClick={onUndo}

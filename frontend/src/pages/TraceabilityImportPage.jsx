@@ -1,5 +1,5 @@
 // src/pages/TraceabilityImportPage.jsx
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useProject } from '../context/ProjectContext.jsx'
 import { upload } from '../services/apiClient'
 
@@ -45,7 +45,8 @@ export function TraceabilityImportPage() {
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Traceability Matrix İçe Aktar (Import)</h1>
       <p className="text-gray-600 text-sm mb-6">
-        Excel formatındaki izlenebilirlik matrisinizi yükleyerek gereksinim ve test senaryoları arasındaki bağlantıları otomatik oluşturabilirsiniz.
+        Excel formatındaki izlenebilirlik matrisinizi yükleyerek gereksinim ve test senaryoları
+        arasındaki bağlantıları otomatik oluşturabilirsiniz.
       </p>
 
       <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
@@ -61,12 +62,14 @@ export function TraceabilityImportPage() {
           disabled={!file || loading}
           className="btn-primary px-6 py-2 rounded-md font-bold disabled:opacity-50"
         >
-          {loading ? 'Yükleniyor...' : 'Excel\'i İçe Aktar'}
+          {loading ? 'Yükleniyor...' : "Excel'i İçe Aktar"}
         </button>
       </div>
 
       {message && (
-        <div className={`mt-4 p-4 rounded-md text-sm ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+        <div
+          className={`mt-4 p-4 rounded-md text-sm ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+        >
           {message.text}
         </div>
       )}

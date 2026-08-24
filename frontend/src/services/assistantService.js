@@ -19,10 +19,12 @@ import { REQ_TYPE, PRIORITY, STATUS, DAL, CATEGORY } from '../utils/constants.js
 // --- Sayfa yonlendirme niyetleri --------------------------------------------
 const NAV_INTENTS = [
   {
-    patterns: [/dashboard|ana\s*ekran|gosterge|gösterge|panel|anasayfa|ana\s*sayfa|başlangıç|baslangic|eve\s*git|home/i],
+    patterns: [
+      /dashboard|ana\s*ekran|gosterge|gösterge|panel|anasayfa|ana\s*sayfa|başlangıç|baslangic|eve\s*git|home/i,
+    ],
     target: 'dashboard',
     emoji: '🏠',
-    reply: 'Gosterge Paneli\'ne yönlendiriyorum.',
+    reply: "Gosterge Paneli'ne yönlendiriyorum.",
   },
   {
     patterns: [/gereksinim|requirement|req[\s-]|liste|ekle.*gereksinim|yeni.*gereksinim/i],
@@ -31,19 +33,23 @@ const NAV_INTENTS = [
     reply: 'Gereksinimler sayfasına gidiyoruz.',
   },
   {
-    patterns: [/izlenebilirlik|traceability|matris|matrix|bağlantı|baglanti|link|satisfies|verifies/i],
+    patterns: [
+      /izlenebilirlik|traceability|matris|matrix|bağlantı|baglanti|link|satisfies|verifies/i,
+    ],
     target: 'traceability',
     emoji: '🔗',
-    reply: 'İzlenebilirlik Matrisi\'ne yönlendiriyorum.',
+    reply: "İzlenebilirlik Matrisi'ne yönlendiriyorum.",
   },
   {
     patterns: [/kapsam|coverage|rapor|report|do[\s-]?178|test.*kapsam|kapsam.*disi/i],
     target: 'coverage',
     emoji: '🛡️',
-    reply: 'DO-178C Kapsam Raporu\'na gidiyoruz.',
+    reply: "DO-178C Kapsam Raporu'na gidiyoruz.",
   },
   {
-    patterns: [/belge|doküman|dokuman|document|analiz|yükle|yukle|içe\s*aktar|ice\s*aktar|pdf|metin.*oku|yapay\s*zeka.*belge/i],
+    patterns: [
+      /belge|doküman|dokuman|document|analiz|yükle|yukle|içe\s*aktar|ice\s*aktar|pdf|metin.*oku|yapay\s*zeka.*belge/i,
+    ],
     target: 'documents',
     emoji: '✨',
     reply: 'AI Belge Analizi sayfasına yönlendiriyorum.',
@@ -52,7 +58,7 @@ const NAV_INTENTS = [
     patterns: [/audit|denetim|değişiklik|degisiklik|tarihce|tarihçe|log|history|geçmiş|gecmis/i],
     target: 'audit',
     emoji: '📜',
-    reply: 'Değişiklik Tarihçesi\'ne yönlendiriyorum.',
+    reply: "Değişiklik Tarihçesi'ne yönlendiriyorum.",
   },
 ]
 
@@ -114,7 +120,8 @@ const CATEGORY_MAP = [
 ]
 
 const TEXT_ID_RE = /\bREQ-[A-Z]+-\d{1,4}\b/i
-const UNCOVERED_RE = /(test.{0,8}eksik|kapsam.?d[ıi]ş|test edilm|doğrulanma|dogrulanma|tc yok|test yok|verifies yok|eksik test)/i
+const UNCOVERED_RE =
+  /(test.{0,8}eksik|kapsam.?d[ıi]ş|test edilm|doğrulanma|dogrulanma|tc yok|test yok|verifies yok|eksik test)/i
 
 function matchFirst(map, text) {
   for (const m of map) if (m.re.test(text)) return m.val
@@ -148,11 +155,9 @@ function parseFilters(text) {
   return filters
 }
 
-// "listeleme" niyeti tetikleyici fiiller (filtre talebi oldugunu gosterir).
-const LIST_VERB_RE = /(listele|getir|göster|goster|filtrele|bul|hangileri|olanlar|olanları|olanlari|görmek istiyorum|gormek istiyorum|ları getir|leri getir)/i
-
 // Aksiyon (deger atama) fiilleri.
-const SET_VERB_RE = /(yap|ayarla|değiştir|degistir|güncelle|guncelle|olsun|olarak ayarla|set et|ata)/i
+const SET_VERB_RE =
+  /(yap|ayarla|değiştir|degistir|güncelle|guncelle|olsun|olarak ayarla|set et|ata)/i
 // Inceleme fiilleri.
 const INSPECT_RE = /(incele|durumunu|detay|analiz et|göster|goster|nedir|kapsam.?ı|durum.?u)/i
 
@@ -168,9 +173,9 @@ function parseUpdate(text) {
     // "DAL A", "A seviyesi", "seviyesini A yap" gibi varyantlari yakala:
     // "dal" ve "seviye..." sozcuklerini temizleyip ilk tek harfli A-E'yi al.
     const cleaned = text.replace(/\bdal\b/gi, ' ').replace(/seviye\w*/gi, ' ')
-    const dalMatch =
-      text.match(/\bdal\s*([a-e])\b/i) || cleaned.match(/\b([a-e])\b/i)
-    if (dalMatch) return { field: 'dal_level', value: DAL_MAP[dalMatch[1].toLowerCase()], fieldLabel: 'DAL' }
+    const dalMatch = text.match(/\bdal\s*([a-e])\b/i) || cleaned.match(/\b([a-e])\b/i)
+    if (dalMatch)
+      return { field: 'dal_level', value: DAL_MAP[dalMatch[1].toLowerCase()], fieldLabel: 'DAL' }
   }
   if (/(kategori|alan|domain|disiplin)/i.test(text)) {
     const val = matchFirst(CATEGORY_MAP, text)
@@ -200,7 +205,8 @@ export function detectIntent(text) {
   if (GREETING_PATTERNS.test(t)) {
     return {
       type: 'greeting',
-      reply: 'Merhaba! 👋 Size hem sayfalarda gezinmede hem de gereksinimleri filtrelemek/düzenlemekte yardımcı olabilirim. Birkaç örnek aşağıda.',
+      reply:
+        'Merhaba! 👋 Size hem sayfalarda gezinmede hem de gereksinimleri filtrelemek/düzenlemekte yardımcı olabilirim. Birkaç örnek aşağıda.',
       suggestions: true,
     }
   }
@@ -242,7 +248,8 @@ export function detectIntent(text) {
   if (HELP_PATTERNS.test(t)) {
     return {
       type: 'help',
-      reply: 'Şunları yapabilirim: sayfalar arası geçiş, doğal dille filtreleme (örn. "DAL A olanları listele") ve gereksinim düzenleme (örn. "REQ-SW-001 önceliğini Low yap").',
+      reply:
+        'Şunları yapabilirim: sayfalar arası geçiş, doğal dille filtreleme (örn. "DAL A olanları listele") ve gereksinim düzenleme (örn. "REQ-SW-001 önceliğini Low yap").',
       suggestions: true,
     }
   }
@@ -257,7 +264,8 @@ export function detectIntent(text) {
   // 6) Anlasilamadi
   return {
     type: 'unknown',
-    reply: 'Anlayamadım 🤔 Bir örnek deneyin: "Önceliği High olan yazılım gereksinimlerini listele" ya da "REQ-SYS-002 durumunu incele".',
+    reply:
+      'Anlayamadım 🤔 Bir örnek deneyin: "Önceliği High olan yazılım gereksinimlerini listele" ya da "REQ-SYS-002 durumunu incele".',
     suggestions: true,
   }
 }

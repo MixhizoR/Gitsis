@@ -35,7 +35,9 @@ export default function Glossary() {
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return glossary
-      .filter((g) => (!needle ? true : `${g.text_id} ${g.term} ${g.definition}`.toLowerCase().includes(needle)))
+      .filter((g) =>
+        !needle ? true : `${g.text_id} ${g.term} ${g.definition}`.toLowerCase().includes(needle),
+      )
       .sort((a, b) => (a.term || '').localeCompare(b.term || '', 'tr'))
   }, [glossary, q])
 
@@ -43,12 +45,21 @@ export default function Glossary() {
   const visibleIds = useMemo(() => visibleRows.map((g) => g.id), [visibleRows])
   const sel = useBulkSelection(visibleIds)
 
-  const assignCount = (id) => links.filter((l) => l.type === LINK_TYPE.ASSIGNED_TO && l.toId === id).length
+  const assignCount = (id) =>
+    links.filter((l) => l.type === LINK_TYPE.ASSIGNED_TO && l.toId === id).length
 
-  const openCreate = () => { setEditing(null); setFormOpen(true) }
-  const openEdit = (g) => { setEditing(g); setFormOpen(true) }
+  const openCreate = () => {
+    setEditing(null)
+    setFormOpen(true)
+  }
+  const openEdit = (g) => {
+    setEditing(g)
+    setFormOpen(true)
+  }
 
-  const handleDelete = (g) => { del.schedule([g.id]) }
+  const handleDelete = (g) => {
+    del.schedule([g.id])
+  }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
     const ids = sel.selectedIds
@@ -58,7 +69,7 @@ export default function Glossary() {
 
   const selectedRows = useMemo(
     () => visibleRows.filter((g) => sel.selectedSet.has(g.id)),
-    [visibleRows, sel.selectedSet]
+    [visibleRows, sel.selectedSet],
   )
 
   return (
@@ -67,7 +78,10 @@ export default function Glossary() {
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('nav.glossary')}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">{visibleRows.length}</span> {t('glo.records')}
+            <span className="font-bold text-slate-800 dark:text-slate-100">
+              {visibleRows.length}
+            </span>{' '}
+            {t('glo.records')}
           </p>
         </div>
         <button onClick={openCreate} className="btn-primary">
@@ -75,7 +89,12 @@ export default function Glossary() {
         </button>
       </div>
 
-      <input className="input !py-1.5 text-sm" placeholder={t('filt.searchPh')} value={q} onChange={(e) => setQ(e.target.value)} />
+      <input
+        className="input !py-1.5 text-sm"
+        placeholder={t('filt.searchPh')}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
 
       {visibleRows.length > 0 && (
         <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
@@ -83,7 +102,9 @@ export default function Glossary() {
             type="checkbox"
             className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-brand-600 dark:border-slate-600"
             checked={sel.allSelected}
-            ref={(el) => { if (el) el.indeterminate = sel.someSelected }}
+            ref={(el) => {
+              if (el) el.indeterminate = sel.someSelected
+            }}
             onChange={sel.toggleAll}
           />
           {t('bulk.selectAll')}
@@ -100,7 +121,9 @@ export default function Glossary() {
 
       {visibleRows.length === 0 ? (
         <div className="card flex flex-col items-center justify-center gap-2 py-16 text-center">
-          <p className="text-base font-semibold text-slate-600 dark:text-slate-300">{t('tbl.noResult')}</p>
+          <p className="text-base font-semibold text-slate-600 dark:text-slate-300">
+            {t('tbl.noResult')}
+          </p>
           <p className="text-sm text-slate-400">{t('glo.emptySub')}</p>
         </div>
       ) : (
@@ -108,7 +131,10 @@ export default function Glossary() {
           {visibleRows.map((g) => {
             const checked = sel.selectedSet.has(g.id)
             return (
-              <div key={g.id} className={`card flex flex-col gap-2 p-4 ${checked ? 'ring-2 ring-brand-400 dark:ring-brand-500' : ''}`}>
+              <div
+                key={g.id}
+                className={`card flex flex-col gap-2 p-4 ${checked ? 'ring-2 ring-brand-400 dark:ring-brand-500' : ''}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <input
@@ -118,25 +144,46 @@ export default function Glossary() {
                       onChange={() => sel.toggleRow(g.id)}
                     />
                     <div className="min-w-0">
-                      <div className="font-mono text-[11px] font-bold text-brand-600 dark:text-brand-400">{g.text_id}</div>
-                      <div className="text-base font-bold text-slate-900 dark:text-white">{g.term}</div>
+                      <div className="font-mono text-[11px] font-bold text-brand-600 dark:text-brand-400">
+                        {g.text_id}
+                      </div>
+                      <div className="text-base font-bold text-slate-900 dark:text-white">
+                        {g.term}
+                      </div>
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300" title={t('glo.assignedCount')}>
+                  <span
+                    className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300"
+                    title={t('glo.assignedCount')}
+                  >
                     {assignCount(g.id)} {t('glo.assigned')}
                   </span>
                 </div>
-                <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">{g.definition || '—'}</p>
+                <p className="flex-1 text-sm text-slate-600 dark:text-slate-300">
+                  {g.definition || '—'}
+                </p>
                 <div className="flex items-center justify-end gap-1 border-t border-slate-100 pt-2 dark:border-slate-800">
                   {canAssign && (
-                    <button onClick={() => setLinkTarget(g)} className="btn-ghost !px-2 !py-1.5 text-brand-600 dark:text-brand-400" title={t('glo.manageAssign')}>
+                    <button
+                      onClick={() => setLinkTarget(g)}
+                      className="btn-ghost !px-2 !py-1.5 text-brand-600 dark:text-brand-400"
+                      title={t('glo.manageAssign')}
+                    >
                       <IconLink size={16} />
                     </button>
                   )}
-                  <button onClick={() => openEdit(g)} className="btn-ghost !px-2 !py-1.5" title={t('tbl.edit')}>
+                  <button
+                    onClick={() => openEdit(g)}
+                    className="btn-ghost !px-2 !py-1.5"
+                    title={t('tbl.edit')}
+                  >
                     <IconEdit size={16} />
                   </button>
-                  <button onClick={() => handleDelete(g)} className="btn-ghost !px-2 !py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40" title={t('tbl.delete')}>
+                  <button
+                    onClick={() => handleDelete(g)}
+                    className="btn-ghost !px-2 !py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    title={t('tbl.delete')}
+                  >
                     <IconTrash size={16} />
                   </button>
                 </div>
@@ -147,7 +194,12 @@ export default function Glossary() {
       )}
 
       <GlossaryForm open={formOpen} onClose={() => setFormOpen(false)} editing={editing} />
-      <LinkManager open={Boolean(linkTarget)} onClose={() => setLinkTarget(null)} subject={linkTarget} subjectKind="glossary" />
+      <LinkManager
+        open={Boolean(linkTarget)}
+        onClose={() => setLinkTarget(null)}
+        subject={linkTarget}
+        subjectKind="glossary"
+      />
       <BulkLinkModal
         open={bulkLinkOpen}
         onClose={() => setBulkLinkOpen(false)}

@@ -41,7 +41,12 @@ function Btn({ onClick, title, children, active }) {
   )
 }
 
-export default function RichTextEditor({ value = '', onChange, readOnly = false, minHeight = 200 }) {
+export default function RichTextEditor({
+  value = '',
+  onChange,
+  readOnly = false,
+  minHeight = 200,
+}) {
   const { t } = useLang()
   const ref = useRef(null)
   const fileRef = useRef(null)
@@ -82,7 +87,9 @@ export default function RichTextEditor({ value = '', onChange, readOnly = false,
       <div
         className="rte-content prose-sm max-w-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-200"
         style={{ minHeight }}
-        dangerouslySetInnerHTML={{ __html: value || `<span class="text-slate-400">${t('rte.empty')}</span>` }}
+        dangerouslySetInnerHTML={{
+          __html: value || `<span class="text-slate-400">${t('rte.empty')}</span>`,
+        }}
       />
     )
   }
@@ -91,9 +98,15 @@ export default function RichTextEditor({ value = '', onChange, readOnly = false,
     <div className="overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
       {/* Arac cubugu */}
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-800/60">
-        <Btn onClick={() => exec('bold')} title={t('rte.bold')}><span className="font-black">B</span></Btn>
-        <Btn onClick={() => exec('italic')} title={t('rte.italic')}><span className="italic">I</span></Btn>
-        <Btn onClick={() => exec('underline')} title={t('rte.underline')}><span className="underline">U</span></Btn>
+        <Btn onClick={() => exec('bold')} title={t('rte.bold')}>
+          <span className="font-black">B</span>
+        </Btn>
+        <Btn onClick={() => exec('italic')} title={t('rte.italic')}>
+          <span className="italic">I</span>
+        </Btn>
+        <Btn onClick={() => exec('underline')} title={t('rte.underline')}>
+          <span className="underline">U</span>
+        </Btn>
 
         <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
 
@@ -104,8 +117,14 @@ export default function RichTextEditor({ value = '', onChange, readOnly = false,
           className="h-8 rounded-md border border-slate-200 bg-white px-1.5 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           defaultValue=""
         >
-          <option value="" disabled>{t('rte.font')}</option>
-          {FONTS.map((f) => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
+          <option value="" disabled>
+            {t('rte.font')}
+          </option>
+          {FONTS.map((f) => (
+            <option key={f} value={f} style={{ fontFamily: f }}>
+              {f}
+            </option>
+          ))}
         </select>
 
         <select
@@ -115,11 +134,20 @@ export default function RichTextEditor({ value = '', onChange, readOnly = false,
           className="h-8 rounded-md border border-slate-200 bg-white px-1.5 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           defaultValue=""
         >
-          <option value="" disabled>{t('rte.size')}</option>
-          {SIZES.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+          <option value="" disabled>
+            {t('rte.size')}
+          </option>
+          {SIZES.map((s) => (
+            <option key={s.v} value={s.v}>
+              {s.label}
+            </option>
+          ))}
         </select>
 
-        <label className="flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700" title={t('rte.color')}>
+        <label
+          className="flex h-8 cursor-pointer items-center gap-1 rounded-md px-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+          title={t('rte.color')}
+        >
           <span className="text-sm font-bold">A</span>
           <input
             type="color"
@@ -130,13 +158,25 @@ export default function RichTextEditor({ value = '', onChange, readOnly = false,
 
         <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
 
-        <Btn onClick={() => exec('insertUnorderedList')} title={t('rte.ul')}>•</Btn>
-        <Btn onClick={() => exec('insertOrderedList')} title={t('rte.ol')}>1.</Btn>
+        <Btn onClick={() => exec('insertUnorderedList')} title={t('rte.ul')}>
+          •
+        </Btn>
+        <Btn onClick={() => exec('insertOrderedList')} title={t('rte.ol')}>
+          1.
+        </Btn>
 
         <span className="mx-1 h-5 w-px bg-slate-200 dark:bg-slate-700" />
 
-        <Btn onClick={() => fileRef.current?.click()} title={t('rte.image')}>🖼</Btn>
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={onPickImage} />
+        <Btn onClick={() => fileRef.current?.click()} title={t('rte.image')}>
+          🖼
+        </Btn>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          className="hidden"
+          onChange={onPickImage}
+        />
       </div>
 
       {/* Yazim alani */}

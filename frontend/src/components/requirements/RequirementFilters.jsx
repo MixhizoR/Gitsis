@@ -10,10 +10,17 @@ export default function RequirementFilters({ filters, onChange }) {
   const set = (key) => (e) => onChange({ ...filters, [key]: e.target.value })
 
   const select = (key, label, options) => (
-    <select className="input !py-1.5 text-sm" value={filters[key]} onChange={set(key)} aria-label={label}>
+    <select
+      className="input !py-1.5 text-sm"
+      value={filters[key]}
+      onChange={set(key)}
+      aria-label={label}
+    >
       <option value="">{t('filt.allOf', { label })}</option>
       {options.map((o) => (
-        <option key={o} value={o}>{o}</option>
+        <option key={o} value={o}>
+          {o}
+        </option>
       ))}
     </select>
   )
@@ -41,10 +48,26 @@ export default function RequirementFilters({ filters, onChange }) {
           {t('filt.uncoveredBadge')}
         </span>
       )}
-      {(filters.q || filters.type || filters.category || filters.status || filters.priority || filters.dal_level || filters.uncovered) && (
+      {(filters.q ||
+        filters.type ||
+        filters.category ||
+        filters.status ||
+        filters.priority ||
+        filters.dal_level ||
+        filters.uncovered) && (
         <button
           className="btn-ghost text-sm"
-          onClick={() => onChange({ q: '', type: '', category: '', status: '', priority: '', dal_level: '', uncovered: false })}
+          onClick={() =>
+            onChange({
+              q: '',
+              type: '',
+              category: '',
+              status: '',
+              priority: '',
+              dal_level: '',
+              uncovered: false,
+            })
+          }
         >
           {t('filt.clear')}
         </button>
