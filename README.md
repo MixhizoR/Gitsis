@@ -17,7 +17,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 - `src/` → Frontend (React + Vite) — site arayüzü
 - `backend/` → API sunucusu (Express + Prisma) + veritabanı şeması
 - `scripts/` → Örnek proje yükleyici (espresso kahve otomatı)
-- `sanırım son/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
+- `ai-bridge/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
 - `docker-compose.yml` → Backend + PostgreSQL'i tek komutla ayağa kaldırır
 - `README.md` → (bu dosya)
 - `README_TEKNIK.md` → Ayrıntılı teknik doküman
@@ -54,7 +54,7 @@ npm run dev
 ### Terminal 3 — Yapay Zeka Köprüsü (opsiyonel)
 LM Studio'yu aç (Local Server + bir Gemma modeli yüklü olsun). Sonra:
 ```
-cd "ehsim_proje_aktarilacak/sanırım son"
+cd "ehsim_proje_aktarilacak/ai-bridge"
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install fastapi "uvicorn[standard]" python-multipart requests PyMuPDF
@@ -74,7 +74,7 @@ Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendi
 - **Kullanıcı adı** (işlemlerde "yazan" olarak görünür): `src/utils/constants.js` → `CURRENT_USER` (varsayılan `ehsim.user`). Kendi adınla değiştir.
 - **Veritabanı kullanıcı/şifre/isim**: `docker-compose.yml` içindeki `environment` blokları (varsayılan `ehsim / ehsim_pass / ehsim_rmt`). Değiştirirsen `DATABASE_URL`'i de aynı yap.
 - **Backend bağlantısı (Docker'sız çalıştırma)**: `backend/.env.example` dosyasını kopyalayıp `backend/.env` yap. Sadece Docker kullanmıyorsan gerekli.
-- **LM Studio model adı**: `sanırım son/config.py` → `MODEL_NAME` (varsayılan `google/gemma-3-4b`). LM Studio'daki "API Model Identifier" ile birebir aynı olmalı.
+- **LM Studio model adı**: `ai-bridge/config.py` → `MODEL_NAME` (varsayılan `google/gemma-3-4b`). LM Studio'daki "API Model Identifier" ile birebir aynı olmalı.
 - **Frontend adresleri (opsiyonel)**: Proje kökünde `.env` oluştur → `VITE_API_URL=http://localhost:4001` ve `VITE_AI_URL=http://localhost:8008`.
 
 > **Güvenlik notu:** `docker-compose.yml` içindeki `ehsim_pass` sadece yerel
@@ -90,10 +90,10 @@ Entegre ettiğimiz köprü (`api_server.py`) buna ihtiyaç duymaz. Ama arkadaş�
 eski masaüstü arayüzünü (`Arayüz.py`) çalıştıracaksan, modeli bir kez indir:
 
 ```
-cd "sanırım son"
+cd "ai-bridge"
 python -c "from sentence_transformers import SentenceTransformer; import os; m=SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); m.save(os.path.join(os.getcwd(),'HuggingFaceEmbeddings','all-MiniLM-L6-v2'))"
 ```
-Ayrıntı: `sanırım son/KURULUM.md`
+Ayrıntı: `ai-bridge/KURULUM.md`
 
 ---
 
@@ -119,7 +119,7 @@ node scripts/seed-coffee-project.mjs
 
 1. `docker compose up --build` → backend + DB (4001)
 2. `npm install` + `npm run dev` → site (5173)
-3. (opsiyonel) `sanırım son`'da uvicorn → AI köprüsü (8008) + LM Studio
+3. (opsiyonel) `ai-bridge`'da uvicorn → AI köprüsü (8008) + LM Studio
 4. Tarayıcı: http://localhost:5173
 
 Kolay gelsin! Teknik ayrıntılar için README_TEKNIK.md ve AI_KOPRU_ENTEGRASYON.md dosyalarına bak.

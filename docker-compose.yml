@@ -60,7 +60,7 @@ services:
 
   # ====== Frontend Servisi ======
   frontend:
-    build: .
+    build: ./frontend
     container_name: ehsim_web
     restart: unless-stopped
     depends_on:
