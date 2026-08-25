@@ -21,7 +21,11 @@ process.env.JWT_SECRET = 'ehsim-test-secret';
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   // Yerel gelistirmede compose db'si host'a yalnizca 5433'ten acilir.
-  'postgresql://ehsim:ehsim_pass@localhost:5433/ehsim_rmt_test';
+  // Sifre kok .env'deki POSTGRES_PASSWORD'dan okunur; eski kurulumlarla
+  // uyumluluk icin fallback 'ehsim_pass' (yalnizca TEST altyapi varsayilani).
+  `postgresql://ehsim:${encodeURIComponent(
+    process.env.POSTGRES_PASSWORD || 'ehsim_pass',
+  )}@localhost:5433/ehsim_rmt_test`;
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
 

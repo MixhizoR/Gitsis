@@ -38,6 +38,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 ### Terminal 1 — Backend + Veritabanı
 Proje kökünde:
 ```
+cp .env.example .env    # sadece ilk sefer; içindeki şifreleri KENDİ değerlerinle değiştir
 docker compose up --build
 ```
 Bu komut PostgreSQL'i açar, tabloları OTOMATİK oluşturur, tek seferlik örnek
@@ -72,14 +73,21 @@ Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offl
 Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendine göre değiştir:
 
 - **Kullanıcı adı** (işlemlerde "yazan" olarak görünür): `src/utils/constants.js` → `CURRENT_USER` (varsayılan `ehsim.user`). Kendi adınla değiştir.
-- **Veritabanı kullanıcı/şifre/isim**: `docker-compose.yml` içindeki `environment` blokları (varsayılan `ehsim / ehsim_pass / ehsim_rmt`). Değiştirirsen `DATABASE_URL`'i de aynı yap.
+- **Veritabanı kullanıcı/şifre/isim**: Şifre kök dizindeki `.env` dosyasından gelir (`POSTGRES_PASSWORD`); `docker-compose.yml` bunu hem DB'ye hem backend'in `DATABASE_URL`'ine enjekte eder (tek kaynak). Kullanıcı (`ehsim`) ve veritabanı adı (`ehsim_rmt`) compose içindedir.
+- **JWT imzalama anahtarı**: Kök `.env` içindeki `JWT_SECRET`. Tanımsızsa backend `JWT_SECRET is required` hatasıyla açılmaz. Üretmek için: `openssl rand -base64 48`.
 - **Backend bağlantısı (Docker'sız çalıştırma)**: `backend/.env.example` dosyasını kopyalayıp `backend/.env` yap. Sadece Docker kullanmıyorsan gerekli.
 - **LM Studio model adı**: `ai-bridge/config.py` → `MODEL_NAME` (varsayılan `google/gemma-3-4b`). LM Studio'daki "API Model Identifier" ile birebir aynı olmalı.
-- **Frontend adresleri (opsiyonel)**: Proje kökünde `.env` oluştur → `VITE_API_URL=http://localhost:4001` ve `VITE_AI_URL=http://localhost:8008`.
+- **Frontend adresleri (opsiyonel)**: `frontend/.env.example` dosyasını kopyalayıp `frontend/.env` yap → `VITE_API_URL=http://localhost:4001`, `VITE_AI_URL=http://localhost:8008`.
 
-> **Güvenlik notu:** `docker-compose.yml` içindeki `ehsim_pass` sadece yerel
-> geliştirme şifresidir. Gerçek/paylaşılan bir ortama kuracaksan mutlaka değiştir
-> (hem `POSTGRES_PASSWORD` hem de `DATABASE_URL` içindeki şifreyi birlikte güncelle).
+> **Güvenlik notu:** Tüm hassas değerler (DB şifresi, JWT anahtarı, PM kayıt
+> anahtarı) Git'e girmeyen `.env` dosyalarında tutulur; repoda yalnızca
+> `.env.example` şablonları vardır. Gerçek bir ortama kurarken placeholder
+> değerleri mutlaka uzun ve rastgele değerlerle değiştir.
+
+> **Geçmiş uyarısı:** Eski commit'lerde eski yerel şifre (`ehsim_pass`) ve dev
+> JWT fallback değeri hâlâ görünür durumdadır. Bu depoyu paylaşılan/açık bir
+> ortama taşımadan önce bu değerleri rotate et; gerekirse geçmişi temizle
+> (`git filter-repo`) veya depoyu sıfır geçmişle yeniden oluştur.
 
 ---
 
