@@ -12,7 +12,12 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ehsim-dev-secret-change-me';
+// Gizli anahtar yalnizca ortam degiskeninden gelir; fallback YOK.
+// Tanimsizsa process acilista durur (fail-fast, guvenli varsayilan).
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is required');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const TOKEN_TTL = '12h';
 
 export async function hashPassword(plain) {

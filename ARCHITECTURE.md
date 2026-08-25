@@ -101,10 +101,14 @@ Personel (proje çalışanı) girişi parola yerine **passcode** ile yapılır:
 
 | Değişken | Zorunlu? | Varsayılan / Örnek | Açıklama |
 |---|---|---|---|
-| `DATABASE_URL` | ✅ | `postgresql://ehsim:ehsim_pass@db:5432/ehsim_rmt?schema=public` | Prisma bağlantısı; Docker dışında host portu **5433**'tür |
+| `DATABASE_URL` | ✅ | `postgresql://ehsim:<POSTGRES_PASSWORD>@db:5432/ehsim_rmt?schema=public` — compose, şifreyi kök `.env`'den enjekte eder | Prisma bağlantısı; Docker dışında host portu **5433**'tür |
 | `PORT` | — | `4001` | API portu |
-| `JWT_SECRET` | üretimde ✅ | `ehsim-local-dev-secret-change-if-shared` | Token imzalama anahtarı; paylaşılabilir ortamda mutlaka değiştir |
+| `JWT_SECRET` | ✅ (her ortamda) | yok — tanımsızsa process `JWT_SECRET is required` ile durur. Örn: `openssl rand -base64 48` | Token imzalama anahtarı |
 | `PM_REGISTRATION_KEY` | — | `""` (boş = register **kapalı**) | Yeni PM kaydını açmak için gizli anahtar |
+
+> Hassas değerler repoda tutulmaz: kök dizindeki `.env` (compose interpolasyonu)
+> ve servis-yerel `.env` dosyaları Git dışıdır; yalnızca `.env.example`
+> şablonları takiptedir.
 
 ### frontend
 
