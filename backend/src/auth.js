@@ -38,10 +38,12 @@ const LEGACY_PEPPER = process.env.LEGACY_PASSWORD_PEPPER || 'legacy-plaintext-co
 // - Uzunluk farki halinde Node.js exception firlatmaz (ikisi de 32 byte).
 // - Karsilastirma girdi degisikliginden bagimsiz calisir (timing attack direnci).
 function constantTimeEqualString(a, b) {
-  const sa = typeof a === 'string' ? a : '';
-  const sb = typeof b === 'string' ? b : '';
-  const ha = createHmac('sha256', LEGACY_PEPPER).update(sa).digest();
-  const hb = createHmac('sha256', LEGACY_PEPPER).update(sb).digest();
+  // non-string (undefined/null) girdide eski "a === b" davranisinin
+  // false-donmesini taklit ederiz: iki yan da string degilsen false ver.
+  // (aksi halde '' === '' -> true olur; olası auth bypass).
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ha = createHmac('sha256', LEGACY_PEPPER).update(a).digest();
+  const hb = createHmac('sha256', LEGACY_PEPPER).update(b).digest();
   return timingSafeEqual(ha, hb);
 }
 
@@ -51,7 +53,7 @@ export async function verifyPassword(plain, stored) {
     return { ok: await bcrypt.compare(plain, stored), migrated: false };
   }
   // Eski duz-metin kayit: artik timing saldırısı acıgı yok.
-  // Farkli tipler/uzunluklar da exception firratmaz, false döner.
+  // Farkli tipler/uzunluklar da exception firlatmaz, false döner.
   return { ok: constantTimeEqualString(plain, stored), migrated: true };
 }
 

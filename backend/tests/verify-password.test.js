@@ -21,14 +21,22 @@ test('verifyPassword: farkli ama ayni uzunlukta duz-metin ok: false (hic excepti
 });
 
 test('verifyPassword: farkli uzunluk farkli duz-metin ok: false, exception firlatmaz', async () => {
-  // Bu eski kodda stored === plain oldugu yerde hicbir exception yoktu da;
-  // yeni kodda da kesinlikle yok. timingSafeEqual 32-byte HMAC'ler uzerinden
-  // karsilastirdigindan uzunluk farki sorun yaratmaz.
-  assert.doesNotThrow(async () => {
-    const { ok, migrated } = await verifyPassword('kisa', 'cok daha uzun bir sifre degeri');
-    assert.equal(ok, false);
-    assert.equal(migrated, true);
-  });
+  // assert.doesNotThrow async callback'u beklemez; dogrudan await yapip
+  // assertionlari kontrol ederiz — exception firlatmaz ama ok:false bekliyoruz.
+  const { ok, migrated } = await verifyPassword('kisa', 'cok daha uzun bir sifre degeri');
+  assert.equal(ok, false);
+  assert.equal(migrated, true);
+});
+
+test('verifyPassword: non-string girdi (undefined/null) ok: false, auth bypass yok', async () => {
+  // Eski kod: undefined === null -> false. Yeni kod da false vermeli;
+  // aksi halde '' === '' -> true olurdu (potansiyel bypass).
+  const u = await verifyPassword(undefined, 'sifre');
+  assert.equal(u.ok, false);
+  const n = await verifyPassword(null, null);
+  assert.equal(n.ok, false);
+  const bothNull = await verifyPassword(undefined, null);
+  assert.equal(bothNull.ok, false);
 });
 
 test('verifyPassword: bcrypt hashli kayit migrated: false ve dogru sifre verified olur', async () => {
