@@ -160,3 +160,39 @@ test('IDOR — personel BASKA projeye erisemez (403)', async () => {
     .set('Authorization', `Bearer ${personnelToken}`);
   assert.equal(res.status, 403);
 });
+
+// --- Security: audit POST kaldirildi ----------------------------------------
+
+test('POST /api/projects/:pid/audit — endpoint kaldirildi (404)', async () => {
+  const res = await request(app)
+    .post(`/api/projects/${projA.id}/audit`)
+    .set('Authorization', `Bearer ${personnelToken}`)
+    .send({ action: 'TEST', entityType: 'requirement', entityId: 'test', message: 'deneme' });
+  assert.equal(res.status, 404);
+});
+
+// --- Security: register requirePM -------------------------------------------
+
+test('POST /api/auth/register — PM olmayan kullanici 403 alir', async () => {
+  const res = await request(app)
+    .post('/api/auth/register')
+    .set('Authorization', `Bearer ${personnelToken}`)
+    .send({ username: 'yeni-kullanici', password: 'sifre123', name: 'Yeni Kullanici' });
+  assert.equal(res.status, 403);
+});
+
+// --- Security: traceability IDOR korumasi -----------------------------------
+
+test('IDOR — personel BASKA projenin traceability matrixine erisemez (403)', async () => {
+  const res = await request(app)
+    .get(`/api/traceability/matrix?pid=${projB.id}`)
+    .set('Authorization', `Bearer ${personnelToken}`);
+  assert.equal(res.status, 403);
+});
+
+test('IDOR — personel KENDI projesinin traceability matrixine erisebilir (200)', async () => {
+  const res = await request(app)
+    .get(`/api/traceability/matrix?pid=${projA.id}`)
+    .set('Authorization', `Bearer ${personnelToken}`);
+  assert.equal(res.status, 200);
+});

@@ -26,7 +26,8 @@ console.log('Traceability router yüklendi:', Boolean(traceabilityRoutes));
 
 const prisma = new PrismaClient();
 const app = express();
-app.use(cors());
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
 // --- Guvenlik: kimlik dogrulama + proje sinirlama --------------------------
@@ -235,6 +236,7 @@ app.get(
 // degeri 'x-registration-key' basligiyla gondermek gerekir.
 app.post(
   '/api/auth/register',
+  requirePM,
   wrap(async (req, res) => {
     const expected = process.env.PM_REGISTRATION_KEY;
     if (!expected || req.headers['x-registration-key'] !== expected) {
@@ -861,14 +863,6 @@ app.get(
       take: 1000,
     });
     res.json(rows);
-  }),
-);
-
-app.post(
-  '/api/projects/:pid/audit',
-  wrap(async (req, res) => {
-    const row = await prisma.auditLog.create({ data: { projectId: req.params.pid, ...(req.body || {}) } });
-    res.status(201).json(row);
   }),
 );
 

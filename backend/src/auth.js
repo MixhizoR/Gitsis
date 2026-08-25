@@ -62,7 +62,7 @@ export function signToken(payload) {
 }
 
 // Token gerektirmeyen tek yollar: girisin kendisi + health check.
-const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/login', '/api/auth/passcode', '/api/auth/register']);
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/login', '/api/auth/passcode']);
 
 export function requireAuth(req, res, next) {
   if (PUBLIC_PATHS.has(req.path)) return next();

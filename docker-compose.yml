@@ -54,8 +54,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz. .env.example)}
       # Bos = /api/auth/register KAPALI (varsayilan, guvenli). Yeni bir PM
       # hesabi acmak icin kok .env'e gizli bir deger yaz ve istekte
-      # 'x-registration-key' basligiyle ayni degeri gonder.
+      # 'x-registration-key' basligiyla ayni degeri gonder.
       PM_REGISTRATION_KEY: "${PM_REGISTRATION_KEY:-}"
+      # Bos = http://localhost:5173 (varsayilan). Production'da frontend domain'ini
+      # kok .env'deki CORS_ORIGIN'e yaz.
+      CORS_ORIGIN: "${CORS_ORIGIN:-}"
     ports:
       - "4001:4001"
     # 1) semayi DB'ye uygula (tablolari olustur)  2) tek seferlik seed  3) sunucu
