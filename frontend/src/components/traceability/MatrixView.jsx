@@ -32,7 +32,7 @@ export function MatrixView({ projectId }) {
     setError(null)
 
     try {
-      const result = await get(`/traceability/matrix`, { pid: projectId })
+      const result = await get(`/projects/${projectId}/traceability/matrix`)
 
       const matrixData = result.data || result
       setMatrixData(matrixData)

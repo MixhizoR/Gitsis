@@ -28,7 +28,7 @@ export function TraceabilityImportPage() {
     try {
       // apiClient üzerinden istek atılır:
       // baseURL ("http://localhost:4001/api") + "/traceability/import?pid=..."
-      const result = await upload(`/traceability/import?pid=${activeProjectId}`, formData)
+      const result = await upload(`/projects/${activeProjectId}/traceability/import`, formData)
 
       setMessage({ type: 'success', text: result?.message || 'İçe aktarma başarılı!' })
       setFile(null)

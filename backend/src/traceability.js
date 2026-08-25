@@ -8,24 +8,13 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 const prisma = new PrismaClient();
 
-function requireProjectId(req, res, next) {
-  const pid = String(req.query.pid || '').trim();
-  if (!pid) return res.status(400).json({ error: 'Proje ID (pid) zorunlu' });
-  if (req.auth.isPM) return next();
-  if (req.auth.kind === 'personnel' && String(req.auth.projectId) === pid) return next();
-  return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.' });
-}
-
 /**
  * POST /api/traceability/import
  * Excel dosyasından Traceability bağlantılarını (link) içe aktarır
  */
-router.post('/import', requireProjectId, upload.single('file'), async (req, res) => {
+router.post('/import', upload.single('file'), async (req, res) => {
   try {
-    const { pid } = req.query;
-    if (!pid) {
-      return res.status(400).json({ error: 'Proje ID (pid) zorunlu' });
-    }
+    const pid = req.params.pid;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Lütfen bir Excel dosyası yükleyin' });
@@ -109,13 +98,9 @@ router.post('/import', requireProjectId, upload.single('file'), async (req, res)
  * Traceability matrix'i Excel formatında export et
  * Query params: pid (projectId) - ZORUNLU
  */
-router.get('/export/matrix', requireProjectId, async (req, res) => {
+router.get('/export/matrix', async (req, res) => {
   try {
-    const { pid } = req.query;
-
-    if (!pid) {
-      return res.status(400).json({ error: 'Proje ID (pid) zorunlu' });
-    }
+    const pid = req.params.pid;
 
     // Projeye ait gereksinimler ve testleri çek
     const requirements = await prisma.requirement.findMany({
@@ -256,13 +241,9 @@ router.get('/export/matrix', requireProjectId, async (req, res) => {
  * GET /api/traceability/export/detailed
  * Detaylı traceability raporu (ileri ve geri izlenebilirlik)
  */
-router.get('/export/detailed', requireProjectId, async (req, res) => {
+router.get('/export/detailed', async (req, res) => {
   try {
-    const { pid } = req.query;
-
-    if (!pid) {
-      return res.status(400).json({ error: 'Proje ID (pid) zorunlu' });
-    }
+    const pid = req.params.pid;
 
     const requirements = await prisma.requirement.findMany({
       where: { projectId: pid },
@@ -368,13 +349,9 @@ router.get('/export/detailed', requireProjectId, async (req, res) => {
  * GET /api/traceability/matrix
  * Matris verilerini JSON formatında döndür (Frontend görüntülemesi için)
  */
-router.get('/matrix', requireProjectId, async (req, res) => {
+router.get('/matrix', async (req, res) => {
   try {
-    const { pid } = req.query;
-
-    if (!pid) {
-      return res.status(400).json({ error: 'Proje ID (pid) zorunlu' });
-    }
+    const pid = req.params.pid;
 
     // Projeye ait gereksinimler ve test bağlantılarını çek
     const requirements = await prisma.requirement.findMany({

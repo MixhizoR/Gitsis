@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { IconDownload, IconClose, IconLoader } from '../common/Icons.jsx'
+import { http } from '../../services/apiClient.js'
 export function ExportModal({ isOpen, onClose, projectId }) {
   const [isLoading, setIsLoading] = useState(false)
   const [exportFormat, setExportFormat] = useState('matrix')
@@ -12,36 +13,28 @@ export function ExportModal({ isOpen, onClose, projectId }) {
     setSuccess(false)
 
     try {
-      const token = JSON.parse(localStorage.getItem('ehsim_auth_session') || '{}').token
       const endpoint =
         exportFormat === 'matrix'
-          ? `/traceability/export/matrix?pid=${projectId}`
-          : `/traceability/export/detailed?pid=${projectId}`
+          ? `/projects/${projectId}/traceability/export/matrix`
+          : `/projects/${projectId}/traceability/export/detailed`
 
-      const response = await fetch(`http://localhost:4001/api${endpoint}`, {
-        headers: {
-          Authorization: `Bearer ${token}`, // ← Adicione o token
-        },
+      const response = await http.get(endpoint, {
+        responseType: 'blob',
+        validateStatus: (status) => status >= 200 && status < 300,
       })
 
-      if (!response.ok) {
-        throw new Error('Export başarısız oldu')
-      }
-
-      // Dosyayı indir
-      const blob = await response.blob()
+      const blob = response.data
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
 
-      // Content-Disposition header'ından dosya adını al
-      const contentDisposition = response.headers.get('content-disposition')
+      const contentDisposition = response.headers['content-disposition']
       let filename = `Traceability_${new Date().getTime()}.xlsx`
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="([^"]+)"/)
         if (match) filename = match[1]
       }
 
+      const a = document.createElement('a')
+      a.href = url
       a.download = filename
       document.body.appendChild(a)
       a.click()
@@ -54,7 +47,11 @@ export function ExportModal({ isOpen, onClose, projectId }) {
       }, 2000)
     } catch (err) {
       console.error('Export hatası:', err)
-      setError(err.message || 'Bilinmeyen bir hata oluştu')
+      const msg =
+        err?.response?.data instanceof Blob
+          ? 'Export başarısız oldu'
+          : err.message || 'Bilinmeyen bir hata oluştu'
+      setError(msg)
     } finally {
       setIsLoading(false)
     }
