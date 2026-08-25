@@ -185,14 +185,14 @@ test('POST /api/auth/register — PM olmayan kullanici 403 alir', async () => {
 
 test('IDOR — personel BASKA projenin traceability matrixine erisemez (403)', async () => {
   const res = await request(app)
-    .get(`/api/traceability/matrix?pid=${projB.id}`)
+    .get(`/api/projects/${projB.id}/traceability/matrix`)
     .set('Authorization', `Bearer ${personnelToken}`);
   assert.equal(res.status, 403);
 });
 
 test('IDOR — personel KENDI projesinin traceability matrixine erisebilir (200)', async () => {
   const res = await request(app)
-    .get(`/api/traceability/matrix?pid=${projA.id}`)
+    .get(`/api/projects/${projA.id}/traceability/matrix`)
     .set('Authorization', `Bearer ${personnelToken}`);
   assert.equal(res.status, 200);
 });

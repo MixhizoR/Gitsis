@@ -47,8 +47,8 @@ app.use(requireAuth);
 // atandigi projeye erisebilir, PM her projeye erisebilir (IDOR korumasi).
 app.param('pid', projectAccessGuard);
 
-// Traceability router'i requireAuth'ten SONRA monte et
-app.use('/api/traceability', traceabilityRoutes);
+// Traceability router — mounted under :pid so app.param('pid', projectAccessGuard)
+app.use('/api/projects/:pid/traceability', traceabilityRoutes);
 
 const PORT = process.env.PORT || 4001;
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => fail(res, e));
