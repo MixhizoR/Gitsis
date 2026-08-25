@@ -11,6 +11,7 @@
 // ============================================================================
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 // Gizli anahtar yalnizca ortam degiskeninden gelir; fallback YOK.
 // Tanimsizsa process acilista durur (fail-fast, guvenli varsayilan).
@@ -24,12 +25,34 @@ export async function hashPassword(plain) {
   return bcrypt.hash(plain, 10);
 }
 
+// Sabit anahtar: yalnizca eski duz-metin kayitlarin timing-sal
+// karsilastirmasi icin. Oturum JWT'si (JWT_SECRET) ile
+// ayiririz; bu pepper gizli degildir — amacı sadece iki eski
+// metnin karsilastirirken ayni uzunlukta hash üretmek.
+// Override etmek istersen: LEGACY_PASSWORD_PEPPER env'ine deger ver.
+const LEGACY_PEPPER = process.env.LEGACY_PASSWORD_PEPPER || 'legacy-plaintext-compare-pepper';
+
+// Iki stringi (veya string olmayanlari bos "" olarak kabul edip)
+// sabit uzunlukta HMAC-SHA256 ozetine sadecek, ardindan
+// crypto.timingSafeEqual ile karsilastirir.
+// - Uzunluk farki halinde Node.js exception firlatmaz (ikisi de 32 byte).
+// - Karsilastirma girdi degisikliginden bagimsiz calisir (timing attack direnci).
+function constantTimeEqualString(a, b) {
+  const sa = typeof a === 'string' ? a : '';
+  const sb = typeof b === 'string' ? b : '';
+  const ha = createHmac('sha256', LEGACY_PEPPER).update(sa).digest();
+  const hb = createHmac('sha256', LEGACY_PEPPER).update(sb).digest();
+  return timingSafeEqual(ha, hb);
+}
+
 export async function verifyPassword(plain, stored) {
   if (typeof stored === 'string' && stored.startsWith('$2')) {
+    // Bcrypt hash == zaman-kararli (sabit uretilen byte'lar).
     return { ok: await bcrypt.compare(plain, stored), migrated: false };
   }
-  // Eski duz-metin kayit — bir kereligine dogrudan karsilastir.
-  return { ok: stored === plain, migrated: true };
+  // Eski duz-metin kayit: artik timing saldırısı acıgı yok.
+  // Farkli tipler/uzunluklar da exception firratmaz, false döner.
+  return { ok: constantTimeEqualString(plain, stored), migrated: true };
 }
 
 export function signToken(payload) {
