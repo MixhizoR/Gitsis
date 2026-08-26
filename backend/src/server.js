@@ -25,6 +25,7 @@ import traceabilityRoutes from './traceability.js';
 
 const prisma = new PrismaClient();
 const app = express();
+app.set('trust proxy', 1);
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
