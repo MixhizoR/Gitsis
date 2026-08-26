@@ -68,6 +68,15 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 - Takip: `gh pr checks <N> --watch`, sonra `gh pr merge <N> --merge --delete-branch` (squash yerine merge commit ile 2 commit korunur; istersen `--squash`).
 - main protection için zorunlu: PR approve (0 onay yeterli, tek geliştirici) + `CI Pipeline Status` pass → merge butonu aktif.
 
+## Pre-push kontrol (her push oncesi zorunlu)
+
+`git push` oncesi `scripts/pre-push-check.sh` calistirilir. Script:
+- `npm run format` (otomatik duzeltir)
+- `npm run lint` (hata varsa durdurur)
+- `npm run format:check`
+- `npm test` (backend + frontend)
+Basarisiz olursa push durdurulur, hata duzeltilip tekrar calistirilir.
+
 ## OpenCode notları
 
 - Plan mode (read-only) default; build mode'u `build` komutuyla (ör. `npm test`) veya doğrulamaya geçince.
