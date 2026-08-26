@@ -7,6 +7,12 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:4001',
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     environment: 'jsdom',

@@ -5,12 +5,10 @@
 // ============================================================================
 import axios from 'axios'
 
-const BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
-  'http://localhost:4001'
+const BASE_URL = '/api';
 
 export const http = axios.create({
-  baseURL: `${BASE_URL}/api`,
+  baseURL: BASE_URL,
   // headers: { 'Content-Type': 'application/json' },
   timeout: 20000,
 })

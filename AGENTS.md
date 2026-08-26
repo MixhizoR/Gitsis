@@ -16,7 +16,7 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 
 - `JWT_SECRET` **zorunludur**; eksikse `backend/src/auth.js` başlangıçta `throw new Error('JWT_SECRET is required')` → process çöker.
 - `backend/.env` ve `frontend/.env` **Git takibinde değil** (`.gitignore` `.env*` / `!.env.example`). Şablonlar: `.env.example`, `backend/.env.example`, `frontend/.env.example`.
-- `docker-compose.yml` içindeki `POSTGRES_PASSWORD`, `JWT_SECRET`, `DATABASE_URL` kok dizindeki `.env`'den `${VAR}` interpolasyonuyla gelir. Yerelde `cp .env.example .env` yap ve değerleri düzelt.
+- `compose.yaml` içindeki `POSTGRES_PASSWORD`, `JWT_SECRET`, `DATABASE_URL` kok dizindeki `.env`'den `${VAR}` interpolasyonuyla gelir. Yerelde `cp .env.example .env` yap ve değerleri düzelt.
 - Eski commit'lerde şifre/fallback değerleri **hâlâ geçmişte** (rotate edin, gerekirse history temizleyin).
 - CI'da `JWT_SECRET=${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}` fallback'i vardır.
 
@@ -45,9 +45,10 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 - `npm run format:check` / `format`
 
 ### Docker / dev stack (kok)
-- `docker compose up --build` → db (5433→5432 localhost) + backend (4001) + frontend (5173)
-- db servisi healthcheck: `pg_isready -U ehsim -d ehsim_rmt`
-- backend entry: `sh -c "npx prisma db push --skip-generate && node src/seed.js && node src/server.js"` → compose bu command'ı override eder.
+- Prod-benzeri: `docker compose up --build` → db (5433→5432 localhost) + migrate init + backend (nginx reverse proxy 5173) + frontend nginx serve (8080)
+- Dev + hot reload: `docker compose -f compose.yaml -f compose.dev.yaml up --build` → frontend bind-mount dev server (5173)
+- Tek giriş noktası: `localhost:5173`; `/api/` nginx proxy → `http://backend:4001`; backend portu host'ta kapalı (dev'de `127.0.0.1:4001` açılır)
+- `migrate` init-servisi (`builder` target): `prisma db push --skip-generate && node src/seed.js`; backend `depends_on: service_completed_successfully` bekler
 
 ### Tek bir test / kısa doğrulama
 - Backend tek test: `node --test tests/api.test.js`
