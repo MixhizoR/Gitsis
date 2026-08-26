@@ -1,0 +1,79 @@
+# ============================================================================
+#  compose.yaml  —  EHSIM - GITSIS / RMT kurumsal altyapi (prod-benzeri base)
+#  Calistirma (dev + reload): docker compose -f compose.yaml -f compose.dev.yaml up --build
+#  Calistirma (prod-benzeri):  docker compose up --build
+# ============================================================================
+services:
+  db:
+    image: postgres:15
+    container_name: ehsim_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ehsim
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Kok dizinde .env olustur (bkz. .env.example)}
+      POSTGRES_DB: ehsim_rmt
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ehsim_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ehsim -d ehsim_rmt"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # --- Init / Migrate servisi: Prisma CLI ile tek seferlik DB senkronu + seed ---
+  migrate:
+    build:
+      context: ./backend
+      target: builder
+    container_name: ehsim_migrate
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://ehsim:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt?schema=public"
+      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz .env.example)}
+    command: sh -c "npx prisma db push --skip-generate && node src/seed.js"
+
+  backend:
+    build: ./backend
+    container_name: ehsim_api
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgresql://ehsim:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt?schema=public"
+      PORT: "4001"
+      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz. .env.example)}
+      PM_REGISTRATION_KEY: "${PM_REGISTRATION_KEY:-}"
+      CORS_ORIGIN: "${CORS_ORIGIN:-}"
+    # Host'ta backend portu acilmaz; tum trafik nginx (5173) uzerinden /api proxy ile gecer.
+    # Dev override'da 127.0.0.1:4001 acilir (host debug / curl icin).
+    healthcheck:
+      test: ["CMD-SHELL", "node healthcheck.js"]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: ehsim_web
+    restart: unless-stopped
+    init: true
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:8080"
+    # VITE_API_URL artik build-time'da ALINMAZ; frontend /api ile relativ istek atar,
+    # nginx /api/ proxy_pass ile backend'e yonlendirir.
+
+volumes:
+  ehsim_pgdata:

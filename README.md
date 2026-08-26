@@ -18,7 +18,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 - `backend/` → API sunucusu (Express + Prisma) + veritabanı şeması
 - `scripts/` → Örnek proje yükleyici (espresso kahve otomatı)
 - `ai-bridge/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
-- `docker-compose.yml` → Backend + PostgreSQL'i tek komutla ayağa kaldırır
+- `compose.yaml` → Prod-benzeri base; `compose.dev.yaml` → Dev katmani (canli reload)
 - `README.md` → (bu dosya)
 - `ARCHITECTURE.md` → Mimari akış, Docker Compose, ortam değişkenleri ve demo veri standardı
 - `AI_KOPRU_ENTEGRASYON.md` → Yapay zeka köprüsünün ayrıntıları
@@ -36,13 +36,16 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 ## 3. Çalıştırma — 3 terminal
 
 ### Terminal 1 — Backend + Veritabanı
-Proje kökünde:
+Prod-benzeri (tek komut):
 ```
-cp .env.example .env    # sadece ilk sefer; içindeki şifreleri KENDİ değerlerinle değiştir
+cp .env.example .env    # sadece ilk sefer; icindeki sifreleri KENDI degerlerinle degistir
 docker compose up --build
 ```
-Bu komut PostgreSQL'i açar, tabloları OTOMATİK oluşturur, tek seferlik örnek
-veriyi yükler ve API'yi http://localhost:4001 üzerinde çalıştırır.
+Dev + canli reload (bind-mount, vite dev server):
+```
+docker compose -f compose.yaml -f compose.dev.yaml up --build
+```
+Bu komut PostgreSQL'i acar, `migrate` servisi ile semayi uygular ve seed'i yukler; API nginx reverse proxy (`5173/api/`) arkasinda calisir. Backend dogrudan `localhost:4001` uzerinden acilmaz.
 
 ### Terminal 2 — Frontend (site)
 Proje kökünde:
@@ -73,7 +76,7 @@ Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offl
 Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendine göre değiştir:
 
 - **Kullanıcı adı** (işlemlerde "yazan" olarak görünür): `src/utils/constants.js` → `CURRENT_USER` (varsayılan `ehsim.user`). Kendi adınla değiştir.
-- **Veritabanı kullanıcı/şifre/isim**: Şifre kök dizindeki `.env` dosyasından gelir (`POSTGRES_PASSWORD`); `docker-compose.yml` bunu hem DB'ye hem backend'in `DATABASE_URL`'ine enjekte eder (tek kaynak). Kullanıcı (`ehsim`) ve veritabanı adı (`ehsim_rmt`) compose içindedir.
+- **Veritabanı kullanıcı/şifre/isim**: Şifre kök `.env`'den (`POSTGRES_PASSWORD`); `compose.yaml` bunu DB'ye ve backend `DATABASE_URL`'ine enjekte eder. Kullanıcı (`ehsim`) ve veritabanı adı (`ehsim_rmt`) compose içindedir.
 - **JWT imzalama anahtarı**: Kök `.env` içindeki `JWT_SECRET`. Tanımsızsa backend `JWT_SECRET is required` hatasıyla açılmaz. Üretmek için: `openssl rand -base64 48`.
 - **Backend bağlantısı (Docker'sız çalıştırma)**: `backend/.env.example` dosyasını kopyalayıp `backend/.env` yap. Sadece Docker kullanmıyorsan gerekli.
 - **LM Studio model adı**: `ai-bridge/config.py` → `MODEL_NAME` (varsayılan `google/gemma-3-4b`). LM Studio'daki "API Model Identifier" ile birebir aynı olmalı.

@@ -1,0 +1,30 @@
+# ============================================================================
+#  compose.dev.yaml  —  Dev katmani. Bilincli secimle yuklenir:
+#  docker compose -f compose.yaml -f compose.dev.yaml up --build
+# ============================================================================
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    command: ["npm", "run", "dev", "--", "--host", "--port", "5173"]
+    ports:
+      - "5173:5173"
+    environment:
+      # Dev sunucusunun /api isteklerini container icindeki backend'e yonlendirmesi icin
+      VITE_PROXY_TARGET: "http://backend:4001"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.js:/app/vite.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/public:/app/public
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    ports:
+      - "127.0.0.1:4001:4001"
+    # Dev'de hot reload yok (node --watch kullanilmiyor), ancak host'tan curl/debug icin port acik.
