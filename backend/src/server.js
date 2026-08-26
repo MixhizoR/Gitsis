@@ -23,8 +23,6 @@ import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPasswor
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
 
-console.log('Traceability router yüklendi:', Boolean(traceabilityRoutes));
-
 const prisma = new PrismaClient();
 const app = express();
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
