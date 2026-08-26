@@ -9,7 +9,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET || 'http://localhost:4001',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:4001', // eslint-disable-line no-undef
         changeOrigin: true,
       },
     },
