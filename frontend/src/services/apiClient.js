@@ -5,7 +5,7 @@
 // ============================================================================
 import axios from 'axios'
 
-const BASE_URL = '/api';
+const BASE_URL = '/api'
 
 export const http = axios.create({
   baseURL: BASE_URL,
