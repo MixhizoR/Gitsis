@@ -1,9 +1,37 @@
 import express from 'express';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
+import { validateLink } from './logic.js';
+import { recomputeStatusesBulk } from './cascade.js';
 
-const upload = multer({ storage: multer.memoryStorage() });
+const ALLOWED_EXT = ['.xlsx', '.xls'];
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      const err = new Error('Sadece .xlsx ve .xls dosyaları yüklenebilir.');
+      err.code = 'INVALID_FILE_TYPE';
+      return cb(err);
+    }
+    cb(null, true);
+  },
+});
+
+function handleFileUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      return res.status(413).json({
+        error: err.code === 'LIMIT_FILE_SIZE' ? 'Dosya çok büyük (maks 10MB)' : 'Yükleme sınır hatası',
+      });
+    }
+    return res.status(413).json({ error: err.message || 'Desteklenmeyen dosya tipi' });
+  });
+}
 
 const router = express.Router({ mergeParams: true });
 const prisma = new PrismaClient();
@@ -12,7 +40,7 @@ const prisma = new PrismaClient();
  * POST /api/traceability/import
  * Excel dosyasından Traceability bağlantılarını (link) içe aktarır
  */
-router.post('/import', upload.single('file'), async (req, res) => {
+router.post('/import', handleFileUpload, async (req, res) => {
   try {
     const pid = req.params.pid;
 
@@ -20,72 +48,121 @@ router.post('/import', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Lütfen bir Excel dosyası yükleyin' });
     }
 
-    // Yüklenen Excel'i oku
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
     const worksheet = workbook.getWorksheet('Traceability Matrix') || workbook.worksheets[0];
 
-    const importedLinks = [];
-
+    const rows = [];
     worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // Header'ı atla
+      if (rowNumber === 1) return;
 
-      // String dönüşümünü ve zengin metin durumlarını garantiye alalım
       const getCellValue = (cellIndex) => {
         const val = row.getCell(cellIndex).value;
         if (!val) return '';
-        if (typeof val === 'object' && val.result) return String(val.result).trim(); // Formüllü hücreler için
-        if (typeof val === 'object' && val.richText)
+        if (typeof val === 'object' && val.result) return String(val.result).trim();
+        if (typeof val === 'object' && val.richText) {
           return val.richText
             .map((t) => t.text)
             .join('')
-            .trim(); // Formatlı yazılar için
+            .trim();
+        }
         return String(val).trim();
       };
 
       const reqTextId = getCellValue(1);
       const testTextId = getCellValue(6);
-      const linkType = getCellValue(8) || 'Verifies';
+      const linkType = getCellValue(8); // varsayılan ATANMIYOR — doğrulama reddedecek
 
       if (reqTextId && testTextId) {
-        importedLinks.push({ reqTextId, testTextId, linkType });
+        rows.push({ reqTextId, testTextId, linkType });
       }
     });
 
-    // Veritabanındaki gerçek ID'lerle eşleştirip kaydet
-    let successCount = 0;
-    for (const item of importedLinks) {
-      const req = await prisma.requirement.findFirst({
-        where: { projectId: pid, text_id: item.reqTextId },
-      });
-      const test = await prisma.testCase.findFirst({
-        where: { projectId: pid, text_id: item.testTextId },
-      });
+    // Proje kapsamındaki gereksinim/testleri tek seferde çek (N+1 gider)
+    const [requirements, tests] = await Promise.all([
+      prisma.requirement.findMany({
+        where: { projectId: pid },
+        select: { id: true, text_id: true, type: true },
+      }),
+      prisma.testCase.findMany({
+        where: { projectId: pid },
+        select: { id: true, text_id: true, type: true },
+      }),
+    ]);
+    const reqByText = new Map(requirements.map((r) => [r.text_id, r]));
+    const testByText = new Map(tests.map((t) => [t.text_id, t]));
 
-      if (req && test) {
-        // Zaten varsa tekrar eklememek için upsert veya findFirst kontrolü
-        const existingLink = await prisma.traceabilityLink.findFirst({
-          where: { projectId: pid, fromId: req.id, toId: test.id },
-        });
+    const errors = [];
+    const pending = [];
 
-        if (!existingLink) {
-          await prisma.traceabilityLink.create({
-            data: {
-              projectId: pid,
-              fromId: req.id,
-              toId: test.id,
-              type: item.linkType,
-            },
-          });
-          successCount++;
-        }
+    for (let i = 0; i < rows.length; i++) {
+      const item = rows[i];
+      const rowNum = i + 2;
+      const reqObj = reqByText.get(item.reqTextId);
+      const testObj = testByText.get(item.testTextId);
+
+      if (!reqObj) {
+        errors.push(`Satır ${rowNum}: gereksinim bulunamadı: "${item.reqTextId}".`);
+        continue;
       }
+      if (!testObj) {
+        errors.push(`Satır ${rowNum}: test bulunamadı: "${item.testTextId}".`);
+        continue;
+      }
+
+      const verdict = validateLink(reqObj, testObj, item.linkType, 'test');
+      if (!verdict.ok) {
+        errors.push(`Satır ${rowNum}: ${verdict.error}`);
+        continue;
+      }
+
+      pending.push({
+        projectId: pid,
+        fromId: reqObj.id,
+        toId: testObj.id,
+        type: item.linkType,
+      });
     }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        error: `${errors.length} satır geçersiz, içe aktarma reddedildi.`,
+        details: errors,
+      });
+    }
+
+    let imported = 0;
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.traceabilityLink.findMany({
+        where: { projectId: pid },
+      });
+      const key = (l) => `${l.fromId}|${l.toId}`;
+      const seen = new Set(existing.map(key));
+      const fresh = pending.filter((p) => !seen.has(key(p)));
+
+      if (fresh.length > 0) {
+        await tx.traceabilityLink.createMany({ data: fresh });
+      }
+      imported = fresh.length;
+
+      await tx.auditLog.create({
+        data: {
+          projectId: pid,
+          action: 'IMPORT',
+          entityType: 'traceability_link',
+          message: 'Traceability import completed',
+        },
+      });
+    });
+
+    const updatedStatuses = await recomputeStatusesBulk(prisma, pid);
 
     res.status(200).json({
       success: true,
-      message: `${successCount} adet izlenebilirlik bağlantısı başarıyla içe aktarıldı.`,
-      totalProcessed: importedLinks.length,
+      message: `${imported} adet izlenebilirlik bağlantısı başarıyla içe aktarıldı.`,
+      totalProcessed: rows.length,
+      imported,
+      updatedStatuses,
     });
   } catch (error) {
     console.error('Excel import hatası:', error);
