@@ -10,7 +10,7 @@
     "seed": "node src/seed.js",
     "db:push": "prisma db push",
     "prisma:generate": "prisma generate",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

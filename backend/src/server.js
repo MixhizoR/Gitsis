@@ -17,7 +17,8 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
 import { TYPE_PREFIX, STATUS } from './constants.js';
-import { validateLink, recomputeAllStatuses } from './logic.js';
+import { validateLink } from './logic.js';
+import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
@@ -111,27 +112,10 @@ async function nextTextId(projectId, type, isTest) {
 }
 
 // --- Cascade: bir projedeki tum gereksinim durumlarini yeniden hesapla ------
+//  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu (1 okuma +
+//  <=3 updateMany + 1 toplu audit). Sadece degisen gereksinimler yazilir.
 async function cascade(projectId) {
-  const [requirements, testCases, links] = await Promise.all([
-    prisma.requirement.findMany({ where: { projectId } }),
-    prisma.testCase.findMany({ where: { projectId } }),
-    prisma.traceabilityLink.findMany({ where: { projectId } }),
-  ]);
-  const changes = recomputeAllStatuses(requirements, testCases, links);
-  for (const c of changes) {
-    await prisma.requirement.update({ where: { id: c.id }, data: { status: c.to } });
-    await audit(projectId, {
-      action: 'AUTO_STATUS',
-      entityType: 'requirement',
-      entityId: c.id,
-      textId: c.text_id,
-      field: 'status',
-      oldValue: c.from,
-      newValue: c.to,
-      message: `Durum otomatik guncellendi: ${c.from} -> ${c.to}.`,
-    });
-  }
-  return changes.length;
+  return recomputeStatusesBulk(prisma, projectId);
 }
 
 // --- Toplu silme yardimcisi -------------------------------------------------
@@ -1011,13 +995,11 @@ app.delete(
 //  APPROVALS (consensus onay + kilitleme)
 // ===========================================================================
 // Bir projedeki TUM gereksinim ve testlerin onay durumunu yeniden hesapla.
+//  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu — oy havuzu
+//  1 kez okunur, bilesen basina 2 parametrik bulk UPDATE (toplam 12) calisir;
+//  degeri degismeyen kayitlara dokunulmaz.
 async function recomputeAllApprovals(pid) {
-  const [reqs, tests] = await Promise.all([
-    prisma.requirement.findMany({ where: { projectId: pid }, select: { id: true } }),
-    prisma.testCase.findMany({ where: { projectId: pid }, select: { id: true } }),
-  ]);
-  for (const r of reqs) await recomputeApproval(pid, 'requirement', r.id);
-  for (const t of tests) await recomputeApproval(pid, 'testcase', t.id);
+  await recomputeApprovalsBulk(prisma, pid);
 }
 
 app.get(

@@ -5,7 +5,7 @@ import multer from 'multer';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 const prisma = new PrismaClient();
 
 /**
@@ -96,28 +96,50 @@ router.post('/import', upload.single('file'), async (req, res) => {
 /**
  * GET /api/traceability/export/matrix
  * Traceability matrix'i Excel formatında export et
+ * Issue #15: Tüm veri belleğe alınıp JS filter/find ile eşleştirilmez;
+ * Requirement ← Verifies-link → TestCase tek SQL JOIN ile çekilir.
  * Query params: pid (projectId) - ZORUNLU
  */
 router.get('/export/matrix', async (req, res) => {
   try {
     const pid = req.params.pid;
 
-    // Projeye ait gereksinimler ve testleri çek
-    const requirements = await prisma.requirement.findMany({
-      where: { projectId: pid },
-      orderBy: { text_id: 'asc' },
-    });
+    // Tek sorgu: her (gereksinim, Verifies bağı) çifti bir satır;
+    // bağı olmayan gereksinimler test alanları NULL tek satır olarak gelir.
+    const joinRows = await prisma.$queryRaw`
+      SELECT r."id" AS "reqId",
+             r."text_id" AS "reqTextId",
+             r."title" AS "reqTitle",
+             r."description" AS "reqDescription",
+             r."status" AS "reqStatus",
+             r."priority" AS "reqPriority",
+             l."id" AS "linkId",
+             t."id" AS "testId",
+             t."text_id" AS "testTextId",
+             t."title" AS "testTitle",
+             t."status" AS "testStatus"
+      FROM "Requirement" r
+      LEFT JOIN "TraceabilityLink" l
+        ON l."projectId" = r."projectId" AND l."fromId" = r."id" AND l."type" = 'Verifies'
+      LEFT JOIN "TestCase" t
+        ON t."id" = l."toId" AND t."projectId" = r."projectId"
+      WHERE r."projectId" = ${pid}
+      ORDER BY r."text_id", t."text_id"`;
 
-    const links = await prisma.traceabilityLink.findMany({
-      where: {
-        projectId: pid,
-        type: 'Verifies', // Sadece gereksinim-test bağlantılarını al
-      },
-    });
+    // Sunum amaçlı gruplama (veri eşleştirme değil): gereksinim başına satırlar.
+    const groups = [];
+    for (const row of joinRows) {
+      let g = groups[groups.length - 1];
+      if (!g || g.reqId !== row.reqId) {
+        g = { reqId: row.reqId, rows: [] };
+        groups.push(g);
+      }
+      g.rows.push(row);
+    }
 
-    const testCases = await prisma.testCase.findMany({
-      where: { projectId: pid },
-    });
+    const totalRequirements = groups.length;
+    const totalTests = await prisma.testCase.count({ where: { projectId: pid } });
+    const totalLinks = joinRows.filter((r) => r.linkId !== null).length;
 
     // Excel workbook oluştur
     const workbook = new ExcelJS.Workbook();
@@ -151,47 +173,55 @@ router.get('/export/matrix', async (req, res) => {
 
     // Satırları ekle
     let rowNumber = 2;
-    let totalRequirements = requirements.length;
     let linkedRequirements = 0;
 
-    requirements.forEach((req) => {
-      // Bu gereksinime ait linkler
-      const reqLinks = links.filter((l) => l.fromId === req.id);
+    for (const group of groups) {
+      const first = group.rows[0];
 
-      if (reqLinks.length === 0) {
+      if (first.linkId === null) {
         // Link yoksa boş satır ekle
-        worksheet.addRow([req.text_id, req.title, req.description, req.status, req.priority, '', '', '', '', '0%']);
-      } else {
-        linkedRequirements++;
-        // Her link için satır ekle
-        reqLinks.forEach((link, index) => {
-          const test = testCases.find((t) => t.id === link.toId);
-          worksheet.addRow([
-            index === 0 ? req.text_id : '', // Sadece ilk satırda ID göster
-            index === 0 ? req.title : '',
-            index === 0 ? req.description : '',
-            index === 0 ? req.status : '',
-            index === 0 ? req.priority : '',
-            test?.text_id || '',
-            test?.title || '',
-            link.type,
-            test?.status || '',
-            test ? '100%' : '0%',
-          ]);
-
-          // Merge cells (ilk link için)
-          if (index === 0 && reqLinks.length > 1) {
-            worksheet.mergeCells(`A${rowNumber}:A${rowNumber + reqLinks.length - 1}`);
-            worksheet.mergeCells(`B${rowNumber}:B${rowNumber + reqLinks.length - 1}`);
-            worksheet.mergeCells(`C${rowNumber}:C${rowNumber + reqLinks.length - 1}`);
-            worksheet.mergeCells(`D${rowNumber}:D${rowNumber + reqLinks.length - 1}`);
-            worksheet.mergeCells(`E${rowNumber}:E${rowNumber + reqLinks.length - 1}`);
-          }
-
-          rowNumber++;
-        });
+        worksheet.addRow([
+          first.reqTextId,
+          first.reqTitle,
+          first.reqDescription,
+          first.reqStatus,
+          first.reqPriority,
+          '',
+          '',
+          '',
+          '',
+          '0%',
+        ]);
+        rowNumber += 1;
+        continue;
       }
-    });
+
+      linkedRequirements += 1;
+      group.rows.forEach((row, index) => {
+        worksheet.addRow([
+          index === 0 ? row.reqTextId : '', // Sadece ilk satırda ID göster
+          index === 0 ? row.reqTitle : '',
+          index === 0 ? row.reqDescription : '',
+          index === 0 ? row.reqStatus : '',
+          index === 0 ? row.reqPriority : '',
+          row.testTextId || '',
+          row.testTitle || '',
+          'Verifies',
+          row.testStatus || '',
+          row.testId ? '100%' : '0%',
+        ]);
+
+        // Merge cells (ilk link için)
+        if (index === 0 && group.rows.length > 1) {
+          const end = rowNumber + group.rows.length - 1;
+          for (const col of ['A', 'B', 'C', 'D', 'E']) {
+            worksheet.mergeCells(`${col}${rowNumber}:${col}${end}`);
+          }
+        }
+
+        rowNumber++;
+      });
+    }
 
     // Kolon genişlikleri
     worksheet.columns = [
@@ -213,9 +243,9 @@ router.get('/export/matrix', async (req, res) => {
     summarySheet.addRow(['']);
     summarySheet.addRow(['Proje ID:', pid]);
     summarySheet.addRow(['Toplam Gereksinim:', totalRequirements]);
-    summarySheet.addRow(['Toplam Test Senaryosu:', testCases.length]);
+    summarySheet.addRow(['Toplam Test Senaryosu:', totalTests]);
     summarySheet.addRow(['İzlenen Gereksinimler:', linkedRequirements]);
-    summarySheet.addRow(['Toplam Bağlantılar:', links.length]);
+    summarySheet.addRow(['Toplam Bağlantılar:', totalLinks]);
     const coverage = totalRequirements > 0 ? `${((linkedRequirements / totalRequirements) * 100).toFixed(2)}%` : '0%';
     summarySheet.addRow(['Kapsama Oranı (Req):', coverage]);
     summarySheet.addRow(['Export Tarihi:', new Date().toLocaleString('tr-TR')]);
@@ -239,24 +269,42 @@ router.get('/export/matrix', async (req, res) => {
 
 /**
  * GET /api/traceability/export/detailed
- * Detaylı traceability raporu (ileri ve geri izlenebilirlik)
+ * Detaylı traceability raporu (ileri izlenebilirlik)
+ * Issue #15: Eşleştirme JS filter/find yerine SQL JOIN + string_agg ile.
  */
 router.get('/export/detailed', async (req, res) => {
   try {
     const pid = req.params.pid;
 
-    const requirements = await prisma.requirement.findMany({
-      where: { projectId: pid },
-      orderBy: { text_id: 'asc' },
-    });
+    // Tek sorgu: gereksinim başına ileri (Verifies) bağlantı özeti.
+    const rows = await prisma.$queryRaw`
+      SELECT r."id" AS "reqId",
+             r."text_id" AS "reqTextId",
+             r."title" AS "reqTitle",
+             r."status" AS "reqStatus",
+             r."approvalStatus" AS "reqApprovalStatus",
+             COALESCE(
+               string_agg(t."text_id" || ': ' || t."title", '; ' ORDER BY t."text_id")
+                 FILTER (WHERE t."id" IS NOT NULL),
+               ''
+             ) AS "linkedTests",
+             COALESCE(
+               string_agg(l."type", '; ' ORDER BY t."text_id")
+                 FILTER (WHERE t."id" IS NOT NULL),
+               ''
+             ) AS "linkTypes",
+             COUNT(l."id")::int AS "forwardCount"
+      FROM "Requirement" r
+      LEFT JOIN "TraceabilityLink" l
+        ON l."projectId" = r."projectId" AND l."fromId" = r."id" AND l."type" = 'Verifies'
+      LEFT JOIN "TestCase" t
+        ON t."id" = l."toId" AND t."projectId" = r."projectId"
+      WHERE r."projectId" = ${pid}
+      GROUP BY r."id", r."text_id", r."title", r."status", r."approvalStatus"
+      ORDER BY r."text_id"`;
 
-    const links = await prisma.traceabilityLink.findMany({
-      where: { projectId: pid },
-    });
-
-    const testCases = await prisma.testCase.findMany({
-      where: { projectId: pid },
-    });
+    const totalTests = await prisma.testCase.count({ where: { projectId: pid } });
+    const totalLinksAllTypes = await prisma.traceabilityLink.count({ where: { projectId: pid } });
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Detaylı Traceability');
@@ -283,27 +331,33 @@ router.get('/export/detailed', async (req, res) => {
     headerRow.alignment = { horizontal: 'center', vertical: 'center' };
 
     // Veriler
-    requirements.forEach((req) => {
-      // Gereksinimden başlayan linkler (ileri izlenebilirlik)
-      const forwardLinks = links.filter((l) => l.fromId === req.id && l.type === 'Verifies');
-
-      if (forwardLinks.length === 0) {
-        worksheet.addRow([req.text_id, req.title, 'Test bağlantısı yok', '-', '0%', req.status, req.approvalStatus]);
-      } else {
-        const linkedTests = forwardLinks
-          .map((l) => {
-            const test = testCases.find((t) => t.id === l.toId);
-            return test ? `${test.text_id}: ${test.title}` : '';
-          })
-          .filter(Boolean)
-          .join('; ');
-
-        const linkTypes = forwardLinks.map((l) => l.type).join('; ');
-        const coverage = `${forwardLinks.length}/${testCases.length} (%${Math.round((forwardLinks.length / (testCases.length || 1)) * 100)})`;
-
-        worksheet.addRow([req.text_id, req.title, linkedTests, linkTypes, coverage, req.status, req.approvalStatus]);
+    let linkedReqs = 0;
+    for (const row of rows) {
+      if (row.forwardCount === 0) {
+        worksheet.addRow([
+          row.reqTextId,
+          row.reqTitle,
+          'Test bağlantısı yok',
+          '-',
+          '0%',
+          row.reqStatus,
+          row.reqApprovalStatus,
+        ]);
+        continue;
       }
-    });
+
+      linkedReqs += 1;
+      const coverage = `${row.forwardCount}/${totalTests} (%${Math.round((row.forwardCount / (totalTests || 1)) * 100)})`;
+      worksheet.addRow([
+        row.reqTextId,
+        row.reqTitle,
+        row.linkedTests,
+        row.linkTypes,
+        coverage,
+        row.reqStatus,
+        row.reqApprovalStatus,
+      ]);
+    }
 
     worksheet.columns = [
       { width: 10 },
@@ -317,16 +371,15 @@ router.get('/export/detailed', async (req, res) => {
 
     // Summary sayfası ekle
     const summarySheet = workbook.addWorksheet('Summary');
-    const totalReqs = requirements.length;
-    const linkedReqs = requirements.filter((r) => links.some((l) => l.fromId === r.id && l.type === 'Verifies')).length;
+    const totalReqs = rows.length;
 
     summarySheet.addRow(['Detaylı Traceability Raporu']);
     summarySheet.addRow(['']);
     summarySheet.addRow(['Proje ID:', pid]);
     summarySheet.addRow(['Toplam Gereksinim:', totalReqs]);
-    summarySheet.addRow(['Toplam Test Senaryosu:', testCases.length]);
+    summarySheet.addRow(['Toplam Test Senaryosu:', totalTests]);
     summarySheet.addRow(['Test ile İzlenen Gereksinimler:', linkedReqs]);
-    summarySheet.addRow(['Toplam Bağlantılar:', links.length]);
+    summarySheet.addRow(['Toplam Bağlantılar:', totalLinksAllTypes]);
     summarySheet.addRow(['Kapsama Oranı:', `${((linkedReqs / (totalReqs || 1)) * 100).toFixed(2)}%`]);
     summarySheet.addRow(['Export Tarihi:', new Date().toLocaleString('tr-TR')]);
 
@@ -334,8 +387,9 @@ router.get('/export/detailed', async (req, res) => {
     titleRow.font = { bold: true, size: 14 };
     summarySheet.columns = [{ width: 30 }, { width: 25 }];
 
+    // Not: HTTP header'ı non-ASCII kabul etmez; dosya adı ISO-8859-1 güvenli.
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Detaylı_Traceability_${new Date().getTime()}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Detayli_Traceability_${new Date().getTime()}.xlsx"`);
 
     await workbook.xlsx.write(res);
     res.end();
@@ -348,58 +402,74 @@ router.get('/export/detailed', async (req, res) => {
 /**
  * GET /api/traceability/matrix
  * Matris verilerini JSON formatında döndür (Frontend görüntülemesi için)
+ * Issue #15: JS filter/find yerine SQL JOIN + json_agg; response şekli aynı.
  */
 router.get('/matrix', async (req, res) => {
   try {
     const pid = req.params.pid;
 
-    // Projeye ait gereksinimler ve test bağlantılarını çek
-    const requirements = await prisma.requirement.findMany({
-      where: { projectId: pid },
-      orderBy: { text_id: 'asc' },
+    // Tek sorgu: gereksinim başına bağlı testler json_agg ile toplanır.
+    const rows = await prisma.$queryRaw`
+      SELECT r."id" AS "reqId",
+             r."text_id" AS "reqTextId",
+             r."title" AS "reqTitle",
+             r."description" AS "reqDescription",
+             r."type" AS "reqType",
+             r."status" AS "reqStatus",
+             r."priority" AS "reqPriority",
+             r."author" AS "reqAuthor",
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', t."id",
+                   'text_id', t."text_id",
+                   'title', t."title",
+                   'status', t."status",
+                   'type', l."type"
+                 )
+                 ORDER BY t."text_id"
+               ) FILTER (WHERE t."id" IS NOT NULL),
+               '[]'
+             ) AS "linkedTests"
+      FROM "Requirement" r
+      LEFT JOIN "TraceabilityLink" l
+        ON l."projectId" = r."projectId" AND l."fromId" = r."id" AND l."type" = 'Verifies'
+      LEFT JOIN "TestCase" t
+        ON t."id" = l."toId" AND t."projectId" = r."projectId"
+      WHERE r."projectId" = ${pid}
+      GROUP BY r."id"
+      ORDER BY r."text_id"`;
+
+    const totalTests = await prisma.testCase.count({ where: { projectId: pid } });
+    const totalLinks = await prisma.traceabilityLink.count({
+      where: { projectId: pid, type: 'Verifies' },
     });
 
-    const links = await prisma.traceabilityLink.findMany({
-      where: {
-        projectId: pid,
-        type: 'Verifies',
-      },
-    });
-
-    const testCases = await prisma.testCase.findMany({
-      where: { projectId: pid },
-    });
+    const parseTests = (v) => {
+      if (Array.isArray(v)) return v;
+      try {
+        return JSON.parse(v ?? '[]');
+      } catch {
+        return [];
+      }
+    };
 
     // Matris verilerini hazırla
-    const matrixData = requirements.map((req) => {
-      const reqLinks = links.filter((l) => l.fromId === req.id);
-
-      const linkedTests = reqLinks
-        .map((link) => {
-          const test = testCases.find((t) => t.id === link.toId);
-          return test
-            ? {
-                id: test.id,
-                text_id: test.text_id,
-                title: test.title,
-                status: test.status,
-                type: link.type,
-              }
-            : null;
-        })
-        .filter(Boolean);
-
-      const coverage = testCases.length > 0 ? Math.round((reqLinks.length / testCases.length) * 100) : 0;
+    let linkedRequirements = 0;
+    const matrixData = rows.map((row) => {
+      const linkedTests = parseTests(row.linkedTests);
+      if (linkedTests.length > 0) linkedRequirements += 1;
+      const coverage = totalTests > 0 ? Math.round((linkedTests.length / totalTests) * 100) : 0;
 
       return {
-        id: req.id,
-        text_id: req.text_id,
-        title: req.title,
-        description: req.description,
-        type: req.type,
-        status: req.status,
-        priority: req.priority,
-        author: req.author,
+        id: row.reqId,
+        text_id: row.reqTextId,
+        title: row.reqTitle,
+        description: row.reqDescription,
+        type: row.reqType,
+        status: row.reqStatus,
+        priority: row.reqPriority,
+        author: row.reqAuthor,
         linkedTests,
         coverage: `${coverage}%`,
       };
@@ -409,10 +479,10 @@ router.get('/matrix', async (req, res) => {
       success: true,
       data: matrixData,
       summary: {
-        totalRequirements: requirements.length,
-        totalTests: testCases.length,
-        totalLinks: links.length,
-        linkedRequirements: requirements.filter((r) => links.some((l) => l.fromId === r.id)).length,
+        totalRequirements: matrixData.length,
+        totalTests,
+        totalLinks,
+        linkedRequirements,
       },
     });
   } catch (error) {
