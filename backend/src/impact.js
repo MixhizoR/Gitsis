@@ -1,9 +1,6 @@
 // ============================================================================
 //  impact.js — Etki Analizi (Impact Analysis) backend tarafinda.
-//  Recursive CTE ile PostgreSQL uzerinde etki agaci: bir gereksinimin
-//  degisikligi hangi UST gereksinimleri (Satisfies) etkiler, hangi
-//  testleri (Verifies) yeniden calistirir, hangi dokumanlar guncellenmeli.
-//  Issue #46 — frontend'deki buildImpactTree'in backend'e tasinmasi.
+//  Recursive CTE ile PostgreSQL uzerinde etki agaci (Issue #46).
 // ============================================================================
 import { PrismaClient } from '@prisma/client';
 
@@ -12,8 +9,8 @@ const prisma = new PrismaClient();
 /**
  * Bir gereksinim icin etki agacini Recursive CTE ile sorgular.
  * @param {string} projectId
- * @param {string} reqId — kok gereksinim (degisen)
- * @returns {Promise<Object>} — tree + summary
+ * @param {string} reqId
+ * @returns {Promise<{root: object, parents: Array, tests: Array, summary: object}>}
  */
 export async function getImpactTree(projectId, reqId) {
   const root = await prisma.requirement.findUnique({
@@ -21,12 +18,27 @@ export async function getImpactTree(projectId, reqId) {
   });
   if (!root) return null;
 
-  // Satisfies ile UST gereksinimler (Parent) — basit iki seviye
-  const parentLinks = await prisma.traceabilityLink.findMany({
-    where: { projectId, toId: reqId, type: 'Satisfies' },
-    include: { fromRequirement: true },
-  });
-  const parents = parentLinks.map((l) => l.fromRequirement).filter(Boolean);
+  // Recursive CTE: Satisfies baglari uzerinden UST gereksinimlere cik (upstream)
+  const upstreamIds = await prisma.$queryRawUnsafe(`
+    WITH RECURSIVE upstream AS (
+      SELECT tl."fromId" AS req_id, 1 AS depth
+      FROM "TraceabilityLink" tl
+      WHERE tl."projectId" = '${projectId}'
+        AND tl.type = 'Satisfies'
+        AND tl."toId" = '${reqId}'
+      UNION ALL
+      SELECT tl."fromId", u.depth + 1
+      FROM "TraceabilityLink" tl
+      INNER JOIN upstream u ON tl."toId" = u.req_id
+      WHERE tl."projectId" = '${projectId}'
+        AND tl.type = 'Satisfies'
+    )
+    SELECT req_id FROM upstream WHERE depth <= 5;
+  `);
+
+  const parentIds = upstreamIds.map((r) => r.req_id).filter(Boolean);
+  const parents =
+    parentIds.length > 0 ? await prisma.requirement.findMany({ where: { projectId, id: { in: parentIds } } }) : [];
 
   // Verifies ile bagli testler
   const verifies = await prisma.traceabilityLink.findMany({

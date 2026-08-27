@@ -20,14 +20,23 @@ const prisma = new PrismaClient();
 
 before(async () => {
   try {
-    execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', { stdio: 'pipe' });
-  } catch { /* var */ }
+    execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
+      stdio: 'pipe',
+    });
+  } catch {
+    /* var */
+  }
   execSync('npx prisma db push --force-reset --skip-generate', { stdio: 'inherit', env: { ...process.env } });
 
   // Admin kullanici + proje (seed benzeri, yalnizca impact testi icin)
   const { hashPassword } = await import('../src/auth.js');
   await prisma.user.create({
-    data: { username: 'pm-impact', password: await hashPassword('pm-pass'), name: 'Impact PM', role: 'Proje Yoneticisi' },
+    data: {
+      username: 'pm-impact',
+      password: await hashPassword('pm-pass'),
+      name: 'Impact PM',
+      role: 'Proje Yoneticisi',
+    },
   });
   const proj = await prisma.project.create({ data: { name: 'Impact Proje', description: 'Test' } });
   const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muhendis', permissions: {} } });
@@ -35,23 +44,45 @@ before(async () => {
     data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'IMP-1234' },
   });
   await prisma.requirement.create({
-    data: { projectId: proj.id, text_id: 'REQ-IMPACT-001', title: 'Root', type: 'Software Requirement', status: 'In Review' },
+    data: {
+      projectId: proj.id,
+      text_id: 'REQ-IMPACT-001',
+      title: 'Root',
+      type: 'Software Requirement',
+      status: 'In Review',
+    },
   });
   await prisma.requirement.create({
-    data: { projectId: proj.id, text_id: 'REQ-IMPACT-002', title: 'Parent', type: 'System Requirement', status: 'In Review' },
+    data: {
+      projectId: proj.id,
+      text_id: 'REQ-IMPACT-002',
+      title: 'Parent',
+      type: 'System Requirement',
+      status: 'In Review',
+    },
   });
   await prisma.traceabilityLink.create({
-    data: { projectId: proj.id, fromId: (await prisma.requirement.findFirst({ where: { text_id: 'REQ-IMPACT-002' } })).id, toId: (await prisma.requirement.findFirst({ where: { text_id: 'REQ-IMPACT-001' } })).id, type: 'Satisfies', createdBy: 'system.seed' },
+    data: {
+      projectId: proj.id,
+      fromId: (await prisma.requirement.findFirst({ where: { text_id: 'REQ-IMPACT-002' } })).id,
+      toId: (await prisma.requirement.findFirst({ where: { text_id: 'REQ-IMPACT-001' } })).id,
+      type: 'Satisfies',
+      createdBy: 'system.seed',
+    },
   });
 });
 
-after(async () => { await prisma.$disconnect(); });
+after(async () => {
+  await prisma.$disconnect();
+});
 
 // --- T1: Zincir korunur ---
 test('GET /api/projects/:pid/impact — zincir korunur, root bulunur', async () => {
   const proj = await prisma.project.findFirst({ where: { name: 'Impact Proje' } });
   const req = await prisma.requirement.findFirst({ where: { text_id: 'REQ-IMPACT-001' } });
-  const res = await request(app).get(`/api/projects/${proj.id}/impact?reqId=${req.id}`).set('Authorization', 'Bearer test-token-ignored');
+  const res = await request(app)
+    .get(`/api/projects/${proj.id}/impact?reqId=${req.id}`)
+    .set('Authorization', 'Bearer test-token-ignored');
   // IDOR guard tetiklenebilir; basit smoke test.
   assert.ok(res.status === 200 || res.status === 403 || res.status === 401); // auth yoksa 401/403
 });
