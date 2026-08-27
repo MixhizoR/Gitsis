@@ -7,15 +7,20 @@
 //    Gereksinimler: 12 User + 20 System + 24 Software + 16 Hardware
 //    Testler:        5 Acceptance + 6 System + 5 Sub-system
 //    Baglar:         20 (User<-System) + 22 (System<-Sub) + 16 (Verifies)
+//
+//  Issue #13: createdAt/updatedAt alanlari Prisma'nin @default(now()) /
+//  @updatedAt sema direktiflerine birakildi (gelecek tarih hardcode'u yok).
+//  author / createdBy alanlari "system.seed" sistem imzasi ile isaretlenir
+//  (admin manuel kayitlarindan denetim amaciyla ayrilir).
 // ============================================================================
 import { PrismaClient } from '@prisma/client';
+import { fileURLToPath } from 'node:url';
 import { REQ_TYPE, TEST_TYPE, PRIORITY, STATUS, DAL, LINK_TYPE } from './constants.js';
 import { recomputeAllStatuses } from './logic.js';
 import { hashPassword } from './auth.js';
 
 const prisma = new PrismaClient();
-const NOW = new Date('2026-06-20T09:00:00.000Z');
-const AUTHOR = 'ehsim.user';
+const SEED_AUTHOR = 'system.seed';
 
 const FIELDS = [
   'Arayuz / HMI',
@@ -151,13 +156,11 @@ function makeReq(projectId, type, prefix, i, title) {
     priority: P[(i - 1) % P.length],
     status: STATUS.IN_REVIEW,
     dal_level: D[(i - 1) % D.length],
-    author: AUTHOR,
-    createdAt: NOW,
-    updatedAt: NOW,
+    author: SEED_AUTHOR,
   };
 }
 
-async function main() {
+export async function runSeed() {
   const existing = await prisma.project.count();
   if (existing > 0) {
     console.log(`[seed] Veri tabani zaten dolu (${existing} proje). Seed atlandi — veri kalici.`);
@@ -185,8 +188,6 @@ async function main() {
     data: {
       name: 'Otopilot / Ucus Kontrol Sistemi',
       description: 'Aviyonik ucus kontrol ve otopilot sistemi — resmi referans projesi (DO-178C).',
-      createdAt: NOW,
-      updatedAt: NOW,
     },
   });
   const pid = project.id;
@@ -237,9 +238,7 @@ async function main() {
       priority: null,
       dal_level: null,
       status: TEST_STATUS[text_id] || STATUS.IN_REVIEW,
-      author: AUTHOR,
-      createdAt: NOW,
-      updatedAt: NOW,
+      author: SEED_AUTHOR,
     });
   };
   ACC_TITLES.forEach((t, k) => pushTest(TEST_TYPE.ACCEPTANCE, 'TC-ACC', k + 1, t));
@@ -259,7 +258,7 @@ async function main() {
     const fromId = reqIdOf.get(fromTid);
     const toId = kind === 'test' ? testIdOf.get(toTid) : reqIdOf.get(toTid);
     if (!fromId || !toId) return;
-    links.push({ projectId: pid, fromId, toId, type, createdBy: AUTHOR, createdAt: NOW });
+    links.push({ projectId: pid, fromId, toId, type, createdBy: SEED_AUTHOR });
   };
 
   // 6a) Satisfies: User <- System (20)
@@ -316,11 +315,13 @@ async function main() {
   }
 }
 
-main()
-  .catch((e) => {
-    console.error('[seed] HATA:', e);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runSeed()
+    .catch((e) => {
+      console.error('[seed] HATA:', e);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
