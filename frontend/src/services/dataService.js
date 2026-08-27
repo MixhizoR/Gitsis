@@ -72,3 +72,7 @@ export const listAudit = (pid) => api.get(`/projects/${pid}/audit`)
 
 // --- Cascade durum yeniden hesabi (manuel tetik) ---------------------------
 export const recompute = (pid) => api.post(`/projects/${pid}/recompute`)
+
+// --- ReqIF Integration ------------------------------------------------------
+export const importReqIF = (pid, xmlContent) =>
+  api.post(`/projects/${pid}/traceability/import/reqif`, { xmlContent })

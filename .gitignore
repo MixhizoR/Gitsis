@@ -18,3 +18,4 @@ yarn-error.log*
 .eslintcache
 coverage/
 test-results/
+/.vs
