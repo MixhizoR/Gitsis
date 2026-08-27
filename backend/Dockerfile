@@ -26,7 +26,7 @@ RUN chown -R node:node /app
 
 # Install only production dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy generated Prisma client artifacts from builder
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma

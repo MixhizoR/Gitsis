@@ -36,7 +36,6 @@ function handleFileUpload(req, res, next) {
 }
 
 const router = express.Router({ mergeParams: true });
-const router = express.Router({ mergeParams: true });
 const prisma = new PrismaClient();
 
 /**
