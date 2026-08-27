@@ -13,7 +13,7 @@ ve demo veri standardını açıklar.
 ┌──────────────────┐   HTTP/JSON  ┌────────────────────┐  Prisma  ┌─────────────┐
 │ React + Vite     │ ───────────► │ Express REST API   │ ───────► │ PostgreSQL15│
 │ (frontend :5173) │  JWT Bearer  │ (backend :4001)    │          │ (db, volume)│
-│  src/services/   │ ◄─────────── │  requireAuth +     │ ◄─────── │             │
+│  frontend/src/services/   │ ◄─────────── │  requireAuth +     │ ◄─────── │             │
 │  apiClient.js    │   JSON       │  projectAccessGuard│  tek DB  └─────────────┘
 └───────┬──────────┘              └────────────────────┘
         │                                   ▲
@@ -31,7 +31,7 @@ Katmanlar:
 | Katman | Teknoloji | Sorumluluk |
 |---|---|---|
 | Frontend | React 18 + Vite + Tailwind | UI; tüm veri erişimi `src/services/apiClient.js` üzerinden |
-| Backend | Node.js + Express + Prisma | Proje-bazlı izole REST API; JWT kimlik doğrulama; **IDOR koruması** (`projectAccessGuard` — personel yalnız atandığı projeye erişir); audit log |
+| Backend | Node.js + Express + Prisma | Proje-bazlı izole REST API; JWT kimlik doğrulama; **IDOR koruması** (`projectAccessGuard` — personel yalnız atandığı projeye erişir); audit log (**55 test, 7 dosya** — `backend/tests/`) |
 | Veritabanı | PostgreSQL 15 (Docker volume) | Kalıcı depo; `docker compose down -v` ile silinir |
 | AI köprüsü *(opsiyonel)* | Python FastAPI (`ai-bridge/`) | PDF/metin → gereksinim taslağı; yalnız LM Studio'ya HTTP atar, DB'ye bağlanmaz |
 
