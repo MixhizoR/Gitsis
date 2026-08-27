@@ -77,6 +77,13 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 - `npm test` (backend + frontend)
 Basarisiz olursa push durdurulur, hata duzeltilip tekrar calistirilir.
 
+## Değişiklik sonrası zorunlu doğrulama
+
+- Değiştirdiğin kısmı test etmeden / denemeden geçme.
+- Kodda bir yer değiştirdiysen (`backend/` / `frontend/`) ilgili testleri koş (`npm test` veya ilgili tek test); hata var mı kontrol et.
+- Docker / `compose.yaml` / `.env` gibi bir yerde değişiklik yaptıysan `docker compose up --build` (veya ilgili `compose.dev.yaml`) çalıştır; en azından hata var mı yok mu bir bak.
+- Hata çıkarsa düzeltmeden devam etme; başarılı veya hatasız olana kadar doğrula.
+
 ## OpenCode notları
 
 - Plan mode (read-only) default; build mode'u `build` komutuyla (ör. `npm test`) veya doğrulamaya geçince.
