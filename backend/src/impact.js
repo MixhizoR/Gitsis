@@ -13,32 +13,38 @@ const prisma = new PrismaClient();
  * @returns {Promise<{root: object, parents: Array, tests: Array, summary: object}>}
  */
 export async function getImpactTree(projectId, reqId) {
+  if (!projectId || !reqId) {
+    throw new Error('projectId and reqId are required');
+  }
+
   const root = await prisma.requirement.findUnique({
     where: { id: reqId, projectId },
   });
   if (!root) return null;
 
-  // Recursive CTE: Satisfies baglari uzerinden UST gereksinimlere cik (upstream)
+  // Recursive CTE: Satisfies ile UST zincir (depth limitle dongu korumasi)
   const upstreamIds = await prisma.$queryRawUnsafe(`
     WITH RECURSIVE upstream AS (
-      SELECT tl."fromId" AS req_id, 1 AS depth
+      SELECT tl."fromId" AS req_id
       FROM "TraceabilityLink" tl
       WHERE tl."projectId" = '${projectId}'
         AND tl.type = 'Satisfies'
         AND tl."toId" = '${reqId}'
       UNION ALL
-      SELECT tl."fromId", u.depth + 1
+      SELECT tl."fromId"
       FROM "TraceabilityLink" tl
       INNER JOIN upstream u ON tl."toId" = u.req_id
       WHERE tl."projectId" = '${projectId}'
         AND tl.type = 'Satisfies'
     )
-    SELECT req_id FROM upstream WHERE depth <= 5;
+    SELECT req_id FROM upstream;
   `);
 
   const parentIds = upstreamIds.map((r) => r.req_id).filter(Boolean);
   const parents =
-    parentIds.length > 0 ? await prisma.requirement.findMany({ where: { projectId, id: { in: parentIds } } }) : [];
+    parentIds.length > 0
+      ? await prisma.requirement.findMany({ where: { projectId, id: { in: parentIds } } })
+      : [];
 
   // Verifies ile bagli testler
   const verifies = await prisma.traceabilityLink.findMany({

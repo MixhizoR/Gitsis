@@ -88,8 +88,13 @@ test('GET /api/projects/:pid/impact — zincir korunur, root bulunur', async () 
 });
 
 // --- T2: reqId eksik -> 400 ---
-test('GET /api/projects/:pid/impact — reqId eksik -> hata', async () => {
+test('GET /api/projects/:pid/impact — reqId eksik -> 400', async () => {
+  const { signToken } = await import('../src/auth.js');
+  const user = await prisma.user.findFirst({ where: { username: 'pm-impact' } });
+  const token = signToken({ kind: 'pm', isPM: true, userId: user.id });
   const proj = await prisma.project.findFirst({ where: { name: 'Impact Proje' } });
-  const res = await request(app).get(`/api/projects/${proj.id}/impact`);
+  const res = await request(app)
+    .get(`/api/projects/${proj.id}/impact`)
+    .set('Authorization', `Bearer ${token}`);
   assert.equal(res.status, 400);
 });
