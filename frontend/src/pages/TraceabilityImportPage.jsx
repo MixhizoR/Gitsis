@@ -95,75 +95,90 @@
 // };
 
 // frontend/src/pages/TraceabilityImportPage.jsx
-import { useState } from 'react'
-import { useProject } from '../context/ProjectContext.jsx'
-import { upload } from '../services/apiClient'
-import { importReqIF } from '../services/dataService'
+import { useState } from "react";
+import { useProject } from "../context/ProjectContext.jsx";
+import { upload } from "../services/apiClient";
+import { importReqIF } from "../services/dataService";
 
 export function TraceabilityImportPage() {
-    const { activeProjectId } = useProject()
-    const [file, setFile] = useState(null)
-    const [loading, setLoading] = useState(false)
-    const [message, setMessage] = useState(null)
+    const { activeProjectId } = useProject();
+    const [file, setFile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState(null);
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0])
-            setMessage(null)
+            setFile(e.target.files[0]);
+            setMessage(null);
         }
-    }
+    };
 
     const handleUpload = async () => {
-        if (!file) return setMessage({ type: 'error', text: 'Lütfen bir dosya seçin!' })
-        if (!activeProjectId) return setMessage({ type: 'error', text: 'Aktif proje bulunamadı!' })
+        if (!file)
+            return setMessage({ type: "error", text: "Lütfen bir dosya seçin!" });
+        if (!activeProjectId)
+            return setMessage({ type: "error", text: "Aktif proje bulunamadı!" });
 
-        setLoading(true)
-        setMessage(null)
+        setLoading(true);
+        setMessage(null);
 
-        const fileName = file.name.toLowerCase()
+        const fileName = file.name.toLowerCase();
 
         try {
             // 1. ReqIF veya XML Dosyası İçe Aktarma
-            if (fileName.endsWith('.reqif') || fileName.endsWith('.xml')) {
-                const xmlContent = await file.text()
-                const result = await importReqIF(activeProjectId, xmlContent)
+            if (fileName.endsWith(".reqif") || fileName.endsWith(".xml")) {
+                const xmlContent = await file.text();
+                const result = await importReqIF(activeProjectId, xmlContent);
 
-                const stats = result?.stats || {}
-                const reqCount = stats.importedRequirements ?? 0
-                const linkCount = stats.importedLinks ?? 0
+                const stats = result?.stats || {};
+                const reqCount = stats.importedRequirements ?? 0;
+                const linkCount = stats.importedLinks ?? 0;
 
                 setMessage({
-                    type: 'success',
-                    text: `ReqIF başarıyla yüklendi! (${reqCount} gereksinim, ${linkCount} izlenebilirlik bağı eklendi)`
-                })
+                    type: "success",
+                    text: `ReqIF başarıyla yüklendi! (${reqCount} gereksinim, ${linkCount} izlenebilirlik bağı eklendi)`,
+                });
             }
             // 2. Excel Matrisi İçe Aktarma
-            else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                const formData = new FormData()
-                formData.append('file', file)
+            else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+                const formData = new FormData();
+                formData.append("file", file);
 
-                const result = await upload(`/projects/${activeProjectId}/traceability/import`, formData)
-                setMessage({ type: 'success', text: result?.message || 'Excel matrisi içe aktarma başarılı!' })
-            }
-            else {
-                throw new Error('Desteklenmeyen dosya türü! Lütfen .reqif, .xml veya .xlsx formatında bir dosya yükleyin.')
+                const result = await upload(
+                    `/projects/${activeProjectId}/traceability/import`,
+                    formData,
+                );
+                setMessage({
+                    type: "success",
+                    text: result?.message || "Excel matrisi içe aktarma başarılı!",
+                });
+            } else {
+                throw new Error(
+                    "Desteklenmeyen dosya türü! Lütfen .reqif, .xml veya .xlsx formatında bir dosya yükleyin.",
+                );
             }
 
-            setFile(null)
+            setFile(null);
         } catch (err) {
-            console.error('İçe aktarma hatası:', err)
-            const errorMsg = err.response?.data?.error || err.message || 'Sunucu ile iletişim kurulamadı.'
-            setMessage({ type: 'error', text: errorMsg })
+            console.error("İçe aktarma hatası:", err);
+            const errorMsg =
+                err.response?.data?.error ||
+                err.message ||
+                "Sunucu ile iletişim kurulamadı.";
+            setMessage({ type: "error", text: errorMsg });
         } finally {
-            setLoading(false)
+            setLoading(false);
         }
-    }
+    };
 
     return (
         <div className="p-6 max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-4">Gereksinim & İzlenebilirlik İçe Aktar</h1>
+            <h1 className="text-2xl font-bold mb-4">
+                Gereksinim & İzlenebilirlik İçe Aktar
+            </h1>
             <p className="text-gray-600 text-sm mb-6">
-                Excel (.xlsx, .xls) matrisi veya ReqIF (.reqif, .xml) dosyası yükleyerek gereksinimleri ve aralarındaki bağlantıları sisteme aktarabilirsiniz.
+                Excel (.xlsx, .xls) matrisi veya ReqIF (.reqif, .xml) dosyası yükleyerek
+                gereksinimleri ve aralarındaki bağlantıları sisteme aktarabilirsiniz.
             </p>
 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
@@ -179,18 +194,20 @@ export function TraceabilityImportPage() {
                     disabled={!file || loading}
                     className="btn-primary px-6 py-2 rounded-md font-bold disabled:opacity-50"
                 >
-                    {loading ? 'İşleniyor...' : 'Dosyayı İçe Aktar'}
+                    {loading ? "İşleniyor..." : "Dosyayı İçe Aktar"}
                 </button>
             </div>
 
             {message && (
                 <div
-                    className={`mt-4 p-4 rounded-md text-sm ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    className={`mt-4 p-4 rounded-md text-sm ${message.type === "success"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                 >
                     {message.text}
                 </div>
             )}
         </div>
-    )
+    );
 }
