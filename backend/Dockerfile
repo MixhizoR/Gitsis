@@ -10,7 +10,7 @@ RUN apt-get update -y && apt-get install -y openssl ca-certificates \
 # ----- Stage: deps (full dependencies for builder / init service) -----
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # ----- Stage: builder (full source + generate client) -----
 FROM deps AS builder

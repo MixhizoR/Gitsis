@@ -5,6 +5,8 @@ import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk } from './cascade.js';
+import { TYPE_PREFIX } from './constants.js';
+import { parseReqIF } from './reqifParser.js';
 
 const ALLOWED_EXT = ['.xlsx', '.xls'];
 const upload = multer({
@@ -33,6 +35,7 @@ function handleFileUpload(req, res, next) {
   });
 }
 
+const router = express.Router({ mergeParams: true });
 const router = express.Router({ mergeParams: true });
 const prisma = new PrismaClient();
 
@@ -170,6 +173,99 @@ router.post('/import', handleFileUpload, async (req, res) => {
   }
 });
 
+// ReqIF Import
+router.post('/import/reqif', async (req, res) => {
+    try {
+        const pid = req.params.pid || req.projectId;
+
+        if (!pid) {
+            return res.status(400).json({ error: 'Proje ID (pid) bulunamadı.' });
+        }
+
+        const { xmlContent } = req.body || {};
+
+        if (!xmlContent || typeof xmlContent !== 'string') {
+            return res.status(400).json({ error: 'Geçersiz veya boş XML içeriği.' });
+        }
+
+        const { requirements, relations } = parseReqIF(xmlContent);
+
+        const result = await prisma.$transaction(async (tx) => {
+            // 1. Mevcut en yüksek text_id numarasını bul
+            const prefix = TYPE_PREFIX['User Requirement'] || 'REQ-USR';
+            const existingReqs = await tx.requirement.findMany({
+                where: { projectId: pid },
+                select: { text_id: true }
+            });
+
+            let currentMax = 0;
+            for (const r of existingReqs) {
+                if (r.text_id && r.text_id.startsWith(prefix + '-')) {
+                    const num = parseInt(r.text_id.split('-').pop(), 10);
+                    if (!Number.isNaN(num) && num > currentMax) {
+                        currentMax = num;
+                    }
+                }
+            }
+
+            const externalToDbIdMap = new Map();
+
+            // 2. Gereksinimleri Sırayla Ekle
+            for (const reqItem of requirements) {
+                currentMax += 1;
+                const text_id = `${prefix}-${String(currentMax).padStart(3, '0')}`;
+
+                const created = await tx.requirement.create({
+                    data: {
+                        projectId: pid,
+                        text_id,
+                        title: (reqItem.title || 'Adsız Gereksinim').trim(),
+                        description: (reqItem.description || '').trim(),
+                        type: 'User Requirement',
+                        priority: 'Medium',
+                        status: 'In Review',
+                        author: 'reqif.import',
+                    },
+                });
+                externalToDbIdMap.set(reqItem.externalId, created.id);
+            }
+
+            // 3. İzlenebilirlik Bağlarını Ekle
+            let createdLinksCount = 0;
+            for (const rel of relations) {
+                const sourceDbId = externalToDbIdMap.get(rel.sourceExternalId);
+                const targetDbId = externalToDbIdMap.get(rel.targetExternalId);
+
+                if (sourceDbId && targetDbId) {
+                    await tx.traceabilityLink.create({
+                        data: {
+                            projectId: pid,
+                            fromId: sourceDbId,
+                            toId: targetDbId,
+                            type: rel.type || 'Satisfies',
+                            createdBy: 'reqif.import',
+                        },
+                    });
+                    createdLinksCount++;
+                }
+            }
+
+            return {
+                importedRequirements: requirements.length,
+                importedLinks: createdLinksCount,
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'ReqIF başarıyla içe aktarıldı.',
+            stats: result,
+        });
+    } catch (error) {
+        console.error('ReqIF Import Hatası:', error);
+        return res.status(500).json({ error: error.message || 'ReqIF içe aktarılamadı.' });
+    }
+});
 /**
  * GET /api/traceability/export/matrix
  * Traceability matrix'i Excel formatında export et
