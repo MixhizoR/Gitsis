@@ -8,7 +8,7 @@ services:
       context: ./frontend
       target: dev
     command: ["npm", "run", "dev", "--", "--host", "--port", "5173"]
-    ports:
+    ports: !override
       - "5173:5173"
     environment:
       # Dev sunucusunun /api isteklerini container icindeki backend'e yonlendirmesi icin
