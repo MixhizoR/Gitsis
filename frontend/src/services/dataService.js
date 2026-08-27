@@ -76,3 +76,8 @@ export const recompute = (pid) => api.post(`/projects/${pid}/recompute`)
 // --- ReqIF Integration ------------------------------------------------------
 export const importReqIF = (pid, xmlContent) =>
   api.post(`/projects/${pid}/traceability/import/reqif`, { xmlContent })
+
+// --- Etki Analizi (Issue #46) -----------------------------------------------
+// Backend Recursive CTE ile hesaplanan etki agaci; buyuk veri setlerinde
+// tarayiciyi kilitlemeden agaci server-side kurar.
+export const getImpact = (pid, reqId) => api.get(`/projects/${pid}/impact`, { reqId })
