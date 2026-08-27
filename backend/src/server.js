@@ -1129,72 +1129,72 @@ if (process.env.NODE_ENV !== 'test') {
 }
 //reqIF Integration
 app.post(
-    '/api/projects/:pid/import/reqif',
-    wrap(async (req, res) => {
-        const pid = req.params.pid;
-        const { xmlContent } = req.body || {};
+  '/api/projects/:pid/import/reqif',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { xmlContent } = req.body || {};
 
-        if (!xmlContent || typeof xmlContent !== 'string') {
-            throw bad('Geçersiz veya boş XML içeriği.');
+    if (!xmlContent || typeof xmlContent !== 'string') {
+      throw bad('Geçersiz veya boş XML içeriği.');
+    }
+
+    const { requirements, relations } = parseReqIF(xmlContent);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const externalToDbIdMap = new Map();
+
+      // 1. Gereksinimleri Ekle
+      for (const reqItem of requirements) {
+        const text_id = await nextTextId(pid, 'User Requirement', false);
+        const created = await tx.requirement.create({
+          data: {
+            projectId: pid,
+            text_id,
+            title: (reqItem.title || 'Adsız Gereksinim').trim(),
+            description: cleanRichText((reqItem.description || '').trim()),
+            type: 'User Requirement',
+            priority: 'Medium',
+            status: STATUS.IN_REVIEW,
+            author: 'reqif.import',
+          },
+        });
+        externalToDbIdMap.set(reqItem.externalId, created.id);
+      }
+
+      // 2. İzlenebilirlik Bağlarını Ekle
+      let createdLinksCount = 0;
+      for (const rel of relations) {
+        const sourceDbId = externalToDbIdMap.get(rel.sourceExternalId);
+        const targetDbId = externalToDbIdMap.get(rel.targetExternalId);
+
+        if (sourceDbId && targetDbId) {
+          await tx.traceabilityLink.create({
+            data: {
+              projectId: pid,
+              fromId: sourceDbId,
+              toId: targetDbId,
+              type: rel.type || 'Satisfies',
+              createdBy: 'reqif.import',
+            },
+          });
+          createdLinksCount++;
         }
+      }
 
-        const { requirements, relations } = parseReqIF(xmlContent);
+      return {
+        importedRequirements: requirements.length,
+        importedLinks: createdLinksCount,
+      };
+    });
 
-        const result = await prisma.$transaction(async (tx) => {
-            const externalToDbIdMap = new Map();
+    await cascade(pid);
 
-            // 1. Gereksinimleri Ekle
-            for (const reqItem of requirements) {
-                const text_id = await nextTextId(pid, 'User Requirement', false);
-                const created = await tx.requirement.create({
-                    data: {
-                        projectId: pid,
-                        text_id,
-                        title: (reqItem.title || 'Adsız Gereksinim').trim(),
-                        description: cleanRichText((reqItem.description || '').trim()),
-                        type: 'User Requirement',
-                        priority: 'Medium',
-                        status: STATUS.IN_REVIEW,
-                        author: 'reqif.import',
-                    },
-                });
-                externalToDbIdMap.set(reqItem.externalId, created.id);
-            }
-
-            // 2. İzlenebilirlik Bağlarını Ekle
-            let createdLinksCount = 0;
-            for (const rel of relations) {
-                const sourceDbId = externalToDbIdMap.get(rel.sourceExternalId);
-                const targetDbId = externalToDbIdMap.get(rel.targetExternalId);
-
-                if (sourceDbId && targetDbId) {
-                    await tx.traceabilityLink.create({
-                        data: {
-                            projectId: pid,
-                            fromId: sourceDbId,
-                            toId: targetDbId,
-                            type: rel.type || 'Satisfies',
-                            createdBy: 'reqif.import',
-                        },
-                    });
-                    createdLinksCount++;
-                }
-            }
-
-            return {
-                importedRequirements: requirements.length,
-                importedLinks: createdLinksCount,
-            };
-        });
-
-        await cascade(pid);
-
-        res.status(200).json({
-            success: true,
-            message: 'ReqIF başarıyla içe aktarıldı.',
-            stats: result,
-        });
-    })
+    res.status(200).json({
+      success: true,
+      message: 'ReqIF başarıyla içe aktarıldı.',
+      stats: result,
+    });
+  }),
 );
 
 export default app;
