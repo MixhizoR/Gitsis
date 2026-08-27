@@ -19,3 +19,4 @@ yarn-error.log*
 coverage/
 test-results/
 /.vs
+repomix-output.txt

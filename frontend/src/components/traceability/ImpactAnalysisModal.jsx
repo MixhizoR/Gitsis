@@ -3,16 +3,17 @@
 //  Bir gereksinim degistiginde: (1) dogrudan bagli test senaryolari yeniden
 //  calistirilmali, (2) Satisfies bagiyla karsilanan UST gereksinim(ler)
 //  gozden gecirilmeli (rekursif olarak zincirin tepesine kadar), (3) o
-//  seviyeye eklenmis ilgili dokumanlar guncellenmeli. Mevcut Satisfies /
-//  Verifies baglarinin uzerine kurulur (bkz. utils/impact.js).
+//  seviyeye eklenmis ilgili dokumanlar guncellenmeli. Issue #46: agac
+//  backend'de Recursive CTE ile hesaplanir; frontend yalnizca ozet/UI
+//  hesabi yapar. Buyuk veri setlerinde (>10k req) tarayiciyi kilitlemez.
 // ============================================================================
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '../common/Modal.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconTarget, IconChevron, IconDoc } from '../common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import { buildImpactTree, summarizeImpact } from '../../utils/impact.js'
+import { getImpact } from '../../services/dataService.js'
 
 function Arrow() {
   return (
@@ -116,15 +117,34 @@ function ImpactNode({ node, isRoot, t }) {
 }
 
 export default function ImpactAnalysisModal({ open, onClose, requirement }) {
-  const { requirements, links } = useApp()
+  const { projectId } = useApp()
   const { t } = useLang()
+  const [tree, setTree] = useState(null)
+  const [loading, setLoading] = useState(false)
 
-  const tree = useMemo(() => {
-    if (!open || !requirement) return null
-    return buildImpactTree(requirement.id, requirements, links)
-  }, [open, requirement, requirements, links])
+  useEffect(() => {
+    let cancelled = false
+    if (!open || !requirement) {
+      setTree(null)
+      return
+    }
+    setLoading(true)
+    getImpact(projectId, requirement.id)
+      .then((data) => {
+        if (!cancelled) setTree(data)
+      })
+      .catch(() => {
+        if (!cancelled) setTree(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, projectId, requirement])
 
-  const summary = useMemo(() => (tree ? summarizeImpact(tree) : null), [tree])
+  const summary = tree?.summary || null
   const isEmpty =
     tree && tree.tests.length === 0 && tree.documents.length === 0 && tree.parents.length === 0
 
@@ -142,7 +162,7 @@ export default function ImpactAnalysisModal({ open, onClose, requirement }) {
       }
     >
       {!tree ? (
-        <p className="text-sm text-slate-400">—</p>
+        <p className="text-sm text-slate-400">{loading ? '…' : '—'}</p>
       ) : (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
