@@ -22,6 +22,7 @@ import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
+import { getImpactTree } from './impact.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -846,6 +847,22 @@ app.get(
       take: 1000,
     });
     res.json(rows);
+  }),
+);
+
+// ===========================================================================
+//  IMPACT ANALYSIS — backend tarafinda Recursive CTE ile etki agaci.
+//  Issue #46 — frontend'deki buildImpactTree'yi backend'e tasima.
+// ===========================================================================
+app.get(
+  '/api/projects/:pid/impact',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const reqId = req.query.reqId;
+    if (!reqId || !reqId.trim()) throw bad('reqId zorunlu.');
+    const result = await getImpactTree(pid, reqId.trim());
+    if (!result) throw bad('Gereksinim bulunamadı veya etki agaci bos.', 404);
+    res.json(result);
   }),
 );
 
