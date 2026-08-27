@@ -14,7 +14,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 
 ## 1. Klasör yapısı
 
-- `src/` → Frontend (React + Vite) — site arayüzü
+- `frontend/` → Frontend (React + Vite) — site arayüzü
 - `backend/` → API sunucusu (Express + Prisma) + veritabanı şeması
 - `scripts/` → Örnek proje yükleyici (espresso kahve otomatı)
 - `ai-bridge/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
@@ -50,7 +50,7 @@ Bu komut PostgreSQL'i acar, `migrate` servisi ile semayi uygular ve seed'i yukle
 ### Terminal 2 — Frontend (site)
 Proje kökünde:
 ```
-npm install        # sadece ilk sefer
+cd frontend && npm install        # sadece ilk sefer
 npm run dev
 ```
 Çıkan http://localhost:5173/ linkini tarayıcıda aç.
@@ -75,7 +75,7 @@ Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offl
 
 Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendine göre değiştir:
 
-- **Kullanıcı adı** (işlemlerde "yazan" olarak görünür): `src/utils/constants.js` → `CURRENT_USER` (varsayılan `ehsim.user`). Kendi adınla değiştir.
+- **Kullanıcı adı** (işlemlerde "yazan" olarak görünür): `frontend/src/utils/constants.js` → `CURRENT_USER` (varsayılan `ehsim.user`). Kendi adınla değiştir.
 - **Veritabanı kullanıcı/şifre/isim**: Şifre kök `.env`'den (`POSTGRES_PASSWORD`); `compose.yaml` bunu DB'ye ve backend `DATABASE_URL`'ine enjekte eder. Kullanıcı (`ehsim`) ve veritabanı adı (`ehsim_rmt`) compose içindedir.
 - **JWT imzalama anahtarı**: Kök `.env` içindeki `JWT_SECRET`. Tanımsızsa backend `JWT_SECRET is required` hatasıyla açılmaz. Üretmek için: `openssl rand -base64 48`.
 - **Backend bağlantısı (Docker'sız çalıştırma)**: `backend/.env.example` dosyasını kopyalayıp `backend/.env` yap. Sadece Docker kullanmıyorsan gerekli.
