@@ -8,7 +8,7 @@ import { before, after, test } from 'node:test';
 import request from 'supertest';
 
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'ehsim-test-secret';
+process.env.JWT_SECRET = 'ci-test-secret';
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   `postgresql://ehsim:${encodeURIComponent(process.env.POSTGRES_PASSWORD || 'ehsim_pass')}@localhost:5433/ehsim_rmt_test`;
