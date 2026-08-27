@@ -1,6 +1,7 @@
 # ============================================================================
 # Frontend Dockerfile — Multi-stage: dev (vite) → build → nginx production
 # ============================================================================
+FROM node:22-alpine
 
 # ----- Stage: base (dev + builder dependency base) -----
 FROM node:20-slim AS base

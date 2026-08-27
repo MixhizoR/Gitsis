@@ -10,7 +10,7 @@ RUN apt-get update -y && apt-get install -y openssl ca-certificates \
 # ----- Stage: deps (full dependencies for builder / init service) -----
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # ----- Stage: builder (full source + generate client) -----
 FROM deps AS builder
@@ -26,7 +26,7 @@ RUN chown -R node:node /app
 
 # Install only production dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy generated Prisma client artifacts from builder
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
