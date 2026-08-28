@@ -13,14 +13,27 @@ export default function Traceability() {
   const { requirements, testCases: allTestCases, links } = useApp()
   const { t } = useLang()
 
-  const byType = (type) =>
-    requirements
-      .filter((r) => r.type === type)
-      .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-
-  const systemReqs = useMemo(() => byType(REQ_TYPE.SYSTEM), [requirements])
-  const softwareReqs = useMemo(() => byType(REQ_TYPE.SOFTWARE), [requirements])
-  const hardwareReqs = useMemo(() => byType(REQ_TYPE.HARDWARE), [requirements])
+  const systemReqs = useMemo(
+    () =>
+      requirements
+        .filter((r) => r.type === REQ_TYPE.SYSTEM)
+        .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })),
+    [requirements],
+  )
+  const softwareReqs = useMemo(
+    () =>
+      requirements
+        .filter((r) => r.type === REQ_TYPE.SOFTWARE)
+        .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })),
+    [requirements],
+  )
+  const hardwareReqs = useMemo(
+    () =>
+      requirements
+        .filter((r) => r.type === REQ_TYPE.HARDWARE)
+        .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })),
+    [requirements],
+  )
   const testCases = useMemo(
     () =>
       [...allTestCases].sort((a, b) =>

@@ -78,6 +78,7 @@ const REQ = {
   SYSTEM: 'System Requirement',
   SOFTWARE: 'Software Requirement',
   HARDWARE: 'Hardware Requirement',
+  PHYSICAL: 'Physical Requirement'
 }
 const TEST = {
   ACC: 'Acceptance Test',

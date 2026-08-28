@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { IconDownload, IconRefresh, IconSearch } from '../common/Icons.jsx'
 import { ExportModal } from './ExportModal'
 import { get } from '../../services/apiClient'
@@ -11,17 +11,7 @@ export function MatrixView({ projectId }) {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Matris verilerini yükle
-  useEffect(() => {
-    // projectId değiştiğinde veya yüklendiğinde çalışır
-    if (projectId) {
-      loadMatrixData()
-    } else {
-      // projectId henüz gelmediyse yüklemeyi kapat
-      setIsLoading(false)
-    }
-  }, [projectId])
-
-  const loadMatrixData = async () => {
+  const loadMatrixData = useCallback(async () => {
     if (!projectId || projectId === 'undefined') {
       setIsLoading(false)
       setError('Geçerli bir proje seçilmedi.')
@@ -42,7 +32,17 @@ export function MatrixView({ projectId }) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    // projectId değiştiğinde veya yüklendiğinde çalışır
+    if (projectId) {
+      loadMatrixData()
+    } else {
+      // projectId henüz gelmediyse yüklemeyi kapat
+      setIsLoading(false)
+    }
+  }, [projectId, loadMatrixData])
 
   // Arama filtresi
   const filteredData = matrixData.filter(

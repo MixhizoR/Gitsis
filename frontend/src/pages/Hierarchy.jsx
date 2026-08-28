@@ -51,7 +51,7 @@ export default function Hierarchy({ pageKey }) {
   const [impactRow, setImpactRow] = useState(null)
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
-  const types = cfg?.typeOptions || []
+  const types = useMemo(() => cfg?.typeOptions || [], [cfg])
 
   // --- Izin cozumleyiciler ---------------------------------------------------
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
