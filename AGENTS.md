@@ -50,6 +50,13 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 - Tek giriş noktası: `localhost:5173`; `/api/` nginx proxy → `http://backend:4001`; backend portu host'ta kapalı (dev'de `127.0.0.1:4001` açılır)
 - `migrate` init-servisi (`builder` target): `prisma db push --skip-generate && node src/seed.js`; backend `depends_on: service_completed_successfully` bekler
 
+### Windows (PowerShell / cmd)
+- `scripts\pre-push-check.bat` — format, lint, test (backend + frontend)
+- `scripts\run-dev.bat [--force]` — dev stack (compose + compose.dev)
+- `scripts\run-prod.bat [--force]` — prod stack (compose only)
+- Git Bash / WSL kullanıyorsanız `.sh` dosyaları doğrudan çalışır
+- `seed-coffee-project.mjs` → `node scripts/seed-coffee-project.mjs` (her platformda çalışır)
+
 ### Tek bir test / kısa doğrulama
 - Backend tek test: `node --test tests/api.test.js`
 - Tek node dosya: `node -e "..."`
@@ -70,7 +77,7 @@ Bu dosya, OpenCode oturumlarının bu repo üzerinde hatalı varsayımlardan ka�
 
 ## Pre-push kontrol (her push oncesi zorunlu)
 
-`git push` oncesi `scripts/pre-push-check.sh` calistirilir. Script:
+`git push` oncesi `scripts/pre-push-check.sh` calistirilir. Windows'ta `scripts\pre-push-check.bat` kullanın. Script:
 - `npm run format` (otomatik duzeltir)
 - `npm run lint` (hata varsa durdurur)
 - `npm run format:check`
