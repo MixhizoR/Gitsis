@@ -45,6 +45,38 @@ model Project {
   roles        Role[]
   personnel    Personnel[]
   approvals    Approval[]
+  snapshots    ProjectSnapshot[]
+}
+
+// --- Snaphotlar (baseline / sürüm) ----------------------------------------
+//  Belirli bir andaki proje verisinin donmus kopyası. SnapshotItem,
+//  o andaki tüm Requirement/TestCase/GlossaryTerm + Link kayıtlarını
+//  JSON blob olarak saklar (salt okunur, gelecek restore/diff için).
+model ProjectSnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  createdBy String?
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items     SnapshotItem[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([projectId, createdAt])
+}
+
+model SnapshotItem {
+  id           String   @id @default(uuid())
+  snapshotId   String
+  entityType   String // 'requirement' | 'testcase' | 'glossary' | 'link'
+  entityId     String
+  data         Json   // o anki kaydın tam kopyası (field-by-field)
+  createdAt    DateTime @default(now())
+  snapshot     ProjectSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([snapshotId, entityType])
 }
 
 // --- Roller (proje bazli, dinamik) -----------------------------------------

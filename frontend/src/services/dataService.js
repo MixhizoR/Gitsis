@@ -81,3 +81,11 @@ export const importReqIF = (pid, xmlContent) =>
 // Backend Recursive CTE ile hesaplanan etki agaci; buyuk veri setlerinde
 // tarayiciyi kilitlemeden agaci server-side kurar.
 export const getImpact = (pid, reqId) => api.get(`/projects/${pid}/impact`, { reqId })
+
+// --- Snapshots (Issue #8) ----------------------------------------------------
+// Sürüm / baseline altyapısı: snapshot olusturma, listeleme, detay, silme.
+export const listSnapshots = (pid) => api.get(`/projects/${pid}/snapshots`)
+export const createSnapshot = (pid, name) => api.post(`/projects/${pid}/snapshots`, { name })
+export const getSnapshot = (pid, snapshotId) => api.get(`/projects/${pid}/snapshots/${snapshotId}`)
+export const deleteSnapshot = (pid, snapshotId) =>
+  api.del(`/projects/${pid}/snapshots/${snapshotId}`)
