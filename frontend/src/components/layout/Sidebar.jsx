@@ -15,6 +15,7 @@ import {
   IconSparkle,
   IconChevron,
   IconUsers,
+  IconDoc,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
 import { useProject } from '../../context/ProjectContext.jsx'
@@ -41,6 +42,7 @@ const BOTTOM = [
   { key: 'traceability-import', labelKey: 'nav.traceabilityImport', icon: IconMatrix },
   { key: 'documents', labelKey: 'nav.documents', icon: IconSparkle },
   { key: 'audit', labelKey: 'nav.audit', icon: IconHistory },
+  { key: 'snapshots', labelKey: 'nav.snapshots', icon: IconDoc },
 ]
 
 function NavButton({ active, onClick, Icon, label, indent = false }) {

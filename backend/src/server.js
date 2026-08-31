@@ -852,6 +852,150 @@ app.get(
 );
 
 // ===========================================================================
+//  SNAPSHOTS (baseline / sürüm) — proje anlık görüntüleri.
+//  Issue #8: Sürüm Yönetimi (Snapshot) Altyapısı.
+//  PM: create/delete/list/view. Personel: list/view (read-only).
+// ===========================================================================
+app.get(
+  '/api/projects/:pid/snapshots',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const take = Math.min(Number(req.query.take) || 20, 100);
+    const skip = Number(req.query.skip) || 0;
+    const [rows, total] = await Promise.all([
+      prisma.projectSnapshot.findMany({
+        where: { projectId: pid },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+        include: { items: false },
+      }),
+      prisma.projectSnapshot.count({ where: { projectId: pid } }),
+    ]);
+    res.json({ data: rows, total, take, skip });
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/snapshots',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { name } = req.body || {};
+    if (!name || !name.trim()) throw bad('Snapshot adı zorunlu.');
+
+    // Mevcut tüm varlıkları topla.
+    const [requirements, testCases, glossary, links] = await Promise.all([
+      prisma.requirement.findMany({ where: { projectId: pid } }),
+      prisma.testCase.findMany({ where: { projectId: pid } }),
+      prisma.glossaryTerm.findMany({ where: { projectId: pid } }),
+      prisma.traceabilityLink.findMany({ where: { projectId: pid } }),
+    ]);
+
+    // Link'ler için text_id'leri önceden çöz (fromId/toId -> text_id) - zaten çekilen verilerden
+    const reqMap = Object.fromEntries(requirements.map((r) => [r.id, r.text_id]));
+    const tcMap = Object.fromEntries(testCases.map((t) => [t.id, t.text_id]));
+    const gloMap = Object.fromEntries(glossary.map((g) => [g.id, g.text_id]));
+
+    // Snapshot + items tek transaction içinde.
+    const snapshot = await prisma.$transaction(async (tx) => {
+      const snap = await tx.projectSnapshot.create({
+        data: { projectId: pid, name: name.trim(), createdBy: req.auth?.userId || 'pm' },
+      });
+
+      const items = [];
+      for (const r of requirements) {
+        items.push({ snapshotId: snap.id, entityType: 'requirement', entityId: r.id, data: r });
+      }
+      for (const t of testCases) {
+        items.push({ snapshotId: snap.id, entityType: 'testcase', entityId: t.id, data: t });
+      }
+      for (const g of glossary) {
+        items.push({ snapshotId: snap.id, entityType: 'glossary', entityId: g.id, data: g });
+      }
+      for (const l of links) {
+        // Link verisinde fromTextId ve toTextId ekle (snapshot zamanındaki text_id'ler)
+        // Sadece gerekli alanları al (Prisma relation alanlarını exclude et)
+        const fromTextId = reqMap[l.fromId] || tcMap[l.fromId] || gloMap[l.fromId] || l.fromId;
+        const toTextId = reqMap[l.toId] || tcMap[l.toId] || gloMap[l.toId] || l.toId;
+        const linkData = {
+          id: l.id,
+          projectId: l.projectId,
+          fromId: l.fromId,
+          toId: l.toId,
+          type: l.type,
+          createdAt: l.createdAt,
+          createdBy: l.createdBy,
+          fromTextId,
+          toTextId,
+        };
+        items.push({ snapshotId: snap.id, entityType: 'link', entityId: l.id, data: linkData });
+      }
+
+      if (items.length > 0) {
+        await tx.snapshotItem.createMany({ data: items });
+      }
+
+      return snap;
+    });
+
+    await audit(pid, {
+      action: 'SNAPSHOT_CREATE',
+      entityType: 'snapshot',
+      entityId: snapshot.id,
+      textId: snapshot.name,
+      actor: req.auth?.userId || 'pm',
+      message: `Snapshot alındı: "${snapshot.name}".`,
+    });
+
+    res.status(201).json(snapshot);
+  }),
+);
+
+app.get(
+  '/api/projects/:pid/snapshots/:snapshotId',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const snapshotId = req.params.snapshotId;
+
+    const snapshot = await prisma.projectSnapshot.findUnique({
+      where: { id: snapshotId },
+      include: { items: true },
+    });
+
+    if (!snapshot || snapshot.projectId !== pid) throw bad('Snapshot bulunamadi.', 404);
+
+    res.json(snapshot);
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/snapshots/:snapshotId',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const snapshotId = req.params.snapshotId;
+
+    const snapshot = await prisma.projectSnapshot.findUnique({ where: { id: snapshotId } });
+    if (!snapshot || snapshot.projectId !== pid) throw bad('Snapshot bulunamadi.', 404);
+
+    await prisma.snapshotItem.deleteMany({ where: { snapshotId } });
+    await prisma.projectSnapshot.delete({ where: { id: snapshotId } });
+
+    await audit(pid, {
+      action: 'SNAPSHOT_DELETE',
+      entityType: 'snapshot',
+      entityId: snapshotId,
+      textId: snapshot.name,
+      actor: req.auth?.userId || 'pm',
+      message: `Snapshot silindi: "${snapshot.name}".`,
+    });
+
+    res.json({ ok: true });
+  }),
+);
+
+// ===========================================================================
 //  IMPACT ANALYSIS — backend tarafinda Recursive CTE ile etki agaci.
 //  Issue #46 — frontend'deki buildImpactTree'yi backend'e tasima.
 // ===========================================================================

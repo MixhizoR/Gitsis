@@ -23,6 +23,7 @@ import Traceability from './pages/Traceability.jsx'
 import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
 import AuditLogPage from './pages/AuditLog.jsx'
+import SnapshotsPage from './pages/Snapshots.jsx'
 import ProjectSelect from './pages/ProjectSelect.jsx'
 import Login from './pages/Login.jsx'
 import AIAssistant from './components/common/AIAssistant.jsx'
@@ -88,6 +89,7 @@ export default function App() {
           {page === 'coverage' && <CoverageReport onNavigate={setPage} />}
           {page === 'documents' && <DocumentAnalysis />}
           {page === 'audit' && <AuditLogPage />}
+          {page === 'snapshots' && <SnapshotsPage />}
         </main>
       </div>
       <AIAssistant onNavigate={setPage} />

@@ -31,6 +31,7 @@ export function AppProvider({ children }) {
   const [roles, setRoles] = useState(EMPTY)
   const [personnel, setPersonnel] = useState(EMPTY)
   const [approvals, setApprovals] = useState(EMPTY)
+  const [snapshots, setSnapshots] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -65,10 +66,11 @@ export function AppProvider({ children }) {
       setRoles(EMPTY)
       setPersonnel(EMPTY)
       setApprovals(EMPTY)
+      setSnapshots(EMPTY)
       return
     }
     const pid = activeProjectId
-    const [reqs, tcs, lnks, glo, flds, audit, rls, prs, apps] = await Promise.all([
+    const [reqs, tcs, lnks, glo, flds, audit, rls, prs, apps, snaps] = await Promise.all([
       data.listRequirements(pid),
       data.listTestCases(pid),
       data.listLinks(pid),
@@ -78,6 +80,7 @@ export function AppProvider({ children }) {
       data.listRoles(pid),
       data.listPersonnel(pid),
       data.listApprovals(pid),
+      data.listSnapshots(pid),
     ])
     setRequirements(reqs)
     setTestCases(tcs)
@@ -88,6 +91,8 @@ export function AppProvider({ children }) {
     setRoles(rls)
     setPersonnel(prs)
     setApprovals(apps)
+    // Snapshots endpoint paginated: { data, total, take, skip }
+    setSnapshots(snaps?.data || EMPTY)
   }, [activeProjectId])
 
   // Aktif proje degistiginde veriyi yeniden yukle.
@@ -260,6 +265,19 @@ export function AppProvider({ children }) {
       await refresh()
     },
 
+    // Snapshots (Issue #8) ----------------------------------------------------
+    async createSnapshot(name) {
+      if (!pid) throw new Error('Aktif proje yok')
+      const s = await data.createSnapshot(pid, name)
+      await refresh()
+      return s
+    },
+    async deleteSnapshot(snapshotId) {
+      if (!pid) throw new Error('Aktif proje yok')
+      await data.deleteSnapshot(pid, snapshotId)
+      await refresh()
+    },
+
     refresh,
   }
 
@@ -276,6 +294,7 @@ export function AppProvider({ children }) {
     roles,
     personnel,
     approvals,
+    snapshots,
     // durum
     loading,
     error,
