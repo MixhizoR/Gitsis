@@ -71,6 +71,36 @@ Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offl
 
 ---
 
+## Windows kullanıcıları için
+
+Tüm `scripts/*.sh` dosyalarının Windows `.bat` karşılıkları vardır. **PowerShell / cmd** içinde:
+
+```
+# Pre-push kontrolu (format, lint, test)
+scripts\pre-push-check.bat
+
+# Dev stack (hot reload)
+scripts\run-dev.bat [--force]
+
+# Prod-benzeri stack
+scripts\run-prod.bat [--force]
+```
+
+Alternatif: **Git Bash** veya **WSL** kullanıyorsanız mevcut `.sh` dosyaları doğrudan çalışır.
+
+Frontend/Backend bağımsız çalıştırma (Docker'sız):
+```
+# Backend
+cd backend && npm install && npm run dev
+
+# Frontend
+cd frontend && npm install && npm run dev
+```
+
+> Not: `seed-coffee-project.mjs` Node.js scriptidir, `node scripts/seed-coffee-project.mjs` ile her platformda çalışır.
+
+---
+
 ## 4. Kendi bilgilerini nereye gireceksin (ÖNEMLİ)
 
 Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendine göre değiştir:
