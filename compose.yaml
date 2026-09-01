@@ -1,8 +1,3 @@
-# ============================================================================
-#  compose.yaml  —  EHSIM - GITSIS / RMT kurumsal altyapi (prod-benzeri base)
-#  Calistirma (dev + reload): docker compose -f compose.yaml -f compose.dev.yaml up --build
-#  Calistirma (prod-benzeri):  docker compose up --build
-# ============================================================================
 services:
   db:
     image: postgres:15
@@ -22,7 +17,6 @@ services:
       timeout: 5s
       retries: 12
 
-  # --- Init / Migrate servisi: Prisma CLI ile tek seferlik DB senkronu + seed ---
   migrate:
     build:
       context: ./backend
@@ -53,8 +47,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz. .env.example)}
       PM_REGISTRATION_KEY: "${PM_REGISTRATION_KEY:-}"
       CORS_ORIGIN: "${CORS_ORIGIN:-}"
-    # Host'ta backend portu acilmaz; tum trafik nginx (5173) uzerinden /api proxy ile gecer.
-    # Dev override'da 127.0.0.1:4001 acilir (host debug / curl icin).
     healthcheck:
       test: ["CMD-SHELL", "node healthcheck.js"]
       interval: 5s
@@ -72,8 +64,6 @@ services:
         condition: service_healthy
     ports:
       - "5173:8080"
-    # VITE_API_URL artik build-time'da ALINMAZ; frontend /api ile relativ istek atar,
-    # nginx /api/ proxy_pass ile backend'e yonlendirir.
 
 volumes:
   ehsim_pgdata:

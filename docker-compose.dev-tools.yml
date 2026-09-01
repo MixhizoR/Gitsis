@@ -1,0 +1,105 @@
+services:
+  db:
+    image: postgres:15
+    restart: "no"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-ehsim_test}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Kok dizinde .env olustur (bkz. .env.example)}"
+      POSTGRES_DB: "${POSTGRES_DB:-ehsim_rmt_test}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ehsim_test} -d ${POSTGRES_DB:-ehsim_rmt_test}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - devtools_pgdata:/var/lib/postgresql/data
+
+  backend-lint:
+    build:
+      context: ./backend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run lint
+
+  backend-format-check:
+    build:
+      context: ./backend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run format:check
+
+  backend-format:
+    build:
+      context: ./backend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run format
+
+  backend-test:
+    build:
+      context: ./backend
+      target: builder
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TEST_DATABASE_URL: "postgresql://ehsim_test:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt_test"
+      DATABASE_URL: "postgresql://ehsim_test:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt_test"
+      JWT_SECRET: "${JWT_SECRET:-ci-test-secret}"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm test
+
+  frontend-lint:
+    build:
+      context: ./frontend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run lint
+
+  frontend-format-check:
+    build:
+      context: ./frontend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run format:check
+
+  frontend-format:
+    build:
+      context: ./frontend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run format
+
+  frontend-test:
+    build:
+      context: ./frontend
+      target: builder
+    restart: "no"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm test
+
+volumes:
+  devtools_pgdata:
