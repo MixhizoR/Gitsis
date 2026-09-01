@@ -64,6 +64,9 @@ services:
         condition: service_healthy
     ports:
       - "5173:8080"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
 volumes:
   ehsim_pgdata:
