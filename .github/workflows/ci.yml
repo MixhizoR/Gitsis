@@ -37,62 +37,47 @@ jobs:
     name: Frontend — lint / test / build
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+    runs-on: ubuntu-latest # ADD THIS LINE
+    env:
+      POSTGRES_PASSWORD: test_password
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+      - name: Lint (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-lint
+      - name: Format check (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-format-check
+      - name: Test + build (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-test
 
   backend:
     name: Backend — lint / test
     needs: detect-changes
     if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U test_user"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
     env:
-      # api.test.js db'yi kendisi kuruyor (--force-reset); DATABASE_URL iki yonden de gecerli olsun.
-      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-      TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      POSTGRES_PASSWORD: test_password
       JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm test
+      - name: Lint (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-lint
+      - name: Format check (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-format-check
+      - name: Clean DB volume (fresh init)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml down -v
+      - name: Test (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-test
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.dev-tools.yml down -v
 
   ci-status:
     name: CI Pipeline Status
