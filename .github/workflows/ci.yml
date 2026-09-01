@@ -69,6 +69,9 @@ jobs:
       - name: Format check (Docker)
         run: |
           docker compose -f docker-compose.dev-tools.yml run --rm backend-format-check
+      - name: Clean DB volume (fresh init)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml down -v
       - name: Test (Docker)
         run: |
           docker compose -f docker-compose.dev-tools.yml run --rm backend-test
