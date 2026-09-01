@@ -8,6 +8,7 @@ __pycache__/
 
 # Kilit dosyalari ve uretilen varliklar
 package-lock.json
+pnpm-lock.yaml
 frontend/dist/
 prisma/migrations/
 

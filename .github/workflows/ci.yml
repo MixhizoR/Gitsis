@@ -37,7 +37,10 @@ jobs:
     name: Frontend — lint / test / build
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    env:
+      # docker-compose.dev-tools.yml'deki db servisi bu degiskeni zorunlu kildigi icin
+      # frontend adimlarinda (lint/format-check/test) compose interpolation'i kirilmasin.
+      POSTGRES_PASSWORD: test_password
     steps:
       - uses: actions/checkout@v4
       - name: Lint (Docker)
