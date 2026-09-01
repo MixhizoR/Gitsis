@@ -40,11 +40,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Lint / test / build (Docker)
+      - name: Lint (Docker)
         run: |
-          docker compose -f docker-compose.dev-tools.yml up --build \
-            --abort-on-container-exit \
-            --exit-code-from frontend-test
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-lint
+      - name: Format check (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-format-check
+      - name: Test + build (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm frontend-test
 
   backend:
     name: Backend — lint / test
@@ -52,16 +56,23 @@ jobs:
     if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://test_user:test_password@db:5432/test_db
-      TEST_DATABASE_URL: postgresql://test_user:test_password@db:5432/test_db
+      POSTGRES_PASSWORD: test_password
       JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Lint / test (Docker)
+      - name: Lint (Docker)
         run: |
-          docker compose -f docker-compose.dev-tools.yml up --build \
-            --abort-on-container-exit \
-            --exit-code-from backend-test
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-lint
+      - name: Format check (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-format-check
+      - name: Test (Docker)
+        run: |
+          docker compose -f docker-compose.dev-tools.yml run --rm backend-test
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.dev-tools.yml down -v
 
   ci-status:
     name: CI Pipeline Status
