@@ -195,7 +195,10 @@ async function recomputeApproval(pid, entityType, entityId) {
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
   const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
-  const pmUsers = await prisma.user.findMany({ where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' }, select: { id: true } });
+  const pmUsers = await prisma.user.findMany({
+    where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' },
+    select: { id: true },
+  });
   const pmVoted = pmUsers.length > 0;
   const approved = allPersonnelVoted && pmVoted;
   await prisma[model].update({
@@ -1187,14 +1190,28 @@ app.post(
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
     let voterId, voterName, personnelId, personnelPermissions;
-    if (req.auth.isPM) { voterId = req.auth.userId; voterName = req.auth.name || 'Proje Yoneticisi'; personnelId = null; }
-    else if (req.auth.kind === 'personnel') { voterId = req.auth.personnelId; personnelId = voterId; const pers = await prisma.personnel.findUnique({ where: { id: voterId }, select: { firstName: true, lastName: true, role: { select: { permissions: true } } } }); if (!pers) throw bad('Personel bulunamadi.', 404); voterName = (pers.firstName + ' ' + pers.lastName).trim(); personnelPermissions = pers.role ? (pers.role.permissions || {}) : {}; }
-    else throw bad('Gecersiz kimlik.', 401);
-    if (entity.locked && !req.auth.isPM) throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+    if (req.auth.isPM) {
+      voterId = req.auth.userId;
+      voterName = req.auth.name || 'Proje Yoneticisi';
+      personnelId = null;
+    } else if (req.auth.kind === 'personnel') {
+      voterId = req.auth.personnelId;
+      personnelId = voterId;
+      const pers = await prisma.personnel.findUnique({
+        where: { id: voterId },
+        select: { firstName: true, lastName: true, role: { select: { permissions: true } } },
+      });
+      if (!pers) throw bad('Personel bulunamadi.', 404);
+      voterName = (pers.firstName + ' ' + pers.lastName).trim();
+      personnelPermissions = pers.role ? pers.role.permissions || {} : {};
+    } else throw bad('Gecersiz kimlik.', 401);
+    if (entity.locked && !req.auth.isPM)
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
     if (!req.auth.isPM) {
       const compKey = componentKeyOf(entityType, entity.type);
-      const perm = personnelPermissions ? (personnelPermissions.approve || {}) : {};
-      if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey)) throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
+      const perm = personnelPermissions ? personnelPermissions.approve || {} : {};
+      if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
+        throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
     }
     const existing = await prisma.approval.findFirst({ where: { projectId: pid, entityType, entityId, voterId } });
     if (existing) {
