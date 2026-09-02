@@ -1,27 +1,21 @@
 @echo off
-REM Pre-push kontrol: her push oncesi calistir. Hata varsa duzeltir veya durdurur.
-REM Windows equivalent of pre-push-check.sh
+REM pre-push-check.bat — Pre-push kontrol: her push oncesi calistir.
+REM Tum islemler ephemeral Docker containerlarinda calisir (bkz. docker-compose.dev-tools.yml).
 
-setlocal enabledelayedexpansion
+echo ==^> Pre-push: format duzeltme (Docker)...
+call scripts\format-docker.bat
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
-echo ==^> Pre-push: format duzeltme...
-cd /d "%~dp0..\backend" && npm run format || exit /b 1
-cd /d "%~dp0..\frontend" && npm run format || exit /b 1
+echo ==^> Pre-push: lint (Docker)...
+call scripts\lint-docker.bat
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
-echo ==^> Pre-push: lint (backend)...
-cd /d "%~dp0..\backend" && npm run lint || exit /b 1
+echo ==^> Pre-push: format kontrol (Docker)...
+call scripts\format-check-docker.bat
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
-echo ==^> Pre-push: lint (frontend)...
-cd /d "%~dp0..\frontend" && npm run lint || exit /b 1
-
-echo ==^> Pre-push: format kontrol (backend + frontend)...
-cd /d "%~dp0..\backend" && npm run format:check || exit /b 1
-cd /d "%~dp0..\frontend" && npm run format:check || exit /b 1
-
-echo ==^> Pre-push: test (backend, DB servisi gerekir)...
-cd /d "%~dp0..\backend" && set JWT_SECRET=ci-test-secret && npm test || exit /b 1
-
-echo ==^> Pre-push: test (frontend)...
-cd /d "%~dp0..\frontend" && npm test || exit /b 1
+echo ==^> Pre-push: test (Docker)...
+call scripts\test-docker.bat
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
 echo ==^> Tum kontroller basarili. Push devam edebilir.
