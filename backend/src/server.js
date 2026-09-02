@@ -184,7 +184,7 @@ async function requiredVotersFor(pid, entityType, entity) {
     const perm = (p.role?.permissions || {}).approve;
     return perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(compKey);
   });
-  return { requiredPersonnel, requiredVoterIds: ['PM', ...requiredPersonnel.map((p) => p.id)] };
+  return { requiredPersonnel, requiredVoterIds: requiredPersonnel.map((p) => p.id) };
 }
 
 async function recomputeApproval(pid, entityType, entityId) {
@@ -194,7 +194,10 @@ async function recomputeApproval(pid, entityType, entityId) {
   const { requiredVoterIds } = await requiredVotersFor(pid, entityType, entity);
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
-  const approved = requiredVoterIds.every((v) => votedIds.has(v));
+  const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
+  const pmUsers = await prisma.user.findMany({ where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' }, select: { id: true } });
+  const pmVoted = pmUsers.length > 0;
+  const approved = allPersonnelVoted && pmVoted;
   await prisma[model].update({
     where: { id: entityId },
     data: { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved },
@@ -456,8 +459,9 @@ app.post(
 app.get(
   '/api/projects/:pid/requirements/:id',
   wrap(async (req, res) => {
+    const pid = req.params.pid;
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
-    if (!row) throw bad('Gereksinim bulunamadi.', 404);
+    if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     res.json(row);
   }),
 );
@@ -1176,13 +1180,17 @@ app.post(
   '/api/projects/:pid/approvals/vote',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const { entityType, entityId, voterId, voterName, personnelId } = req.body || {};
-    if (!entityType || !entityId || !voterId) throw bad('entityType, entityId, voterId zorunlu.');
+    const { entityType, entityId } = req.body || {};
+    if (!entityType || !entityId) throw bad('entityType, entityId zorunlu.');
     if (!['requirement', 'testcase'].includes(entityType)) throw bad('Gecersiz entityType.');
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    if (entity.locked && voterId !== 'PM') {
+    let voterId, voterName, personnelId, personnelPermissions;
+    if (req.auth.isPM) { voterId = req.auth.userId; voterName = req.auth.name || 'Proje Yoneticisi'; personnelId = null; }
+    else if (req.auth.kind === 'personnel') { voterId = req.auth.personnelId; personnelId = voterId; const pers = await prisma.personnel.findUnique({ where: { id: voterId }, select: { firstName: true, lastName: true, role: { select: { permissions: true } } } }); if (!pers) throw bad('Personel bulunamadi.', 404); voterName = (pers.firstName + ' ' + pers.lastName).trim(); personnelPermissions = pers.role ? (pers.role.permissions || {}) : {}; }
+    else throw bad('Gecersiz kimlik.', 401);
+    if (entity.locked && !req.auth.isPM) {
       throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
     }
     const existing = await prisma.approval.findFirst({ where: { projectId: pid, entityType, entityId, voterId } });
@@ -1193,8 +1201,8 @@ app.post(
         entityType,
         entityId,
         textId: entity.text_id,
-        actor: voterName || voterId,
-        message: `Onay geri cekildi: ${voterName || voterId}.`,
+        actor: voterId,
+        message: `Onay geri cekildi: ${voterName}.`,
       });
     } else {
       await prisma.approval.create({
@@ -1212,8 +1220,8 @@ app.post(
         entityType,
         entityId,
         textId: entity.text_id,
-        actor: voterName || voterId,
-        message: `Onaylandi: ${voterName || voterId}.`,
+        actor: voterId,
+        message: `Onaylandi: ${voterName}.`,
       });
     }
     const state = await recomputeApproval(pid, entityType, entityId);
@@ -1228,7 +1236,7 @@ app.post(
     const pid = req.params.pid;
     const { entityType, entityId } = req.body || {};
     if (!entityType || !entityId) throw bad('entityType, entityId zorunlu.');
-    await prisma.approval.deleteMany({ where: { projectId: pid, entityType, entityId, voterId: 'PM' } });
+    await prisma.approval.deleteMany({ where: { projectId: pid, entityType, entityId, voterId: req.auth.userId } });
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     await audit(pid, {
@@ -1236,7 +1244,7 @@ app.post(
       entityType,
       entityId,
       textId: entity?.text_id,
-      actor: 'Proje Yoneticisi',
+      actor: req.auth.userId,
       message: 'Kilit acildi; PM onayi geri cekildi, durum Beklemede.',
     });
     const state = await recomputeApproval(pid, entityType, entityId);
