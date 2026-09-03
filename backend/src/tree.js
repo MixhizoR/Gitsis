@@ -38,7 +38,7 @@ export async function getTreeChildren(projectId, parentId) {
   const rows =
     parentId === null
       ? await prisma.$queryRaw`
-          SELECT r.id, r.text_id, r.title, r.type, r.status, r.dal_level, r.locked, r."createdAt",
+          SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.priority, r.status, r.dal_level, r.locked, r."approvalStatus", r."createdAt", r."parentId",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id
@@ -48,7 +48,7 @@ export async function getTreeChildren(projectId, parentId) {
           ORDER BY r.text_id ASC;
         `
       : await prisma.$queryRaw`
-          SELECT r.id, r.text_id, r.title, r.type, r.status, r.dal_level, r.locked, r."createdAt",
+          SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.priority, r.status, r.dal_level, r.locked, r."approvalStatus", r."createdAt", r."parentId",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id
