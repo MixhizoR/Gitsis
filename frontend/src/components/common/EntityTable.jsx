@@ -65,6 +65,10 @@ export default function EntityTable({
   //  - alt kirilimi olan satirlarda ac/kapa oku cikar (lazy-load)
   //  Satirlar `_depth`, `_outline`, `_hasChildren`, `_expanded`, `_loading`
   //  alanlarini tasir (cagiran taraf hesaplar).
+  // Baslik altindaki aciklama onizlemesi. PBS agacinda kapatilir: orada
+  // aciklama yalnizca satirdaki "goruntule" (goz) ikonuyla acilan
+  // ViewModal'da gosterilir.
+  showDescription = true,
   treeMode = false,
   onToggleExpand,
   // Surukle-birak ile tasima (yalnizca treeMode'da anlamli)
@@ -216,7 +220,7 @@ export default function EntityTable({
                     <div className="font-semibold text-slate-800 dark:text-slate-100">
                       {r[titleKey]}
                     </div>
-                    {r.description != null && (
+                    {showDescription && r.description != null && (
                       <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
                         {truncate(stripHtml(r.description), 110)}
                       </div>

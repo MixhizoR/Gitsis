@@ -446,7 +446,7 @@ export const STRINGS = {
     'nav.testSubsystem': 'Alt Sistem Testleri',
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
-    'nav.pbsTree': 'Ürün Ağacı (PBS)',
+    'nav.pbsTree': 'Gereksinimler',
     'nav.groupRequirements': 'Gereksinimler',
     'nav.groupTests': 'Testler',
     'nav.manageMenu': 'Menüyü düzenle',
@@ -478,7 +478,7 @@ export const STRINGS = {
     'navmgr.pageCount': '{n} sayfa',
 
     // --- Ürün Ağacı (PBS) ---
-    'page.pbsTree.title': 'Ürün Ağacı (PBS)',
+    'page.pbsTree.title': 'Gereksinimler',
     'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
     'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
     'tree.expand': 'Alt kırılımları aç',
@@ -1032,7 +1032,7 @@ export const STRINGS = {
     'nav.testSubsystem': 'Sub-system Tests',
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
-    'nav.pbsTree': 'Product Tree (PBS)',
+    'nav.pbsTree': 'Requirements',
     'nav.groupRequirements': 'Requirements',
     'nav.groupTests': 'Tests',
     'nav.manageMenu': 'Edit menu',
@@ -1064,7 +1064,7 @@ export const STRINGS = {
     'navmgr.pageCount': '{n} pages',
 
     // --- Product Tree (PBS) ---
-    'page.pbsTree.title': 'Product Tree (PBS)',
+    'page.pbsTree.title': 'Requirements',
     'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
     'tree.search': 'Search requirements (id or title) — click a result to reveal it',
     'tree.expand': 'Expand children',

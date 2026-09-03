@@ -77,8 +77,10 @@ describe('Sidebar — menu gruplari', () => {
 
   it('varsayilan iki grup ve altlarindaki sayfalar render edilir', () => {
     renderSidebar()
-    expect(screen.getByText('Gereksinimler')).toBeInTheDocument()
-    expect(screen.getByText('Testler')).toBeInTheDocument()
+    // Not: ust seviyede de "Gereksinimler" adli bir sayfa var (PBS agaci),
+    // o yuzden grup basligi testid ile hedeflenir.
+    expect(screen.getByTestId('nav-group-btn-Gereksinimler')).toBeInTheDocument()
+    expect(screen.getByTestId('nav-group-btn-Testler')).toBeInTheDocument()
     expect(screen.getByText('Kullanıcı Gereksinimleri')).toBeInTheDocument()
     expect(screen.getByText('Kabul Testleri')).toBeInTheDocument()
   })
@@ -92,12 +94,12 @@ describe('Sidebar — menu gruplari', () => {
     renderSidebar()
     expect(screen.getByText('Kullanıcı Gereksinimleri')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Gereksinimler'))
+    fireEvent.click(screen.getByTestId('nav-group-btn-Gereksinimler'))
     expect(screen.queryByText('Kullanıcı Gereksinimleri')).not.toBeInTheDocument()
     // Testler grubu etkilenmez
     expect(screen.getByText('Kabul Testleri')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Gereksinimler'))
+    fireEvent.click(screen.getByTestId('nav-group-btn-Gereksinimler'))
     expect(screen.getByText('Kullanıcı Gereksinimleri')).toBeInTheDocument()
   })
 
@@ -116,7 +118,7 @@ describe('Sidebar — menu gruplari', () => {
       ungrouped: [],
     }
     renderSidebar()
-    expect(screen.getByText('Ozel Grubum')).toBeInTheDocument()
+    expect(screen.getByTestId('nav-group-btn-Ozel Grubum')).toBeInTheDocument()
   })
 
   it('"Menüyü düzenle" yalnizca PM icin gorunur', () => {

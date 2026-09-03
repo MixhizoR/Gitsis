@@ -245,6 +245,9 @@ export default function PbsTree() {
           rows={rows}
           columns={['type', 'field', 'priority', 'dal', 'links']}
           linkCountFor={linkCountFor}
+          // Tabloda yalnizca BASLIK gorunur; TANIM (description) satirda
+          // gosterilmez — goz ikonuyla acilan ViewModal'da okunur.
+          showDescription={false}
           onView={canReadAny ? setViewRow : undefined}
           onEdit={(r) => {
             setEditing(r)

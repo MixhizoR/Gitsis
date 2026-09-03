@@ -151,6 +151,7 @@ export default function Sidebar({ active, onNavigate }) {
             <div key={gid}>
               <button
                 onClick={() => toggleGroup(gid)}
+                data-testid={`nav-group-btn-${groupLabel(g)}`}
                 className={
                   'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ' +
                   (groupActive
