@@ -9,6 +9,7 @@ import { IconSun, IconMoon } from '../common/Icons.jsx'
 // Ust bar basligi icin sayfa anahtari -> i18n key esleme.
 const TITLE_KEY = {
   dashboard: 'dashboard',
+  'pbs-tree': 'pbsTree',
   'req-user': 'reqUser',
   'req-system': 'reqSystem',
   'req-subsystem': 'reqSubsystem',

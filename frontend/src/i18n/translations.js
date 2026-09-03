@@ -446,6 +446,16 @@ export const STRINGS = {
     'nav.testSubsystem': 'Alt Sistem Testleri',
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
+    'nav.pbsTree': 'Ürün Ağacı (PBS)',
+
+    // --- Ürün Ağacı (PBS) ---
+    'page.pbsTree.title': 'Ürün Ağacı (PBS)',
+    'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
+    'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
+    'tree.expand': 'Alt kırılımları aç',
+    'tree.collapse': 'Alt kırılımları kapat',
+    'tree.empty': 'Bu projede henüz gereksinim yok.',
+    'tree.error': 'Ağaç yüklenemedi.',
 
     // --- Yeni sayfa başlıkları (Topbar) ---
     'page.reqUser.title': 'Kullanıcı Gereksinimleri',
@@ -963,6 +973,16 @@ export const STRINGS = {
     'nav.testSubsystem': 'Sub-system Tests',
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
+    'nav.pbsTree': 'Product Tree (PBS)',
+
+    // --- Product Tree (PBS) ---
+    'page.pbsTree.title': 'Product Tree (PBS)',
+    'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
+    'tree.search': 'Search requirements (id or title) — click a result to reveal it',
+    'tree.expand': 'Expand children',
+    'tree.collapse': 'Collapse children',
+    'tree.empty': 'No requirements in this project yet.',
+    'tree.error': 'Failed to load the tree.',
 
     // --- New page titles (Topbar) ---
     'page.reqUser.title': 'User Requirements',

@@ -27,6 +27,13 @@ export const deleteRequirement = (pid, id) => api.del(`/projects/${pid}/requirem
 export const bulkDeleteRequirements = (pid, ids) =>
   api.post(`/projects/${pid}/requirements/batch-delete`, { ids })
 
+// --- PBS (Urun Agaci) — lazy-load hiyerarsi (Issue #9) ----------------------
+//  Tum agac TEK seferde cekilmez: yalnizca kok dugumler, kullanici expand
+//  ettikce alt seviyeler dinamik gelir. `parentId` yoksa kok dugumler doner.
+export const listTreeChildren = (pid, parentId) =>
+  api.get(`/projects/${pid}/requirements/tree`, parentId ? { parentId } : undefined)
+export const getAncestors = (pid, id) => api.get(`/projects/${pid}/requirements/${id}/ancestors`)
+
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)
 export const createTestCase = (pid, data) => api.post(`/projects/${pid}/testcases`, data)

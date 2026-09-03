@@ -16,6 +16,7 @@ import Sidebar from './components/layout/Sidebar.jsx'
 import Topbar from './components/layout/Topbar.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Hierarchy from './pages/Hierarchy.jsx'
+import PbsTree from './pages/PbsTree.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
 import Roles from './pages/Roles.jsx'
@@ -80,6 +81,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
+          {page === 'pbs-tree' && <PbsTree />}
           {REQ_KEYS.includes(page) && <Hierarchy key={page} pageKey={page} />}
           {TEST_KEYS.includes(page) && <TestCases key={page} pageKey={page} />}
           {page === 'glossary' && <Glossary />}

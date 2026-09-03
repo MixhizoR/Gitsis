@@ -34,7 +34,11 @@ const HIER = [
 ]
 const HIER_KEYS = HIER.map((h) => h.key)
 
-const TOP = [{ key: 'dashboard', labelKey: 'nav.dashboard', icon: IconDashboard }]
+const TOP = [
+  { key: 'dashboard', labelKey: 'nav.dashboard', icon: IconDashboard },
+  // Urun Agaci (PBS) — lazy-load hiyerarsi gorunumu (Issue #9).
+  { key: 'pbs-tree', labelKey: 'nav.pbsTree', icon: IconList },
+]
 const BOTTOM = [
   { key: 'coverage', labelKey: 'nav.coverage', icon: IconShield },
   { key: 'traceability', labelKey: 'nav.traceability', icon: IconMatrix },
