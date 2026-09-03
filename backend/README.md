@@ -26,10 +26,10 @@ Sıfırdan başlat (veri **silinir**): `docker compose down -v`
 ```bash
 cd backend
 cp .env.example .env          # DATABASE_URL'i kendi Postgres'inize göre düzenleyin
-npm install
-npm run db:push               # tabloları oluştur
-npm run seed                  # tek seferlik resmi seed
-npm start                     # http://localhost:4001
+pnpm install
+pnpm run db:push               # tabloları oluştur
+pnpm run seed                  # tek seferlik resmi seed
+pnpm start                     # http://localhost:4001
 ```
 
 ## Veri modeli (Prisma)

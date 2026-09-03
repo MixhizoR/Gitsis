@@ -64,10 +64,10 @@ Geliştirme modunda çalıştırmak istersen (hot-reload):
 ```bash
 # Terminal 1 — backend + db
 docker compose up db backend
-cd backend && npm install && npm run dev        # :4001
+cd backend && pnpm install && pnpm run dev        # :4001
 
 # Terminal 2 — frontend
-cd frontend && npm install && npm run dev       # :5173
+cd frontend && pnpm install && pnpm run dev       # :5173
 ```
 
 Docker'sız backend çalıştırması için `backend/.env` gerekir (bkz. §4).
@@ -138,7 +138,7 @@ Projede iki demo seti vardır ve rolleri nettir:
 - **Kapsam:** 72 gereksinim (12 User + 20 System + 24 Software + 16 Hardware),
   16 test senaryosu (5 Acceptance + 6 System + 5 Sub-system), 58 izlenebilirlik bağı
 - **Çalıştırma:** `docker compose up` sırasında **otomatik**; yalnızca veritabanı
-  tamamen boşsa yükler (idempotent). Manuel için: `cd backend && npm run seed`
+  tamamen boşsa yükler (idempotent). Manuel için: `cd backend && pnpm run seed`
 - **Amaç:** Yeni kurulumda kutudan çıkan standart referans proje
 
 ### 🔧 Opsiyonel ikinci demo — Espresso Bazlı Kahve Otomatı
@@ -181,9 +181,9 @@ Projede iki demo seti vardır ve rolleri nettir:
 
 | Paket | Çalıştırıcı | Komut | Kapsam |
 |---|---|---|---|
-| frontend | Vitest + Testing Library | `npm test` | Saf fonksiyon regresyonları (`coverage`, `impact`, `splitSegments`) + RTL smoke (22 test) |
-| backend | node:test + supertest | `npm test` | `/auth/login`, passcode, IDOR koruması (7 test; lokalde `docker compose up -d db` gerekir) |
-| her ikisi | ESLint 9 + Prettier | `npm run lint`, `npm run format:check` | Kullanılmayan import/değişken = hata; format sapması = hata |
+| frontend | Vitest + Testing Library | `pnpm test` | Saf fonksiyon regresyonları (`coverage`, `impact`, `splitSegments`) + RTL smoke (22 test) |
+| backend | node:test + supertest | `pnpm test` | `/auth/login`, passcode, IDOR koruması (7 test; lokalde `docker compose up -d db` gerekir) |
+| her ikisi | ESLint 9 + Prettier | `pnpm run lint`, `pnpm run format:check` | Kullanılmayan import/değişken = hata; format sapması = hata |
 
 CI: `.github/workflows/ci.yml` — push/PR'da her iki paket için format → lint →
 test → (frontend) build koşar; backend job'ı postgres service container kullanır.
