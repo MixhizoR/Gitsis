@@ -22,6 +22,9 @@ export default function NavManager({ open, onClose }) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [editingId, setEditingId] = useState(null) // satir ici yeniden adlandirma
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null) // satir ici silme onayi
+  const [editName, setEditName] = useState('')
 
   // Duzenleyici acildiginda varsayilan duzeni DB'ye yaz (idempotent): aksi
   // halde varsayilan gruplarin id'si olmadigi icin hedef olarak secilemezler.
@@ -65,15 +68,33 @@ export default function NavManager({ open, onClose }) {
     })
   }
 
-  const handleRename = (g) => {
-    const next = window.prompt(t('navmgr.renamePrompt'), groupLabel(g))
-    if (!next || next.trim() === groupLabel(g)) return
-    run(() => renameNavGroup(g.id, next.trim()))
+  // Yeniden adlandirma ve silme onayi SATIR ICINDE yapilir.
+  // window.prompt()/confirm() kullanilmaz: gomulu tarayicilarda prompt()
+  // "not supported" hatasi firlatir, confirm() ise sessizce false doner —
+  // yani her iki islem de sessizce calismaz hale gelirdi.
+  const startRename = (g) => {
+    setConfirmDeleteId(null)
+    setEditingId(g.id)
+    setEditName(groupLabel(g))
   }
 
-  const handleDelete = (g) => {
-    if (!window.confirm(t('navmgr.deleteConfirm', { name: groupLabel(g) }))) return
-    run(() => removeNavGroup(g.id))
+  const submitRename = async (g) => {
+    const next = editName.trim()
+    if (!next || next === groupLabel(g)) {
+      setEditingId(null)
+      return
+    }
+    await run(async () => {
+      await renameNavGroup(g.id, next)
+      setEditingId(null)
+    })
+  }
+
+  const handleDelete = async (g) => {
+    await run(async () => {
+      await removeNavGroup(g.id)
+      setConfirmDeleteId(null)
+    })
   }
 
   // Tum sayfalar (gruplu + grupsuz) tek listede; her biri icin hedef grup secilir.
@@ -117,38 +138,114 @@ export default function NavManager({ open, onClose }) {
           {groups.length === 0 && (
             <div className="text-sm text-slate-500">{t('navmgr.noGroups')}</div>
           )}
-          {groups.map((g, gi) => (
-            <div
-              key={g.id || `default-${gi}`}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
-            >
-              <span className="flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                {groupLabel(g)}
-              </span>
-              <span className="text-xs text-slate-400">
-                {t('navmgr.pageCount', { n: g.items.length })}
-              </span>
-              {/* Varsayilan (heniz DB'ye yazilmamis) gruplar once bir
-                  ozellestirme ile materialize olur; o yuzden id'siz gruplarda
-                  yeniden adlandir/sil kapalidir. */}
-              <button
-                onClick={() => handleRename(g)}
-                disabled={busy || !g.id}
-                title={t('navmgr.rename')}
-                className="btn-ghost !px-2 disabled:opacity-40"
+          {groups.map((g, gi) => {
+            const isEditing = editingId === g.id
+            const isConfirming = confirmDeleteId === g.id
+            return (
+              <div
+                key={g.id || `default-${gi}`}
+                data-testid={`nav-group-${groupLabel(g)}`}
+                className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               >
-                <IconEdit size={15} />
-              </button>
-              <button
-                onClick={() => handleDelete(g)}
-                disabled={busy || !g.id}
-                title={t('navmgr.delete')}
-                className="btn-ghost !px-2 text-rose-600 disabled:opacity-40"
-              >
-                <IconTrash size={15} />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2">
+                  {isEditing ? (
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRename(g)
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                      autoFocus
+                      disabled={busy}
+                      data-testid="nav-group-rename-input"
+                      className="input flex-1 !py-1 text-sm"
+                    />
+                  ) : (
+                    <span className="flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      {groupLabel(g)}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-xs text-slate-400">
+                    {t('navmgr.pageCount', { n: g.items.length })}
+                  </span>
+
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={() => submitRename(g)}
+                        disabled={busy}
+                        className="btn-primary !px-2 !py-1 text-xs"
+                      >
+                        {t('navmgr.save')}
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        disabled={busy}
+                        className="btn-secondary !px-2 !py-1 text-xs"
+                      >
+                        {t('form.cancel')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Varsayilan (heniz DB'ye yazilmamis) gruplarda id yoktur;
+                          modal acilisinda materialize edilir, o yuzden normalde
+                          burada her zaman id bulunur. */}
+                      <button
+                        onClick={() => startRename(g)}
+                        disabled={busy || !g.id}
+                        title={t('navmgr.rename')}
+                        aria-label={`${groupLabel(g)} ${t('navmgr.rename')}`}
+                        className="btn-ghost !px-2 disabled:opacity-40"
+                      >
+                        <IconEdit size={15} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null)
+                          setConfirmDeleteId(g.id)
+                        }}
+                        disabled={busy || !g.id}
+                        title={t('navmgr.delete')}
+                        aria-label={`${groupLabel(g)} ${t('navmgr.delete')}`}
+                        className="btn-ghost !px-2 text-rose-600 disabled:opacity-40"
+                      >
+                        <IconTrash size={15} />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Satir ici silme onayi (window.confirm gomulu tarayicida
+                    calismadigi icin) */}
+                {isConfirming && (
+                  <div className="mt-2 rounded-lg bg-rose-50 px-3 py-2 dark:bg-rose-900/30">
+                    <p className="text-xs leading-relaxed text-rose-700 dark:text-rose-300">
+                      {t('navmgr.deleteConfirm', { name: groupLabel(g) })}
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => handleDelete(g)}
+                        disabled={busy}
+                        data-testid="nav-group-delete-confirm"
+                        className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        {t('navmgr.delete')}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        disabled={busy}
+                        className="btn-secondary !px-3 !py-1 text-xs"
+                      >
+                        {t('form.cancel')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {/* Sayfa -> grup atamasi */}

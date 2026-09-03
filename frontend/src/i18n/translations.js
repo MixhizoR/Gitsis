@@ -463,9 +463,9 @@ export const STRINGS = {
     'navmgr.ungrouped': '— Grupsuz —',
     'navmgr.rename': 'Yeniden adlandır',
     'navmgr.delete': 'Sil',
-    'navmgr.renamePrompt': 'Grup için yeni ad:',
+    'navmgr.save': 'Kaydet',
     'navmgr.deleteConfirm':
-      '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır. Onaylıyor musunuz?',
+      '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır.',
     'navmgr.pageCount': '{n} sayfa',
 
     // --- Ürün Ağacı (PBS) ---
@@ -1039,9 +1039,9 @@ export const STRINGS = {
     'navmgr.ungrouped': '— Ungrouped —',
     'navmgr.rename': 'Rename',
     'navmgr.delete': 'Delete',
-    'navmgr.renamePrompt': 'New name for the group:',
+    'navmgr.save': 'Save',
     'navmgr.deleteConfirm':
-      'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level. Continue?',
+      'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level.',
     'navmgr.pageCount': '{n} pages',
 
     // --- Product Tree (PBS) ---
