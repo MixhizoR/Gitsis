@@ -670,7 +670,7 @@ app.post(
         projectId: pid,
         text_id,
         term: b.term.trim(),
-        definition: (b.definition || '').trim(),
+        definition: cleanRichText((b.definition || '').trim()),
         author: b.author || 'ehsim.user',
       },
     });
@@ -694,7 +694,15 @@ app.put(
     const b = req.body || {};
     const data = {};
     for (const k of ['term', 'definition', 'text_id']) if (b[k] != null) data[k] = b[k].trim();
+    if (data.definition != null) data.definition = cleanRichText(data.definition);
     const row = await prisma.glossaryTerm.update({ where: { id: req.params.id }, data });
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'glossary',
+      entityId: row.id,
+      textId: row.text_id,
+      message: `Sozluk terimi guncellendi: "${row.term}".`,
+    });
     res.json(row);
   }),
 );
@@ -709,6 +717,13 @@ app.delete(
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
     await prisma.glossaryTerm.delete({ where: { id: req.params.id } });
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'glossary',
+      entityId: req.params.id,
+      textId: before.text_id,
+      message: `Sozluk terimi silindi: "${before.term}".`,
+    });
     res.json({ ok: true });
   }),
 );
@@ -1252,6 +1267,7 @@ app.post(
 // PM kilit acar: PM'in onayini geri ceker -> durum Beklemede'ye doner.
 app.post(
   '/api/projects/:pid/approvals/unlock',
+  requirePM,
   wrap(async (req, res) => {
     const pid = req.params.pid;
     const { entityType, entityId } = req.body || {};

@@ -134,10 +134,13 @@ export async function recomputeStatusesBulk(prisma, pid) {
 // ===========================================================================
 
 /**
- * Her bilesen icin gerekli oy veren id listesi (PM her zaman dahil).
+ * Her bilesen icin gerekli oy veren id listesi (PM'ler her zaman dahil).
+ * PM userId'leri artik veritabanindan cekilir — daha once kullanilan "PM" string
+ * sentinel'i, gercek oy verenlerin UUID'leri ile uyusmadigi icin bulk onay
+ * hesabini kiriliyordu (Issue #53).
  */
-function requiredVotersFor(personnel, componentKey) {
-  const voters = ['PM'];
+function requiredVotersFor(pmUserIds, personnel, componentKey) {
+  const voters = [...pmUserIds];
   for (const p of personnel) {
     const perm = p.role?.permissions?.approve;
     if (perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(componentKey)) {
@@ -147,15 +150,29 @@ function requiredVotersFor(personnel, componentKey) {
   return voters;
 }
 
-export async function recomputeApprovalsBulk(prisma, pid) {
-  // Oy veren havuzu projede TEK SEFERDE okunur (eskisi N kez okuyordu).
-  const personnel = await prisma.personnel.findMany({
-    where: { projectId: pid },
-    include: { role: true },
+/**
+ * Projedeki tum "Proje Yoneticisi" kullanicilarinin id'lerini tek sorguda getirir.
+ * Birden fazla PM olabilir (co PM'li kurulumlar).
+ */
+async function getProjectManagerIds(prisma) {
+  const pms = await prisma.user.findMany({
+    where: { role: 'Proje Yoneticisi' },
+    select: { id: true },
   });
+  return pms.map((u) => u.id);
+}
+
+export async function recomputeApprovalsBulk(prisma, pid) {
+  // PM listesi ve oy veren havuzu projede TEK SEFERDE okunur (eskisi N kez okuyordu).
+  const [pmUserIds, personnel] = await Promise.all([
+    getProjectManagerIds(prisma),
+    prisma.personnel.findMany({ where: { projectId: pid }, include: { role: true } }),
+  ]);
+  // PM yoksa onay hesaplanamaz (her bilesen PM oyu sart) — bu projeyi atla.
+  if (pmUserIds.length === 0) return;
 
   for (const comp of COMPONENT_TYPES) {
-    const voters = requiredVotersFor(personnel, comp.key);
+    const voters = requiredVotersFor(pmUserIds, personnel, comp.key);
     const table = Prisma.raw(`"${comp.model}"`);
     // Eksik oyu olanlar -> Pending (sadece su an farkli olanlara yazar)
     await prisma.$executeRaw`

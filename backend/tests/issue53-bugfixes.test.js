@@ -23,7 +23,7 @@ process.env.JWT_SECRET = 'ehsim-issue53-secret';
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   `postgresql://ehsim:${encodeURIComponent(
-    process.env.POSTGRES_PASSWORD || 'ehsim_pass',
+    process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026',
   )}@localhost:5433/ehsim_rmt_test`;
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
@@ -100,11 +100,15 @@ before(async () => {
     },
   });
 
+  // PM token al
+  const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
+  assert.equal(t0.status, 200, 'PM login basarili olmali');
+  pmToken = t0.body.token;
+
   // Personel token al
   const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
   assert.equal(t1.status, 200, 'personel passcode login basarili olmali');
   personnelToken = t1.body.token;
-
   // Aynı projede approve izni OLMAYAN ikinci personel
   const roleNoApprove = await prisma.role.create({
     data: { projectId: projA.id, name: 'Gozlemci', permissions: {} },
@@ -212,7 +216,7 @@ test('vote: aynı kişi çift oy atamaz (toggle) → ikinci oy mevcut oyu siler'
 
 test('unlock: yalnızca PM token ile çalışır (personel 403 alır)', async () => {
   // Önce onay zincirini kur: PM + A personeli oy atsın, kilitlensin.
-  const r6 = await prisma.requirement.create({
+  r6 = await prisma.requirement.create({
     data: {
       projectId: projA.id,
       text_id: 'REQ-SYS-A06',
