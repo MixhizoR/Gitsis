@@ -66,8 +66,8 @@ export function ProjectProvider({ children }) {
   const closeProject = useCallback(() => setActiveProjectId(null), [])
 
   const createProject = useCallback(
-    async (name, description) => {
-      const p = await apiCreateProject(name, description)
+    async (name, description, codePrefix) => {
+      const p = await apiCreateProject(name, description, codePrefix)
       await refreshProjects()
       return p
     },

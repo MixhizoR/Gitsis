@@ -71,15 +71,19 @@ export const CATEGORY = {
 export const CATEGORIES = Object.values(CATEGORY)
 
 // text_id on eki: tip -> kod prefix eslesmesi (Orn: REQ-SYS-001)
-export const TYPE_PREFIX = {
-  [REQ_TYPE.USER]: 'REQ-USR',
-  [REQ_TYPE.SYSTEM]: 'REQ-SYS',
-  [REQ_TYPE.SOFTWARE]: 'REQ-SW',
-  [REQ_TYPE.HARDWARE]: 'REQ-HW',
-  [REQ_TYPE.TEST_CASE]: 'REQ-TC',
+// text_id onek semasi — backend/src/constants.js ile BIREBIR ayni olmali.
+// Yapi: <codePrefix>-<TIP>-<NNN>   ornek: EH-KAHVE-TİD-USR-001
+export const DEFAULT_CODE_PREFIX = 'EH-KAHVE-TİD'
+
+export const TYPE_SUFFIX = {
+  [REQ_TYPE.USER]: 'USR',
+  [REQ_TYPE.SYSTEM]: 'SYS',
+  [REQ_TYPE.SOFTWARE]: 'SW',
+  [REQ_TYPE.HARDWARE]: 'HW',
   [TEST_TYPE.ACCEPTANCE]: 'TC-ACC',
   [TEST_TYPE.SYSTEM]: 'TC-SYS',
   [TEST_TYPE.SUBSYSTEM]: 'TC-SUB',
+  glossary: 'GLO',
 }
 
 // --- Oncelik ----------------------------------------------------------------

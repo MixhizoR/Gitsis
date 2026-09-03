@@ -487,6 +487,8 @@ export const STRINGS = {
     'tree.error': 'Ağaç yüklenemedi.',
     'tree.locked': 'Onaylandı ve kilitli — taşınamaz',
     'tree.dropToRoot': 'Köke taşımak için buraya bırak',
+    'proj.codePrefix': 'Kod öneki (text_id)',
+    'proj.codePrefixHint': 'Gereksinim ve test kodları bu önekle üretilir. Örnek: {ornek}',
     'tbl.th.section': 'Bölüm',
     'tree.split': 'Bu gereksinimi böl',
     'tree.merge': 'Birleştir',
@@ -1073,6 +1075,9 @@ export const STRINGS = {
     'tree.error': 'Failed to load the tree.',
     'tree.locked': 'Approved and locked — cannot be moved',
     'tree.dropToRoot': 'Drop here to move to root',
+    'proj.codePrefix': 'Code prefix (text_id)',
+    'proj.codePrefixHint':
+      'Requirement and test ids are generated with this prefix. Example: {ornek}',
     'tbl.th.section': 'Section',
     'tree.split': 'Split this requirement',
     'tree.merge': 'Merge',

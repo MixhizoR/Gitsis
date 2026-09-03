@@ -309,10 +309,15 @@ app.post(
   '/api/projects',
   requirePM,
   wrap(async (req, res) => {
-    const { name, description } = req.body || {};
+    const { name, description, codePrefix } = req.body || {};
     if (!name || !name.trim()) throw bad('Proje adi zorunlu.');
     const project = await prisma.project.create({
-      data: { name: name.trim(), description: (description || '').trim() },
+      data: {
+        name: name.trim(),
+        description: (description || '').trim(),
+        // Bos birakilirsa sema varsayilani (DEFAULT_CODE_PREFIX) gecerli olur.
+        ...(codePrefix && codePrefix.trim() ? { codePrefix: codePrefix.trim() } : {}),
+      },
     });
     await audit(project.id, {
       action: 'PROJECT_CREATE',
@@ -337,10 +342,13 @@ app.patch(
   '/api/projects/:pid',
   requirePM,
   wrap(async (req, res) => {
-    const { name, description } = req.body || {};
+    const { name, description, codePrefix } = req.body || {};
     const data = {};
     if (name != null) data.name = name.trim();
     if (description != null) data.description = description.trim();
+    // text_id onegi: sonradan degistirilirse YENI kayitlar yeni oneki alir;
+    // mevcut kayitlar icin prisma/migrate-text-id-prefix.js calistirilmalidir.
+    if (codePrefix != null && codePrefix.trim()) data.codePrefix = codePrefix.trim();
     const project = await prisma.project.update({ where: { id: req.params.pid }, data });
     res.json(project);
   }),
@@ -823,8 +831,7 @@ app.post(
     const pid = req.params.pid;
     const b = req.body || {};
     if (!b.term || !b.term.trim()) throw bad('Terim zorunlu.');
-    const count = await prisma.glossaryTerm.count({ where: { projectId: pid } });
-    const text_id = (b.text_id && b.text_id.trim()) || `GLO-${String(count + 1).padStart(3, '0')}`;
+    const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, 'glossary', false));
     const row = await prisma.glossaryTerm.create({
       data: {
         projectId: pid,

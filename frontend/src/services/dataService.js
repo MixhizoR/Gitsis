@@ -8,7 +8,10 @@ import * as api from './apiClient.js'
 
 // --- Projeler ---------------------------------------------------------------
 export const listProjects = () => api.get('/projects')
-export const createProject = (name, description) => api.post('/projects', { name, description })
+//  codePrefix: text_id onegi (orn. EH-KAHVE-TİD). Bos birakilirsa backend
+//  varsayilani kullanilir.
+export const createProject = (name, description, codePrefix) =>
+  api.post('/projects', { name, description, codePrefix })
 export const getProject = (pid) => api.get(`/projects/${pid}`)
 export const updateProject = (pid, data) => api.patch(`/projects/${pid}`, data)
 export const deleteProject = (pid) => api.del(`/projects/${pid}`)

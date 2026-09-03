@@ -8,14 +8,25 @@
 //  `prisma` parametre olarak alinir ki interaktif $transaction(tx => ...)
 //  icinden de (split/merge, Adim 3) ayni garantiyle cagrilabilsin.
 // ============================================================================
-import { TYPE_PREFIX } from './constants.js';
+import { prefixFor } from './constants.js';
 
 export async function nextTextId(prisma, projectId, type, isTest) {
-  const prefix = TYPE_PREFIX[type] || 'REQ-GEN';
+  // Onek PROJE bazlidir: <codePrefix>-<TIP>  (orn. EH-KAHVE-TİD-USR)
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { codePrefix: true },
+  });
+  const prefix = prefixFor(project?.codePrefix, type);
+  // Hangi tabloda arayacagimizi TIP belirler: sozluk terimleri kendi
+  // tablosunda tutulur; isTest bayragi gereksinim/test ayrimi icindir.
+  const listTextIds =
+    type === 'glossary'
+      ? prisma.glossaryTerm.findMany({ where: { projectId }, select: { text_id: true } })
+      : isTest
+        ? prisma.testCase.findMany({ where: { projectId }, select: { text_id: true } })
+        : prisma.requirement.findMany({ where: { projectId }, select: { text_id: true } });
   const [rows, auditRows] = await Promise.all([
-    isTest
-      ? prisma.testCase.findMany({ where: { projectId }, select: { text_id: true } })
-      : prisma.requirement.findMany({ where: { projectId }, select: { text_id: true } }),
+    listTextIds,
     // Audit'te textId "REQ-SYS-001 -> TC-SYS-002" gibi birlesik de olabildigi
     // icin bosluk/ok'a gore parcalayip her parcayi degerlendiririz.
     prisma.auditLog.findMany({

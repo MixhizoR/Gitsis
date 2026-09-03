@@ -209,7 +209,14 @@ test('splitRequirement: yeni parcalar benzersiz text_id alir (kara liste ile)', 
   const { created } = await splitRequirement(prisma, proj.id, leaf1.id, ['A', 'B', 'C'], 'tester');
   const ids = created.map((c) => c.text_id);
   assert.equal(new Set(ids).size, 3);
-  assert.ok(ids.every((id) => id.startsWith('REQ-SW-')));
+  // Onek PROJE bazlidir: <codePrefix>-<TIP>-<NNN>
+  const { prefixFor } = await import('../src/constants.js');
+  const project = await prisma.project.findUnique({ where: { id: proj.id } });
+  const expected = prefixFor(project.codePrefix, 'Software Requirement') + '-';
+  assert.ok(
+    ids.every((id) => id.startsWith(expected)),
+    `beklenen onek: ${expected}, gelen: ${ids.join(', ')}`,
+  );
 });
 
 test('splitRequirement: kilitli gereksinim bolunemez (403)', async () => {
