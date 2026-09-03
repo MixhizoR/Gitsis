@@ -26,6 +26,14 @@ import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
 import { nextTextId as nextTextIdShared } from './idGen.js';
 import { moveRequirement, splitRequirement, mergeRequirements } from './treeOps.js';
+import {
+  getNavLayout,
+  createGroup as createNavGroup,
+  updateGroup as updateNavGroup,
+  deleteGroup as deleteNavGroup,
+  moveItem as moveNavItem,
+  ensureMaterialized as ensureNavMaterialized,
+} from './nav.js';
 import { parseReqIF } from './reqifParser.js';
 
 const prisma = new PrismaClient();
@@ -377,6 +385,92 @@ app.delete(
     if (!before || before.projectId !== pid) throw bad('Alan bulunamadi.', 404);
     await prisma.projectField.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
+  }),
+);
+
+// ===========================================================================
+//  SOL MENU DUZENI (nav) — proje bazli gruplar + sayfa yerlesimi (Issue #9/6)
+//  Okuma herkese acik; degisiklikler yalnizca PM'e (requirePM). Kullanici
+//  YALNIZCA gruplama yapar — sayfa anahtarlari sabittir (navDefaults.js).
+// ===========================================================================
+app.get(
+  '/api/projects/:pid/nav',
+  wrap(async (req, res) => {
+    res.json(await getNavLayout(prisma, req.params.pid));
+  }),
+);
+
+// Duzenlemeye baslarken varsayilan duzeni DB'ye yazar (idempotent) — boylece
+// varsayilan gruplar da id kazanir ve hedef olarak secilebilir.
+app.post(
+  '/api/projects/:pid/nav/materialize',
+  requirePM,
+  wrap(async (req, res) => {
+    res.json(await ensureNavMaterialized(prisma, req.params.pid));
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/nav/groups',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const group = await createNavGroup(prisma, pid, req.body?.name);
+    await audit(pid, {
+      action: 'CREATE',
+      entityType: 'nav-group',
+      entityId: group.id,
+      message: `Menu grubu eklendi: "${group.name}".`,
+    });
+    res.status(201).json(group);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/nav/groups/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const group = await updateNavGroup(prisma, pid, req.params.id, req.body || {});
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'nav-group',
+      entityId: group.id,
+      message: `Menu grubu guncellendi: "${group.name}".`,
+    });
+    res.json(group);
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/nav/groups/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const result = await deleteNavGroup(prisma, pid, req.params.id);
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'nav-group',
+      entityId: req.params.id,
+      message: `Menu grubu silindi; ${result.movedToUngrouped} sayfa grupsuz seviyeye tasindi.`,
+    });
+    res.json(result);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/nav/items/:pageKey',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const item = await moveNavItem(prisma, pid, req.params.pageKey, req.body?.groupId ?? null, req.body?.order);
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'nav-item',
+      entityId: item.id,
+      message: `Menu ogesi tasindi: "${item.pageKey}".`,
+    });
+    res.json(item);
   }),
 );
 

@@ -38,6 +38,18 @@ export const getAncestors = (pid, id) => api.get(`/projects/${pid}/requirements/
 export const moveRequirement = (pid, id, parentId) =>
   api.patch(`/projects/${pid}/requirements/${id}/move`, { parentId })
 
+// --- Sol menu duzeni (gruplar + sayfa yerlesimi, Issue #9 / Adim 6) --------
+//  Okuma herkese acik; degisiklikler yalnizca PM'e (backend requirePM).
+//  Sayfa anahtarlari SABIT — kullanici yalnizca gruplama yapar.
+export const getNav = (pid) => api.get(`/projects/${pid}/nav`)
+export const materializeNav = (pid) => api.post(`/projects/${pid}/nav/materialize`)
+export const createNavGroup = (pid, name) => api.post(`/projects/${pid}/nav/groups`, { name })
+export const updateNavGroup = (pid, id, data) =>
+  api.patch(`/projects/${pid}/nav/groups/${id}`, data)
+export const deleteNavGroup = (pid, id) => api.del(`/projects/${pid}/nav/groups/${id}`)
+export const moveNavItem = (pid, pageKey, groupId, order) =>
+  api.patch(`/projects/${pid}/nav/items/${pageKey}`, { groupId, order })
+
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)
 export const createTestCase = (pid, data) => api.post(`/projects/${pid}/testcases`, data)

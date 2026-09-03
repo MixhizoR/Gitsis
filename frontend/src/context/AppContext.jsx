@@ -32,6 +32,8 @@ export function AppProvider({ children }) {
   const [personnel, setPersonnel] = useState(EMPTY)
   const [approvals, setApprovals] = useState(EMPTY)
   const [snapshots, setSnapshots] = useState(EMPTY)
+  // Sol menu duzeni (gruplar + sayfa yerlesimi) — Issue #9 / Adim 6
+  const [nav, setNav] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -67,21 +69,25 @@ export function AppProvider({ children }) {
       setPersonnel(EMPTY)
       setApprovals(EMPTY)
       setSnapshots(EMPTY)
+      setNav(null)
       return
     }
     const pid = activeProjectId
-    const [reqs, tcs, lnks, glo, flds, audit, rls, prs, apps, snaps] = await Promise.all([
-      data.listRequirements(pid),
-      data.listTestCases(pid),
-      data.listLinks(pid),
-      data.listGlossary(pid),
-      data.listFields(pid),
-      data.listAudit(pid),
-      data.listRoles(pid),
-      data.listPersonnel(pid),
-      data.listApprovals(pid),
-      data.listSnapshots(pid),
-    ])
+    const [reqs, tcs, lnks, glo, flds, audit, rls, prs, apps, snaps, navLayout] = await Promise.all(
+      [
+        data.listRequirements(pid),
+        data.listTestCases(pid),
+        data.listLinks(pid),
+        data.listGlossary(pid),
+        data.listFields(pid),
+        data.listAudit(pid),
+        data.listRoles(pid),
+        data.listPersonnel(pid),
+        data.listApprovals(pid),
+        data.listSnapshots(pid),
+        data.getNav(pid),
+      ],
+    )
     setRequirements(reqs)
     setTestCases(tcs)
     setLinks(lnks)
@@ -93,6 +99,7 @@ export function AppProvider({ children }) {
     setApprovals(apps)
     // Snapshots endpoint paginated: { data, total, take, skip }
     setSnapshots(snaps?.data || EMPTY)
+    setNav(navLayout)
   }, [activeProjectId])
 
   // Aktif proje degistiginde veriyi yeniden yukle.
@@ -198,6 +205,33 @@ export function AppProvider({ children }) {
       await refresh()
     },
 
+    // Sol menu duzeni (Issue #9 / Adim 6) — yalnizca GRUPLAMA; sayfa
+    // anahtarlari sabittir, kullanici yeni sayfa/tip yaratamaz.
+    // PM "Menuyu duzenle"yi actiginda: varsayilan duzeni DB'ye yazar ki
+    // varsayilan gruplar da id kazanip hedef olarak secilebilsin (idempotent).
+    async materializeNav() {
+      await data.materializeNav(pid)
+      await refresh()
+    },
+    async addNavGroup(name) {
+      const g = await data.createNavGroup(pid, name)
+      await refresh()
+      return g
+    },
+    async renameNavGroup(id, name) {
+      await data.updateNavGroup(pid, id, { name })
+      await refresh()
+    },
+    async removeNavGroup(id) {
+      const res = await data.deleteNavGroup(pid, id)
+      await refresh()
+      return res
+    },
+    async assignNavItem(pageKey, groupId) {
+      await data.moveNavItem(pid, pageKey, groupId, 0)
+      await refresh()
+    },
+
     // Izlenebilirlik baglari ------------------------------------------------
     //  body: { fromId, toId, type, testStatus? }
     async link(body) {
@@ -295,6 +329,7 @@ export function AppProvider({ children }) {
     personnel,
     approvals,
     snapshots,
+    nav,
     // durum
     loading,
     error,

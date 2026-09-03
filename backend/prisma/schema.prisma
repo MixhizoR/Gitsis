@@ -46,6 +46,8 @@ model Project {
   personnel    Personnel[]
   approvals    Approval[]
   snapshots    ProjectSnapshot[]
+  navGroups    NavGroup[]
+  navItems     NavItem[]
 }
 
 // --- Snaphotlar (baseline / sürüm) ----------------------------------------
@@ -141,6 +143,38 @@ model ProjectField {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, name])
+  @@index([projectId])
+}
+
+// --- Sol menu duzeni: gruplar + sayfa yerlesimi (proje bazli) --------------
+//  ONEMLI: Kullanici yalnizca GRUPLAMA yapar; gereksinim/test TIPLERI ve
+//  sayfa anahtarlari (pageKey) SABITTIR (bkz. navDefaults.js). Boylece
+//  DO-178C hiyerarsi kurallari ve 12 kademeli izin matrisi etkilenmez.
+model NavGroup {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items     NavItem[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model NavItem {
+  id        String    @id @default(uuid())
+  projectId String
+  // null => grupsuz (en ust seviyede gorunur). Grup silinince item'lar
+  // SetNull ile grupsuz seviyeye duser; hicbir sayfa kaybolmaz.
+  groupId   String?
+  pageKey   String
+  order     Int       @default(0)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, pageKey])
   @@index([projectId])
 }
 

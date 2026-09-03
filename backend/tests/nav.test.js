@@ -1,0 +1,199 @@
+// ============================================================================
+//  nav.test.js — Sol menu duzeni (gruplar + sayfa yerlesimi). Issue #9 / Adim 6.
+//  Kapsam: yerlesik varsayilan duzen, ilk ozellestirmede materialize,
+//  grup silinince sayfalarin KAYBOLMAMASI, gecersiz pageKey reddi,
+//  PM olmayan kullanicinin mutasyon yapamamasi (403), IDOR korumasi.
+// ============================================================================
+import assert from 'node:assert/strict';
+import { execSync } from 'node:child_process';
+import { before, beforeEach, after, test } from 'node:test';
+import request from 'supertest';
+
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'ci-test-secret';
+const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ||
+  `postgresql://ehsim:${encodeURIComponent(process.env.POSTGRES_PASSWORD || 'ehsim_pass')}@localhost:5433/ehsim_rmt_test`;
+process.env.DATABASE_URL = TEST_DATABASE_URL;
+const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
+
+const { default: app } = await import('../src/server.js');
+const { PrismaClient } = await import('@prisma/client');
+const prisma = new PrismaClient();
+
+let proj;
+let otherProj;
+let pmToken;
+let personnelToken;
+
+before(async () => {
+  if (LOCAL_DOCKER_DB) {
+    try {
+      execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
+        stdio: 'pipe',
+      });
+    } catch {
+      /* already exists */
+    }
+  }
+  execSync('npx prisma db push --force-reset --skip-generate', { stdio: 'inherit', env: { ...process.env } });
+
+  const { hashPassword, signToken } = await import('../src/auth.js');
+  const user = await prisma.user.create({
+    data: { username: 'pm-nav', password: await hashPassword('pm-pass'), name: 'Nav PM', role: 'Proje Yoneticisi' },
+  });
+  pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
+
+  proj = await prisma.project.create({ data: { name: 'Nav Proje', description: 'Test' } });
+  otherProj = await prisma.project.create({ data: { name: 'Nav Baska Proje', description: 'Test' } });
+
+  // Personel: yalnizca `proj`e atanmis (PM degil).
+  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muhendis', permissions: {} } });
+  const person = await prisma.personnel.create({
+    data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'NAV-1' },
+  });
+  personnelToken = signToken({ kind: 'personnel', isPM: false, projectId: proj.id, personnelId: person.id });
+});
+
+beforeEach(async () => {
+  // Her testten once menu ozellestirmelerini temizle (varsayilana don).
+  await prisma.navItem.deleteMany({});
+  await prisma.navGroup.deleteMany({});
+});
+
+after(async () => {
+  await prisma.$disconnect();
+});
+
+const asPM = (r) => r.set('Authorization', `Bearer ${pmToken}`);
+
+// --- Varsayilan duzen ---------------------------------------------------------
+
+test('GET /nav — ozellestirme yoksa yerlesik varsayilan duzen doner', async () => {
+  const res = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  assert.equal(res.status, 200);
+  assert.equal(res.body.materialized, false);
+  assert.equal(res.body.groups.length, 2);
+  assert.deepEqual(
+    res.body.groups.map((g) => g.nameKey),
+    ['nav.groupRequirements', 'nav.groupTests'],
+  );
+  assert.deepEqual(
+    res.body.groups[0].items.map((i) => i.pageKey),
+    ['req-user', 'req-system', 'req-subsystem'],
+  );
+  assert.deepEqual(
+    res.body.groups[1].items.map((i) => i.pageKey),
+    ['test-acceptance', 'test-system', 'test-subsystem'],
+  );
+  // Sozluk bagimsiz (grupsuz).
+  assert.deepEqual(
+    res.body.ungrouped.map((i) => i.pageKey),
+    ['glossary'],
+  );
+});
+
+test('GET /nav — varsayilan duzen DB YAZMADAN doner (yan etkisiz)', async () => {
+  await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  assert.equal(await prisma.navGroup.count({ where: { projectId: proj.id } }), 0);
+  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 0);
+});
+
+// --- Materialize + grup ekleme -------------------------------------------------
+
+test('POST /nav/groups — ilk ozellestirmede varsayilan duzen materialize edilir', async () => {
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: 'Ozel Grup' });
+  assert.equal(res.status, 201);
+
+  const layout = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  assert.equal(layout.body.materialized, true);
+  // 2 varsayilan + 1 yeni grup
+  assert.equal(layout.body.groups.length, 3);
+  const names = layout.body.groups.map((g) => g.name);
+  assert.ok(names.includes('Gereksinimler') && names.includes('Testler') && names.includes('Ozel Grup'));
+  // Sayfalar korunmus olmali (6 gruplu + 1 grupsuz = 7)
+  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 7);
+});
+
+test('POST /nav/groups — ayni adda ikinci grup 409 doner', async () => {
+  await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: 'Tekrar' });
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: 'Tekrar' });
+  assert.equal(res.status, 409);
+});
+
+test('POST /nav/groups — bos isim 400 doner', async () => {
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: '   ' });
+  assert.equal(res.status, 400);
+});
+
+// --- Oge tasima ----------------------------------------------------------------
+
+test('PATCH /nav/items/:pageKey — sayfa baska gruba tasinir', async () => {
+  const created = await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: 'Hedef' });
+  const res = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/req-user`)).send({
+    groupId: created.body.id,
+    order: 0,
+  });
+  assert.equal(res.status, 200);
+
+  const layout = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  const hedef = layout.body.groups.find((g) => g.name === 'Hedef');
+  assert.deepEqual(
+    hedef.items.map((i) => i.pageKey),
+    ['req-user'],
+  );
+});
+
+test('PATCH /nav/items/:pageKey — groupId null ise grupsuz seviyeye tasir', async () => {
+  const res = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/req-system`)).send({ groupId: null });
+  assert.equal(res.status, 200);
+  const layout = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  assert.ok(layout.body.ungrouped.some((i) => i.pageKey === 'req-system'));
+});
+
+test('PATCH /nav/items/:pageKey — UYDURMA sayfa anahtari 400 doner (tipler sabit)', async () => {
+  const res = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/uydurma-sayfa`)).send({
+    groupId: null,
+  });
+  assert.equal(res.status, 400);
+});
+
+// --- Grup silme ----------------------------------------------------------------
+
+test('DELETE /nav/groups/:id — grup silinince sayfalar KAYBOLMAZ, grupsuza duser', async () => {
+  await asPM(request(app).post(`/api/projects/${proj.id}/nav/groups`)).send({ name: 'Gecici' });
+  const layout = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  const reqGroup = layout.body.groups.find((g) => g.name === 'Gereksinimler');
+
+  const res = await asPM(request(app).delete(`/api/projects/${proj.id}/nav/groups/${reqGroup.id}`));
+  assert.equal(res.status, 200);
+  assert.equal(res.body.movedToUngrouped, 3);
+
+  const after = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
+  const ungroupedKeys = after.body.ungrouped.map((i) => i.pageKey);
+  for (const key of ['req-user', 'req-system', 'req-subsystem']) {
+    assert.ok(ungroupedKeys.includes(key), `${key} kaybolmamali`);
+  }
+  // Hicbir sayfa kaybolmadi: toplam hala 7
+  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 7);
+});
+
+// --- Yetki + IDOR ---------------------------------------------------------------
+
+test('PM olmayan kullanici menuyu DEGISTIREMEZ (403) ama OKUYABILIR', async () => {
+  const read = await request(app).get(`/api/projects/${proj.id}/nav`).set('Authorization', `Bearer ${personnelToken}`);
+  assert.equal(read.status, 200);
+
+  const write = await request(app)
+    .post(`/api/projects/${proj.id}/nav/groups`)
+    .set('Authorization', `Bearer ${personnelToken}`)
+    .send({ name: 'Olmaz' });
+  assert.equal(write.status, 403);
+});
+
+test('IDOR — personel baska projenin menusune erisemez', async () => {
+  const res = await request(app)
+    .get(`/api/projects/${otherProj.id}/nav`)
+    .set('Authorization', `Bearer ${personnelToken}`);
+  assert.equal(res.status, 403);
+});

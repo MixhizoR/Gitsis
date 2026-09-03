@@ -447,6 +447,26 @@ export const STRINGS = {
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
     'nav.pbsTree': 'Ürün Ağacı (PBS)',
+    'nav.groupRequirements': 'Gereksinimler',
+    'nav.groupTests': 'Testler',
+    'nav.manageMenu': 'Menüyü düzenle',
+
+    // --- Menü düzeni yönetimi (NavManager) ---
+    'navmgr.title': 'Menü Düzeni',
+    'navmgr.hint':
+      'Grup ekleyip silebilir, sayfaları gruplar arasında taşıyabilirsiniz. Sayfaların kendisi (gereksinim/test tipleri) sabittir. Bir grubu silerseniz içindeki sayfalar kaybolmaz, grupsuz seviyeye taşınır.',
+    'navmgr.newGroupPlaceholder': 'Yeni grup adı',
+    'navmgr.addGroup': 'Grup Ekle',
+    'navmgr.groups': 'Gruplar',
+    'navmgr.noGroups': 'Henüz grup yok.',
+    'navmgr.pages': 'Sayfalar',
+    'navmgr.ungrouped': '— Grupsuz —',
+    'navmgr.rename': 'Yeniden adlandır',
+    'navmgr.delete': 'Sil',
+    'navmgr.renamePrompt': 'Grup için yeni ad:',
+    'navmgr.deleteConfirm':
+      '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır. Onaylıyor musunuz?',
+    'navmgr.pageCount': '{n} sayfa',
 
     // --- Ürün Ağacı (PBS) ---
     'page.pbsTree.title': 'Ürün Ağacı (PBS)',
@@ -976,6 +996,26 @@ export const STRINGS = {
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
     'nav.pbsTree': 'Product Tree (PBS)',
+    'nav.groupRequirements': 'Requirements',
+    'nav.groupTests': 'Tests',
+    'nav.manageMenu': 'Edit menu',
+
+    // --- Menu layout management (NavManager) ---
+    'navmgr.title': 'Menu Layout',
+    'navmgr.hint':
+      'You can add and delete groups and move pages between them. The pages themselves (requirement/test types) are fixed. Deleting a group does not delete its pages — they move to the ungrouped level.',
+    'navmgr.newGroupPlaceholder': 'New group name',
+    'navmgr.addGroup': 'Add Group',
+    'navmgr.groups': 'Groups',
+    'navmgr.noGroups': 'No groups yet.',
+    'navmgr.pages': 'Pages',
+    'navmgr.ungrouped': '— Ungrouped —',
+    'navmgr.rename': 'Rename',
+    'navmgr.delete': 'Delete',
+    'navmgr.renamePrompt': 'New name for the group:',
+    'navmgr.deleteConfirm':
+      'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level. Continue?',
+    'navmgr.pageCount': '{n} pages',
 
     // --- Product Tree (PBS) ---
     'page.pbsTree.title': 'Product Tree (PBS)',

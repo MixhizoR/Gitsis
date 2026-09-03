@@ -16,23 +16,27 @@ import {
   IconChevron,
   IconUsers,
   IconDoc,
+  IconPlus,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
+import NavManager from './NavManager.jsx'
 import { useProject } from '../../context/ProjectContext.jsx'
+import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 
-// Hiyerarsi alt ogeleri (sirali).
-const HIER = [
-  { key: 'req-user', labelKey: 'nav.reqUser' },
-  { key: 'req-system', labelKey: 'nav.reqSystem' },
-  { key: 'req-subsystem', labelKey: 'nav.reqSubsystem' },
-  { key: 'test-acceptance', labelKey: 'nav.testAcceptance' },
-  { key: 'test-system', labelKey: 'nav.testSystem' },
-  { key: 'test-subsystem', labelKey: 'nav.testSubsystem' },
-  { key: 'glossary', labelKey: 'nav.glossary' },
-]
-const HIER_KEYS = HIER.map((h) => h.key)
+// Sayfa anahtari -> i18n etiket anahtari. Bu liste SABITTIR (backend
+// navDefaults.js NAV_PAGE_KEYS ile birebir ayni); kullanici yalnizca bu
+// sayfalari GRUPLAR, yeni sayfa/tip yaratamaz.
+export const PAGE_LABEL_KEYS = {
+  'req-user': 'nav.reqUser',
+  'req-system': 'nav.reqSystem',
+  'req-subsystem': 'nav.reqSubsystem',
+  'test-acceptance': 'nav.testAcceptance',
+  'test-system': 'nav.testSystem',
+  'test-subsystem': 'nav.testSubsystem',
+  glossary: 'nav.glossary',
+}
 
 const TOP = [
   { key: 'dashboard', labelKey: 'nav.dashboard', icon: IconDashboard },
@@ -69,12 +73,26 @@ function NavButton({ active, onClick, Icon, label, indent = false }) {
 
 export default function Sidebar({ active, onNavigate }) {
   const { activeProject, closeProject } = useProject()
+  const { nav } = useApp()
   const { t } = useLang()
   const { isPM, can } = useAuth()
-  const [hierOpen, setHierOpen] = useState(HIER_KEYS.includes(active) || true)
+  // Kapali gruplarin id'leri (varsayilan: hepsi acik).
+  const [closedGroups, setClosedGroups] = useState(() => new Set())
+  const [navMgrOpen, setNavMgrOpen] = useState(false)
 
-  const hierActive = HIER_KEYS.includes(active)
   const canSeeRoles = isPM || can('manage_roles')
+  const groups = nav?.groups || []
+  const ungrouped = nav?.ungrouped || []
+  // Materialize edilmemis varsayilan gruplarin etiketi i18n'den gelir;
+  // kullanici ozellestirdikten sonra kendi verdigi duz isim kullanilir.
+  const groupLabel = (g) => (g.nameKey ? t(g.nameKey) : g.name)
+  const toggleGroup = (id) =>
+    setClosedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -122,36 +140,67 @@ export default function Sidebar({ active, onNavigate }) {
           />
         )}
 
-        {/* Hiyerarsi (acilir) */}
-        <button
-          onClick={() => setHierOpen((o) => !o)}
-          className={
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ' +
-            (hierActive
-              ? 'text-brand-700 dark:text-brand-300'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100')
-          }
-        >
-          <IconList size={19} />
-          <span className="flex-1 text-left">{t('nav.hierarchy')}</span>
-          <IconChevron
-            size={15}
-            className={hierOpen ? 'rotate-90 transition-transform' : 'transition-transform'}
+        {/* Menu gruplari (proje bazli, kullanici yonetimli — Issue #9/6) */}
+        {groups.map((g, gi) => {
+          const gid = g.id || `default-${gi}`
+          const isOpen = !closedGroups.has(gid)
+          const groupActive = g.items.some((i) => i.pageKey === active)
+          return (
+            <div key={gid}>
+              <button
+                onClick={() => toggleGroup(gid)}
+                className={
+                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ' +
+                  (groupActive
+                    ? 'text-brand-700 dark:text-brand-300'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100')
+                }
+              >
+                <IconList size={19} />
+                <span className="flex-1 truncate text-left">{groupLabel(g)}</span>
+                <IconChevron
+                  size={15}
+                  className={isOpen ? 'rotate-90 transition-transform' : 'transition-transform'}
+                />
+              </button>
+              {isOpen && (
+                <div className="space-y-0.5">
+                  {g.items.map((item) => (
+                    <NavButton
+                      key={item.pageKey}
+                      active={active === item.pageKey}
+                      onClick={() => onNavigate(item.pageKey)}
+                      Icon={null}
+                      label={t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)}
+                      indent
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Grupsuz sayfalar (varsayilan: Sozluk) */}
+        {ungrouped.map((item) => (
+          <NavButton
+            key={item.pageKey}
+            active={active === item.pageKey}
+            onClick={() => onNavigate(item.pageKey)}
+            Icon={IconList}
+            label={t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)}
           />
-        </button>
-        {hierOpen && (
-          <div className="space-y-0.5">
-            {HIER.map((item) => (
-              <NavButton
-                key={item.key}
-                active={active === item.key}
-                onClick={() => onNavigate(item.key)}
-                Icon={null}
-                label={t(item.labelKey)}
-                indent
-              />
-            ))}
-          </div>
+        ))}
+
+        {/* Menuyu duzenle — yalnizca PM (backend de requirePM ile korunuyor) */}
+        {isPM && (
+          <button
+            onClick={() => setNavMgrOpen(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+          >
+            <IconPlus size={14} />
+            {t('nav.manageMenu')}
+          </button>
         )}
 
         <div className="my-2 border-t border-slate-100 dark:border-slate-800" />
@@ -166,6 +215,8 @@ export default function Sidebar({ active, onNavigate }) {
           />
         ))}
       </nav>
+
+      <NavManager open={navMgrOpen} onClose={() => setNavMgrOpen(false)} />
 
       {/* Alt not */}
       <div className="border-t border-slate-200 p-4 dark:border-slate-800">
