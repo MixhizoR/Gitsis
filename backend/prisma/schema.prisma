@@ -1,0 +1,275 @@
+// ============================================================================
+//  schema.prisma  —  EHSIM - GITSIS / RMT veri tabani semasi (PostgreSQL).
+//  Tum veri PROJE bazli izole edilir (project-isolated). Bir proje silinince
+//  ona ait tum kayitlar cascade ile temizlenir.
+//  Tablolar: Users, Projects, ProjectFields, Requirements, TestCases,
+//            TraceabilityLinks, GlossaryTerms, AuditLogs.
+// ============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  // Debian slim (ARM64) icin dogru sorgu motoru ikili dosyasi uretilsin.
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Kullanicilar (kimlik dogrulama) ---------------------------------------
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  name      String
+  initials  String?
+  role      String   @default("System Engineer")
+  createdAt DateTime @default(now())
+}
+
+// --- Projeler ---------------------------------------------------------------
+model Project {
+  id           String             @id @default(uuid())
+  name         String
+  description  String             @default("")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  fields       ProjectField[]
+  attributeDefs AttributeDefinition[]
+  requirements Requirement[]
+  testCases    TestCase[]
+  links        TraceabilityLink[]
+  glossary     GlossaryTerm[]
+  audit        AuditLog[]
+  roles        Role[]
+  personnel    Personnel[]
+  approvals    Approval[]
+  snapshots    ProjectSnapshot[]
+}
+
+// --- Snaphotlar (baseline / sürüm) ----------------------------------------
+//  Belirli bir andaki proje verisinin donmus kopyası. SnapshotItem,
+//  o andaki tüm Requirement/TestCase/GlossaryTerm + Link kayıtlarını
+//  JSON blob olarak saklar (salt okunur, gelecek restore/diff için).
+model ProjectSnapshot {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  createdBy String?
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items     SnapshotItem[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([projectId, createdAt])
+}
+
+model SnapshotItem {
+  id           String   @id @default(uuid())
+  snapshotId   String
+  entityType   String // 'requirement' | 'testcase' | 'glossary' | 'link'
+  entityId     String
+  data         Json   // o anki kaydın tam kopyası (field-by-field)
+  createdAt    DateTime @default(now())
+  snapshot     ProjectSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([snapshotId, entityType])
+}
+
+// --- Roller (proje bazli, dinamik) -----------------------------------------
+//  permissions: 12 kademeli izin JSON'u. Her izin { enabled, components[] }
+//  seklinde saklanir (components = hangi hiyerarsi bilesenleri kapsar).
+model Role {
+  id          String      @id @default(uuid())
+  projectId   String
+  name        String
+  permissions Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  personnel   Personnel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+// --- Personel (passcode ile giris yapan atanmis kisiler) -------------------
+model Personnel {
+  id         String   @id @default(uuid())
+  projectId  String
+  roleId     String
+  firstName  String
+  lastName   String
+  passcode   String   @unique
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  approvals  Approval[]
+
+  @@index([projectId])
+  @@index([roleId])
+}
+
+// --- Onay oylari (consensus) -----------------------------------------------
+//  Bir gereksinim/test icin bir oy verenin (personel veya PM) onayi.
+//  voterId: personel id'si veya 'PM' (proje yoneticisi). entityType:
+//  'requirement' | 'testcase'.
+model Approval {
+  id          String     @id @default(uuid())
+  projectId   String
+  entityType  String
+  entityId    String
+  voterId     String
+  voterName   String
+  personnelId String?
+  createdAt   DateTime   @default(now())
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  personnel   Personnel? @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, entityType, entityId, voterId])
+  @@index([projectId, entityType, entityId])
+}
+
+// --- Dinamik "Alan" (Field / Disiplin) secenekleri (proje bazli) -----------
+model ProjectField {
+  id        String  @id @default(uuid())
+  projectId String
+  name      String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+// --- Gereksinimler (User / System / Software / Hardware) --------------------
+model Requirement {
+  id          String   @id @default(uuid())
+  projectId   String
+  text_id     String
+  title       String
+  description String   @default("")
+  type        String   // 'User Requirement' | 'System Requirement' | 'Software Requirement' | 'Hardware Requirement'
+  field       String? // dinamik Alan / disiplin
+  status      String   @default("In Review")
+  // Modular oznitelikler (Priority, DAL Level, ve projeye ozel her turlu ek
+  // alan) artik sabit kolon degil; AttributeDefinition tarafindan tanimlanan
+  // semaya gore bu JSONB torbada saklanir. Bkz. src/attributes.js.
+  attributes  Json     @default("{}")
+  author      String?
+  approvalStatus String @default("Pending") // 'Pending' | 'Approved'
+  locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  relatedDocuments String[] @default([])    // Etki analizinde gosterilen ilgili dokuman/etiket listesi
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, text_id])
+  @@index([projectId, type])
+}
+
+// --- Test Senaryolari (Acceptance / System / Sub-system Test) ---------------
+model TestCase {
+  id          String   @id @default(uuid())
+  projectId   String
+  text_id     String
+  title       String
+  description String   @default("")
+  type        String   // 'Acceptance Test' | 'System Test' | 'Sub-system Test'
+  field       String? // gereksinimden otomatik kopyalanir
+  status      String   @default("In Review") // 'Approved' (Passed) | 'Rejected' (Failed) | 'In Review'
+  // Modular oznitelikler (Priority, DAL Level, projeye ozel ek alanlar).
+  attributes  Json     @default("{}")
+  author      String?
+  approvalStatus String @default("Pending") // 'Pending' | 'Approved'
+  locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, text_id])
+  @@index([projectId, type])
+}
+
+// --- Dinamik oznitelik tanimlari (Priority / DAL Level / ozel alanlar) -----
+//  Proje bazli, admin (PM) tarafindan yonetilebilen semaya gore Requirement
+//  ve TestCase kayitlarinin `attributes` JSONB torbasindaki degerler
+//  dogrulanir. `system=true` olanlar (Priority, DAL Level) uygulamanin
+//  varsayilan/gomulu oznitelikleridir; silinemez ama duzenlenebilir.
+model AttributeDefinition {
+  id           String   @id @default(uuid())
+  projectId    String
+  entityType   String   // 'requirement' | 'testcase' | 'both'
+  key          String   // makine-okur anahtar, orn. 'priority', 'risk_score'
+  label        String   // UI'da gosterilen etiket
+  dataType     String   @default("text") // 'text' | 'number' | 'boolean' | 'date' | 'select'
+  options      Json?    // dataType='select' icin [{ "value": "...", "label": "..." }, ...]
+  required     Boolean  @default(false)
+  defaultValue String?
+  order        Int      @default(0)
+  system       Boolean  @default(false) // gomulu (Priority/DAL Level) ise true; silinemez
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, entityType, key])
+  @@index([projectId])
+}
+
+// --- Izlenebilirlik baglari -------------------------------------------------
+//  type = 'Satisfies' | 'Verifies' | 'Assigned To'
+//    Satisfies : fromId = UST gereksinim, toId = ALT gereksinim
+//                (User <- System, System <- Software/Hardware)
+//    Verifies  : fromId = gereksinim,      toId = test senaryosu
+//    Assigned To: fromId = gereksinim,     toId = glossary terimi
+model TraceabilityLink {
+  id        String   @id @default(uuid())
+  projectId String
+  fromId    String
+  toId      String
+  type      String
+  createdAt DateTime @default(now())
+  createdBy String?
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fromId, toId, type])
+  @@index([projectId, type])
+}
+
+// --- Sozluk (Glossary) ------------------------------------------------------
+model GlossaryTerm {
+  id         String   @id @default(uuid())
+  projectId  String
+  text_id    String
+  term       String
+  definition String   @default("")
+  author     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, text_id])
+  @@index([projectId])
+}
+
+// --- Degisiklik Tarihcesi (Audit Log) ---------------------------------------
+model AuditLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  action     String
+  entityType String?
+  entityId   String?
+  textId     String?
+  field      String?
+  oldValue   String?
+  newValue   String?
+  message    String?
+  actor      String?
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}

@@ -1,0 +1,6 @@
+# EHSIM AI Bridge (api_server.py)
+fastapi
+uvicorn[standard]
+python-multipart
+PyMuPDF
+requests

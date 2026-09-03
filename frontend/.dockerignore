@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+npm-debug.log*
+.env
+.env.*
+!.env.example
+.git
+dist
+dist-ssr
+coverage/
+test-results/
+# nginx conf is needed in final image; keep it

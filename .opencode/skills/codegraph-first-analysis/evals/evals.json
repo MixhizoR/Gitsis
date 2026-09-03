@@ -1,0 +1,23 @@
+{
+  "skill_name": "codegraph-first-analysis",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "How does authentication work in this codebase? I need to understand the full auth flow from login to session validation, including how the JWT middleware checks tokens.",
+      "expected_output": "Identifies auth-related symbols (login route, JWT verify, auth middleware), shows their source with file:line references, and explains the call chain from login to protected route.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Where is the function that creates a new user in the backend? Show me its source and list every place it's called from so I can see the blast radius before editing it.",
+      "expected_output": "Locates the user creation function, shows its body with line numbers, and lists the callers (with file:line) so the user can decide on the edit.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Trace the request flow for fetching a single inspection by ID. I want the full call chain from the HTTP route handler all the way down to the Prisma database query.",
+      "expected_output": "Traces from the route definition through the controller/service layer to the Prisma call, naming each hop with file:line references.",
+      "files": []
+    }
+  ]
+}

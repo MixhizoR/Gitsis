@@ -1,0 +1,41 @@
+{
+  "name": "ehsim-rmt-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "EHSIM - GITSIS / RMT — Express + Prisma (PostgreSQL) backend",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/seed.js",
+    "db:push": "prisma db push",
+    "migrate:attrs:dump": "node scripts/migrate-attributes-1-dump.mjs",
+    "migrate:attrs:restore": "node scripts/migrate-attributes-2-restore.mjs",
+    "migrate:attrs:unlock": "node scripts/migrate-attributes-3-unlock-builtins.mjs",
+    "prisma:generate": "prisma generate",
+    "test": "node --test --test-concurrency=1",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "exceljs": "^3.4.0",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.1",
+    "fast-xml-parser": "4.3.6",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "sanitize-html": "^2.17.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "prisma": "^5.22.0",
+    "supertest": "^7.2.2"
+  }
+}

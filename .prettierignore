@@ -1,0 +1,22 @@
+# Paket/derinlik bagimli dizinler — formatlama kapsami disi
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+.codegraph/
+
+# Kilit dosyalari ve uretilen varliklar
+package-lock.json
+pnpm-lock.yaml
+frontend/dist/
+prisma/migrations/
+
+# Python koprusu ayri bir formata tabidir
+ai-bridge/
+scripts/
+
+# El yazimi dokumanlar ve altyapi tanimlari (prose bozulmasin)
+*.md
+docker-compose.yml
+.github/
