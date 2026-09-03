@@ -480,7 +480,9 @@ async function main() {
   const reqId = {} // localKey -> server id
   const addReqs = async (list, type) => {
     for (const [key, title, description, field, priority, dal_level] of list) {
-      const row = await post(P('/requirements'), { type, title, description, field, priority, dal_level })
+      // DAL Level artik varsayilan olarak gelmiyor; gonderilirse ve proje bu
+      // ozniteligi tanimlamamissa API 'Bilinmeyen oznitelik' hatasi doner.
+      const row = await post(P('/requirements'), { type, title, description, field, priority })
       reqId[key] = row.id
     }
   }
@@ -494,7 +496,7 @@ async function main() {
   const testId = {} // localKey -> server id
   const addTests = async (list, type) => {
     for (const [key, title, description, field, priority, dal_level, status] of list) {
-      const row = await post(P('/testcases'), { type, title, description, field, priority, dal_level, status })
+      const row = await post(P('/testcases'), { type, title, description, field, priority, status })
       testId[key] = row.id
     }
   }

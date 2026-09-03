@@ -10,6 +10,9 @@ import RichTextEditor from './RichTextEditor.jsx'
 import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
 import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { useApp } from '../../context/AppContext.jsx'
+
+const BUILTIN_KEYS = new Set(['priority', 'dal_level'])
 
 export default function ViewModal({
   open,
@@ -21,6 +24,7 @@ export default function ViewModal({
   statusLabel: _statusLabel,
 }) {
   const { t } = useLang()
+  const { attributeDefs } = useApp()
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)
   const editable = canWrite && !row?.locked
@@ -30,6 +34,11 @@ export default function ViewModal({
   }, [open, row])
 
   if (!row) return null
+
+  const customAttrEntries = Object.entries(row.attributes || {}).filter(
+    ([k, v]) => !BUILTIN_KEYS.has(k) && v !== null && v !== undefined && v !== '',
+  )
+  const labelFor = (key) => attributeDefs.find((d) => d.key === key)?.label || key
 
   const save = async () => {
     setSaving(true)
@@ -72,6 +81,15 @@ export default function ViewModal({
             {row.field}
           </span>
         )}
+        {customAttrEntries.map(([k, v]) => (
+          <span
+            key={k}
+            className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+            title={labelFor(k)}
+          >
+            {labelFor(k)}: {String(v)}
+          </span>
+        ))}
       </div>
 
       <div className="mb-1.5 flex items-center justify-between">

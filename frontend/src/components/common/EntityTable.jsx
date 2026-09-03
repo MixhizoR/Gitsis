@@ -7,7 +7,7 @@
 //    - Izin bazli kalem/cop kilidi + onaylanan satirin donmasi (freeze).
 //  Test/gereksinim sayfalari izin fonksiyonlarini prop olarak gecer.
 // ============================================================================
-import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
+import { StatusBadge, TypeBadge, AttrBadge } from './Badge.jsx'
 import {
   IconEdit,
   IconTrash,
@@ -19,6 +19,7 @@ import {
 } from './Icons.jsx'
 import { truncate } from '../../utils/format.js'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { useApp } from '../../context/AppContext.jsx'
 
 const dash = <span className="text-slate-300 dark:text-slate-600">—</span>
 const noop = () => {}
@@ -27,7 +28,8 @@ const F = () => false
 
 export default function EntityTable({
   rows,
-  columns = ['type', 'field', 'priority', 'status', 'dal', 'links'],
+  columns = ['type', 'field', 'status', 'links'],
+  attributeEntityType, // 'requirement' | 'testcase' — modular oznitelik sutunlari icin
   linkCountFor,
   onEdit,
   onDelete,
@@ -58,8 +60,18 @@ export default function EntityTable({
   someSelected = false,
 }) {
   const { t } = useLang()
+  const { attributeDefs } = useApp()
   const has = (c) => columns.includes(c)
   const isSelected = (id) => Boolean(selectedIds && selectedIds.has(id))
+
+  // Modular oznitelik sutunlari: projede tanimli her oznitelik (Priority
+  // dahil — artik o da sabit degil) icin bir sutun, tanimlanan siraya gore.
+  const attrDefs = attributeEntityType
+    ? attributeDefs
+        .filter((d) => d.entityType === attributeEntityType || d.entityType === 'both')
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : []
 
   // Satir bazli izin cozumleyiciler (varsayilanlar eski davranisi korur).
   const editAllowed = (r) => (canEditRow ? canEditRow(r) : true)
@@ -101,9 +113,12 @@ export default function EntityTable({
               <th className="px-4 py-3">{t('tbl.th.title')}</th>
               {has('type') && <th className="px-4 py-3">{t('tbl.th.type')}</th>}
               {has('field') && <th className="px-4 py-3">{t('form.field')}</th>}
-              {has('priority') && <th className="px-4 py-3">{t('tbl.th.priority')}</th>}
               {has('status') && <th className="px-4 py-3">{statusLabel || t('tbl.th.status')}</th>}
-              {has('dal') && <th className="px-4 py-3">{t('tbl.th.dal')}</th>}
+              {attrDefs.map((d) => (
+                <th key={d.id} className="px-4 py-3">
+                  {d.label}
+                </th>
+              ))}
               {has('links') && <th className="px-4 py-3 text-center">{t('tbl.th.links')}</th>}
               {showApproval && <th className="px-4 py-3 text-center">{t('tbl.th.approval')}</th>}
               {showApproval && <th className="px-4 py-3">{t('tbl.th.approvalStatus')}</th>}
@@ -173,21 +188,20 @@ export default function EntityTable({
                       )}
                     </td>
                   )}
-                  {has('priority') && (
-                    <td className="px-4 py-3 align-top">
-                      {r.priority ? <PriorityBadge value={r.priority} /> : dash}
-                    </td>
-                  )}
                   {has('status') && (
                     <td className="px-4 py-3 align-top">
                       {r.status ? <StatusBadge value={r.status} /> : dash}
                     </td>
                   )}
-                  {has('dal') && (
-                    <td className="px-4 py-3 align-top">
-                      {r.dal_level ? <DalBadge value={r.dal_level} /> : dash}
+                  {attrDefs.map((d) => (
+                    <td key={d.id} className="px-4 py-3 align-top">
+                      {(r.attributes || {})[d.key] != null && (r.attributes || {})[d.key] !== '' ? (
+                        <AttrBadge def={d} value={r.attributes[d.key]} />
+                      ) : (
+                        dash
+                      )}
                     </td>
-                  )}
+                  ))}
                   {has('links') && (
                     <td className="px-4 py-3 text-center align-top">
                       <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-slate-100 px-1.5 text-xs font-bold tabular-nums text-slate-600 dark:bg-slate-700 dark:text-slate-300">
