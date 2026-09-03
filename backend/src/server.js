@@ -23,6 +23,7 @@ import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPasswor
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
+import { getTreeChildren, getTreeAncestorPath } from './tree.js';
 import { parseReqIF } from './reqifParser.js';
 
 const prisma = new PrismaClient();
@@ -450,6 +451,27 @@ app.post(
       message: `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
     res.status(201).json(row);
+  }),
+);
+
+// PBS agaci (Issue #9 / Adim 2): lazy-load cocuk sorgusu + ust-zincir.
+// Sabit path'ler ("/tree") parametreli "/:id" route'undan ONCE tanimlanmali,
+// yoksa Express "tree"yi :id olarak yakalar.
+app.get(
+  '/api/projects/:pid/requirements/tree',
+  wrap(async (req, res) => {
+    const parentId = req.query.parentId ? String(req.query.parentId).trim() : null;
+    const items = await getTreeChildren(req.params.pid, parentId);
+    res.json({ items });
+  }),
+);
+
+app.get(
+  '/api/projects/:pid/requirements/:id/ancestors',
+  wrap(async (req, res) => {
+    const path = await getTreeAncestorPath(req.params.pid, req.params.id);
+    if (!path) throw bad('Gereksinim bulunamadi.', 404);
+    res.json({ path });
   }),
 );
 
