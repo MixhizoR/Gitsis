@@ -18,6 +18,15 @@ export const listFields = (pid) => api.get(`/projects/${pid}/fields`)
 export const addField = (pid, name) => api.post(`/projects/${pid}/fields`, { name })
 export const deleteField = (pid, id) => api.del(`/projects/${pid}/fields/${id}`)
 
+// --- Modular Oznitelikler (Priority / DAL Level / ozel alanlar) ------------
+//  entityType: 'requirement' | 'testcase' | 'both'
+export const listAttributes = (pid, entityType) =>
+  api.get(`/projects/${pid}/attributes${entityType ? `?entityType=${entityType}` : ''}`)
+export const createAttribute = (pid, payload) => api.post(`/projects/${pid}/attributes`, payload)
+export const updateAttribute = (pid, id, payload) =>
+  api.patch(`/projects/${pid}/attributes/${id}`, payload)
+export const deleteAttribute = (pid, id) => api.del(`/projects/${pid}/attributes/${id}`)
+
 // --- Gereksinimler ----------------------------------------------------------
 export const listRequirements = (pid) => api.get(`/projects/${pid}/requirements`)
 export const createRequirement = (pid, data) => api.post(`/projects/${pid}/requirements`, data)

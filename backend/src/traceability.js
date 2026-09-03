@@ -221,7 +221,7 @@ router.post('/import/reqif', async (req, res) => {
             title: (reqItem.title || 'Adsız Gereksinim').trim(),
             description: cleanRichText((reqItem.description || '').trim()),
             type: 'User Requirement',
-            priority: 'Medium',
+            attributes: { priority: 'Medium' },
             status: 'In Review',
             author: 'reqif.import',
           },
@@ -284,7 +284,7 @@ router.get('/export/matrix', async (req, res) => {
              r."title" AS "reqTitle",
              r."description" AS "reqDescription",
              r."status" AS "reqStatus",
-             r."priority" AS "reqPriority",
+             r."attributes"->>'priority' AS "reqPriority",
              l."id" AS "linkId",
              t."id" AS "testId",
              t."text_id" AS "testTextId",
@@ -588,7 +588,7 @@ router.get('/matrix', async (req, res) => {
              r."description" AS "reqDescription",
              r."type" AS "reqType",
              r."status" AS "reqStatus",
-             r."priority" AS "reqPriority",
+             r."attributes"->>'priority' AS "reqPriority",
              r."author" AS "reqAuthor",
              COALESCE(
                json_agg(

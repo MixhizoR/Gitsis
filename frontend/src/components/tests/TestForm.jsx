@@ -2,9 +2,12 @@
 //  TestForm.jsx  —  Test senaryosu olustur / duzenle formu.
 //    - TIP KILITLI: her test sayfasi kendi tipini dayatir (Acceptance / System
 //      / Sub-system).
-//    - Alan / Oncelik / DAL / Test Sonucu ARTIK ELLE girilir. Bir gereksinime
-//      Verifies bagi kurmak bu degerleri OTOMATIK doldurmaz (bir test birden
-//      fazla gereksinimi dogrulayabilir; otomatik kopyalama anlamsizdir).
+//    - Alan ARTIK ELLE girilir. Bir gereksinime Verifies bagi kurmak bu
+//      degeri OTOMATIK doldurmaz (bir test birden fazla gereksinimi
+//      dogrulayabilir; otomatik kopyalama anlamsizdir).
+//    - Oncelik, DAL ve projeye ozel her turlu ek oznitelik artik sabit
+//      degil: Oznitelik Yoneticisi'nde tanimlanan semaya gore
+//      DynamicAttributeFields tarafindan otomatik olarak gosterilir.
 //    - text_id SUNUCUDA uretilir.
 // ============================================================================
 import { useEffect, useState } from 'react'
@@ -13,18 +16,13 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import {
-  PRIORITIES,
-  DAL_LEVELS,
-  PRIORITY,
-  DAL,
-  STATUS,
-  TEST_STATUS_OPTIONS,
-  TEST_STATUS_LABELS,
-} from '../../utils/constants.js'
+import DynamicAttributeFields, {
+  defaultAttributeValues,
+} from '../common/DynamicAttributeFields.jsx'
+import { STATUS, TEST_STATUS_OPTIONS, TEST_STATUS_LABELS } from '../../utils/constants.js'
 
 export default function TestForm({ open, onClose, editing, pageConfig }) {
-  const { addTestCase, editTestCase, fields, addField } = useApp()
+  const { addTestCase, editTestCase, fields, addField, attributeDefs } = useApp()
   const { t } = useLang()
   const lockedType = pageConfig?.lockedType
 
@@ -32,12 +30,11 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
     title: '',
     description: '',
     field: '',
-    priority: PRIORITY.MEDIUM,
-    dal_level: DAL.C,
     status: STATUS.IN_REVIEW,
   }
 
   const [form, setForm] = useState(EMPTY)
+  const [customAttrs, setCustomAttrs] = useState({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const isEdit = Boolean(editing)
@@ -50,17 +47,18 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: editing.title || '',
         description: editing.description || '',
         field: editing.field || '',
-        priority: editing.priority || PRIORITY.MEDIUM,
-        dal_level: editing.dal_level || DAL.C,
         status: editing.status || STATUS.IN_REVIEW,
       })
+      setCustomAttrs(editing.attributes || {})
     } else {
       setForm(EMPTY)
+      setCustomAttrs(defaultAttributeValues(attributeDefs, 'testcase'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const setCustomAttr = (key, value) => setCustomAttrs((a) => ({ ...a, [key]: value }))
 
   // Yeni alan (Field) ekle — dinamik disiplin secenegi.
   const handleAddField = async () => {
@@ -83,9 +81,8 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: form.title,
         description: form.description,
         field: form.field || null,
-        priority: form.priority,
-        dal_level: form.dal_level,
         status: form.status,
+        attributes: customAttrs,
       }
       if (isEdit) await editTestCase(editing.id, payload)
       else await addTestCase({ ...payload, type: lockedType })
@@ -154,7 +151,7 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
           />
         </div>
 
-        {/* Alan (dinamik) + Oncelik + DAL + Test Sonucu (hepsi elle) */}
+        {/* Alan (dinamik) + Test Sonucu (elle) */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <label className="label flex items-center justify-between">
@@ -178,26 +175,6 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             </select>
           </div>
           <div>
-            <label className="label">{t('form.priority')}</label>
-            <select className="input" value={form.priority} onChange={set('priority')}>
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">{t('form.dal')}</label>
-            <select className="input" value={form.dal_level} onChange={set('dal_level')}>
-              {DAL_LEVELS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label className="label">{t('tbl.th.testResult')}</label>
             <select className="input" value={form.status} onChange={set('status')}>
               {TEST_STATUS_OPTIONS.map((s) => (
@@ -208,6 +185,14 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             </select>
           </div>
         </div>
+
+        {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye
+            ozel her turlu ek alan — Oznitelik Yoneticisi'nden tanimlanir. */}
+        <DynamicAttributeFields
+          entityType="testcase"
+          values={customAttrs}
+          onChange={setCustomAttr}
+        />
       </form>
     </Modal>
   )

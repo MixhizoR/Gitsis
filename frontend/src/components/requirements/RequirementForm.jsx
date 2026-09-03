@@ -9,7 +9,9 @@
 //      yalnizca bagli/dogrulanmis testlerden OTOMATIK (cascade) hesaplanir.
 //    - ALAN (Field) DINAMIK: projeye eklenen alanlardan secilir; form icinden
 //      yeni alan eklenebilir.
-//    - Oncelik ve DAL elle secilir.
+//    - ONCELIK (Priority), DAL Level ve projeye ozel her turlu ek oznitelik
+//      artik sabit degil: Oznitelik Yoneticisi'nde tanimlanan semaya gore
+//      DynamicAttributeFields tarafindan otomatik olarak gosterilir.
 // ============================================================================
 import { useEffect, useState } from 'react'
 import Modal from '../common/Modal.jsx'
@@ -17,10 +19,12 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import { PRIORITIES, DAL_LEVELS, PRIORITY, DAL } from '../../utils/constants.js'
+import DynamicAttributeFields, {
+  defaultAttributeValues,
+} from '../common/DynamicAttributeFields.jsx'
 
 export default function RequirementForm({ open, onClose, editing, pageConfig }) {
-  const { addRequirement, editRequirement, fields, addField } = useApp()
+  const { addRequirement, editRequirement, fields, addField, attributeDefs } = useApp()
   const { t } = useLang()
 
   const typeOptions = pageConfig?.typeOptions || []
@@ -32,12 +36,11 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
     description: '',
     type: lockedType,
     field: '',
-    priority: PRIORITY.MEDIUM,
-    dal_level: DAL.C,
     relatedDocuments: '',
   }
 
   const [form, setForm] = useState(EMPTY)
+  const [customAttrs, setCustomAttrs] = useState({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const isEdit = Boolean(editing)
@@ -51,17 +54,18 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         description: editing.description || '',
         type: editing.type,
         field: editing.field || '',
-        priority: editing.priority || PRIORITY.MEDIUM,
-        dal_level: editing.dal_level || DAL.C,
         relatedDocuments: (editing.relatedDocuments || []).join(', '),
       })
+      setCustomAttrs(editing.attributes || {})
     } else {
       setForm({ ...EMPTY, type: lockedType })
+      setCustomAttrs(defaultAttributeValues(attributeDefs, 'requirement'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing])
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const setCustomAttr = (key, value) => setCustomAttrs((a) => ({ ...a, [key]: value }))
 
   // Yeni alan (Field) ekle — dinamik disiplin secenegi.
   const handleAddField = async () => {
@@ -85,8 +89,7 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         description: form.description,
         type: form.type,
         field: form.field || null,
-        priority: form.priority,
-        dal_level: form.dal_level,
+        attributes: customAttrs,
         relatedDocuments: form.relatedDocuments
           .split(',')
           .map((s) => s.trim())
@@ -189,7 +192,7 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
           <p className="mt-1 text-[11px] text-slate-400">{t('form.relatedDocsHint')}</p>
         </div>
 
-        {/* Alan (dinamik) + Oncelik + DAL */}
+        {/* Alan (dinamik) */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
             <label className="label flex items-center justify-between">
@@ -212,27 +215,15 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
               ))}
             </select>
           </div>
-          <div>
-            <label className="label">{t('form.priority')}</label>
-            <select className="input" value={form.priority} onChange={set('priority')}>
-              {PRIORITIES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">{t('form.dal')}</label>
-            <select className="input" value={form.dal_level} onChange={set('dal_level')}>
-              {DAL_LEVELS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
+
+        {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye
+            ozel her turlu ek alan — Oznitelik Yoneticisi'nden tanimlanir. */}
+        <DynamicAttributeFields
+          entityType="requirement"
+          values={customAttrs}
+          onChange={setCustomAttr}
+        />
       </form>
     </Modal>
   )

@@ -7,6 +7,7 @@
 //  girmez).
 // ============================================================================
 import { PrismaClient } from '@prisma/client';
+import { flatten, flattenAll } from './attributes.js';
 
 const prisma = new PrismaClient();
 
@@ -68,13 +69,13 @@ export async function getImpactTree(projectId, reqId) {
   const tests = testIds.length > 0 ? await prisma.testCase.findMany({ where: { id: { in: testIds } } }) : [];
 
   return {
-    root,
+    root: flatten(root),
     parents: parents.map((r) => ({
-      requirement: r,
+      requirement: flatten(r),
       tests: [],
       documents: r.relatedDocuments || [],
     })),
-    tests,
+    tests: flattenAll(tests),
     summary: {
       testCount: tests.length,
       parentCount: parents.length,
