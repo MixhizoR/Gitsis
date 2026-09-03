@@ -79,7 +79,7 @@ Motor **başka makinedeyse**, proje kökünde `.env` dosyasına ekle:
 VITE_AI_URL=http://<motorun-ip-adresi>:8008
 ```
 
-Sonra Vite'ı yeniden başlat (`npm run dev`).
+Sonra Vite'ı yeniden başlat (`pnpm run dev`).
 
 ---
 
