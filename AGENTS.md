@@ -120,8 +120,8 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 
 ### CI Pipeline (`.github/workflows/ci.yml`)
 - `detect-changes` (paths-filter) → runs only changed packages
-- Frontend job: `format:check → lint → test → build` (Node 20)
-- Backend job: `format:check → lint → test` with PostgreSQL service container (Node 20)
+- Frontend job: `format:check → lint → test → build` (Node 24)
+- Backend job: `format:check → lint → test` with PostgreSQL service container (Node 24)
 - `ci-status` aggregates; required for branch protection on `main`
 
 ## Code Conventions & Common Patterns
@@ -189,7 +189,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 - **Testing**:
   - Backend: `node --test` + supertest (integration against real DB)
   - Frontend: Vitest + Testing Library (JSDOM)
-- **CI**: GitHub Actions, Node 20, `pnpm install --frozen-lockfile`, native PostgreSQL 16 service container
+- **CI**: GitHub Actions, Node 24, `pnpm install --frozen-lockfile`, native PostgreSQL 16 service container
 - **Docker**: Multi-stage builds; `builder` target runs `prisma db push --skip-generate && node src/seed.js`
 
 ## Testing & QA
