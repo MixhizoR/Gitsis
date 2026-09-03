@@ -1,7 +1,4 @@
-/* eslint-env node */
-/* global console, process */
-
-// ============================================================================
+//============================================================================
 //  migrate-attributes-1-dump.mjs
 //
 //  STEP 1 of 2 for moving from hardcoded `priority`/`dal_level` columns to

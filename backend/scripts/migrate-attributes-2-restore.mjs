@@ -1,6 +1,3 @@
-/* eslint-env node */
-/* global console, process */
-
 // ============================================================================
 //  migrate-attributes-2-restore.mjs
 //
