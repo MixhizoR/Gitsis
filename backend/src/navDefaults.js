@@ -24,17 +24,16 @@ export const NAV_PAGE_KEYS = [
 // Varsayilan gruplar. `nameKey` frontend i18n anahtaridir: gruplar heniz
 // DB'ye materialize edilmediyse etiket i18n'den gelir; materialize edildikten
 // sonra kullanicinin verdigi duz `name` kullanilir.
+//  NOT: "Gereksinimler" grubu (req-user / req-system / req-subsystem)
+//  varsayilandan CIKARILDI — bu sayfalarin islevi artik ust menudeki
+//  "Gereksinimler" (PBS agaci) sayfasinda birlesik olarak sunuluyor.
+//  Sayfa tipleri NAV_PAGE_KEYS'te DURUYOR: kullanici isterse "+ Sayfa Ekle"
+//  ile bunlari yeniden menuye koyabilir; gereksinim VERILERI etkilenmez.
 export const DEFAULT_GROUPS = [
-  {
-    nameKey: 'nav.groupRequirements',
-    name: 'Gereksinimler',
-    order: 0,
-    pageKeys: ['req-user', 'req-system', 'req-subsystem'],
-  },
   {
     nameKey: 'nav.groupTests',
     name: 'Testler',
-    order: 1,
+    order: 0,
     pageKeys: ['test-acceptance', 'test-system', 'test-subsystem'],
   },
 ];
