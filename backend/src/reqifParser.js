@@ -1,19 +1,74 @@
 import { XMLParser } from 'fast-xml-parser';
 
-function extractTextFromXHTML(node) {
+/**
+ * XHTML nesnesini (fast-xml-parser ciktilarini) tekrar HTML string'e cevirir.
+ * Beyaz listedeki etiketler (p, b, i, u, strong, em, span, div, br, ul, ol, li, font, img)
+ * ve #text dugumleri korunur; digerleri (script, style, etc.) goz ardi edilir.
+ */
+function serializeXHTML(node) {
   if (node == null) return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node).trim();
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
   if (Array.isArray(node)) {
-    return node.map(extractTextFromXHTML).filter(Boolean).join(' ');
+    return node.map(serializeXHTML).filter(Boolean).join('');
   }
   if (typeof node === 'object') {
-    const parts = [];
-    for (const [key, val] of Object.entries(node)) {
-      if (key.startsWith('@_')) continue;
-      const text = extractTextFromXHTML(val);
-      if (text) parts.push(text);
+    // #text dugumleri dogrudan icerigi
+    if (node['#text'] != null) {
+      return String(node['#text']);
     }
-    return parts.join(' ');
+    // Beyaz listedeki etiketler icin serialize et
+    const allowedTags = new Set([
+      'p',
+      'b',
+      'i',
+      'u',
+      'strong',
+      'em',
+      'span',
+      'div',
+      'br',
+      'ul',
+      'ol',
+      'li',
+      'font',
+      'img',
+      'a',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'blockquote',
+      'code',
+      'pre',
+      'hr',
+      'sub',
+      'sup',
+    ]);
+    let html = '';
+    for (const [key, val] of Object.entries(node)) {
+      if (key.startsWith('@_')) continue; // ozellikleri atla
+      if (key === '#text') continue; // zaten yukarida handle edildi
+      if (allowedTags.has(key)) {
+        const attrs = Object.entries(node)
+          .filter(([k]) => k.startsWith('@_'))
+          .map(([k, v]) => `${k.slice(2)}="${v}"`)
+          .join(' ');
+        const attrStr = attrs ? ` ${attrs}` : '';
+        const selfClosing = ['br', 'hr', 'img'].includes(key);
+        if (selfClosing) {
+          html += `<${key}${attrStr} />`;
+        } else {
+          const inner = serializeXHTML(val);
+          html += `<${key}${attrStr}>${inner}</${key}>`;
+        }
+      } else {
+        // Beyaz liste disi etiket (script, style, etc.) -> sadece icerigi serialize et, etiketi yok say
+        html += serializeXHTML(val);
+      }
+    }
+    return html;
   }
   return '';
 }
@@ -96,7 +151,7 @@ export function parseReqIF(xmlContent) {
     const xhtmlValues = obj?.['VALUES']?.['ATTRIBUTE-VALUE-XHTML'] || [];
     for (const val of xhtmlValues) {
       const rawXhtml = val?.['THE-VALUE'] || val;
-      const cleanText = extractTextFromXHTML(rawXhtml);
+      const cleanText = serializeXHTML(rawXhtml);
       if (cleanText) {
         description = description ? `${description}\n${cleanText}` : cleanText;
       }
