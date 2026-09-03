@@ -456,6 +456,8 @@ export const STRINGS = {
     'tree.collapse': 'Alt kırılımları kapat',
     'tree.empty': 'Bu projede henüz gereksinim yok.',
     'tree.error': 'Ağaç yüklenemedi.',
+    'tree.locked': 'Onaylandı ve kilitli — taşınamaz',
+    'tree.dropToRoot': 'Köke taşımak için buraya bırak',
 
     // --- Yeni sayfa başlıkları (Topbar) ---
     'page.reqUser.title': 'Kullanıcı Gereksinimleri',
@@ -983,6 +985,8 @@ export const STRINGS = {
     'tree.collapse': 'Collapse children',
     'tree.empty': 'No requirements in this project yet.',
     'tree.error': 'Failed to load the tree.',
+    'tree.locked': 'Approved and locked — cannot be moved',
+    'tree.dropToRoot': 'Drop here to move to root',
 
     // --- New page titles (Topbar) ---
     'page.reqUser.title': 'User Requirements',

@@ -10,16 +10,20 @@
 // ============================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../../context/AppContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import { listTreeChildren, getAncestors } from '../../services/dataService.js'
+import { listTreeChildren, getAncestors, moveRequirement } from '../../services/dataService.js'
 import { StatusBadge, TypeBadge, DalBadge } from '../common/Badge.jsx'
-import { IconChevron, IconSearch, IconLoader } from '../common/Icons.jsx'
+import { IconChevron, IconSearch, IconLoader, IconLock } from '../common/Icons.jsx'
+import { SATISFIES_PARENT_OF } from '../../utils/constants.js'
+import { componentKeyOf } from '../../utils/permissions.js'
 
 const INDENT_PX = 20
 const ROOT_KEY = '__root__'
 
 export default function TreeGrid() {
   const { projectId, requirements } = useApp()
+  const { can } = useAuth()
   const { t } = useLang()
 
   // dugum id -> cocuk listesi (kok icin ROOT_KEY). Cekilmis olanlar cache'lenir.
@@ -29,6 +33,9 @@ export default function TreeGrid() {
   const [error, setError] = useState(null)
   const [q, setQ] = useState('')
   const [highlightId, setHighlightId] = useState(null)
+  // Surukleme durumu: tasinan dugum + o an uzerinde durulan gecerli/gecersiz hedef.
+  const [dragNode, setDragNode] = useState(null)
+  const [dropTarget, setDropTarget] = useState(null) // { key, valid }
   const rowRefs = useRef({})
   // Cekilmis (veya cekilmekte olan) dugum anahtarlari — ayni dugum icin
   // ikinci bir istek atilmasini onler (render'dan bagimsiz, senkron kontrol).
@@ -120,6 +127,87 @@ export default function TreeGrid() {
     [projectId, fetchChildren, t],
   )
 
+  // --- Surukle-birak ile tasima ------------------------------------------------
+  //  Client-side on-kontrol YALNIZCA UX icindir (anlik gorsel geri bildirim);
+  //  nihai dogrulama backend'dedir (dongusel tasima / tip / kilit -> 400/403).
+  // Tasima yetkisi: dugumun tipine karsilik gelen izin bileseninde 'write'.
+  const canWrite = useCallback(
+    (node) => can('write', componentKeyOf('requirement', node.type)),
+    [can],
+  )
+
+  const canDropOn = useCallback(
+    (node, targetNode) => {
+      if (!node) return false
+      if (targetNode && targetNode.id === node.id) return false // kendine
+      const expectedParent = SATISFIES_PARENT_OF[node.type]
+      if (!targetNode) return !expectedParent // koke yalnizca User Requirement
+      return targetNode.type === expectedParent
+    },
+    [], // saf fonksiyon
+  )
+
+  // Bir dugumun hangi ust anahtarin cocuk listesinde durdugunu bulur.
+  const findParentKey = useCallback(
+    (nodeId) => {
+      for (const [key, list] of Object.entries(childrenById)) {
+        if (list?.some((n) => n.id === nodeId)) return key
+      }
+      return null
+    },
+    [childrenById],
+  )
+
+  const handleDrop = useCallback(
+    async (targetNode) => {
+      const node = dragNode
+      setDragNode(null)
+      setDropTarget(null)
+      if (!node) return
+      const newParentId = targetNode ? targetNode.id : null
+      const sourceKey = findParentKey(node.id)
+      const targetKey = newParentId || ROOT_KEY
+      if (sourceKey === targetKey) return // ayni yer — no-op
+
+      // 1) Optimistic: dugumu kaynaktan cikar, hedefe ekle.
+      const snapshot = childrenById
+      setChildrenById((prev) => {
+        const next = { ...prev }
+        if (sourceKey && next[sourceKey]) {
+          next[sourceKey] = next[sourceKey].filter((n) => n.id !== node.id)
+        }
+        if (next[targetKey]) {
+          next[targetKey] = [...next[targetKey], node].sort((a, b) =>
+            String(a.text_id).localeCompare(String(b.text_id), undefined, { numeric: true }),
+          )
+        }
+        return next
+      })
+      if (targetNode) setExpanded((prev) => new Set(prev).add(targetNode.id))
+
+      try {
+        await moveRequirement(projectId, node.id, newParentId)
+        setError(null)
+        // 2) Basarili: hem kaynak hem hedefin cache'ini tazele — `hasChildren`
+        //    degismis olabilir (kaynak yaprak olabilir, hedef ilk cocugunu almis).
+        for (const key of [sourceKey, targetKey].filter(Boolean)) {
+          fetchedRef.current.delete(key)
+        }
+        await Promise.all([
+          fetchChildren(sourceKey === ROOT_KEY ? null : sourceKey),
+          fetchChildren(targetKey === ROOT_KEY ? null : targetKey),
+        ])
+        // Ust seviyelerdeki `hasChildren` de degismis olabilir: kok listesi ve
+        // acik dugumler zaten yukaridaki iki cagri ile tazelendi.
+      } catch (err) {
+        // 3) Hata: taşımayı geri al (rollback) ve mesaji goster.
+        setChildrenById(snapshot)
+        setError(err?.message || t('tree.error'))
+      }
+    },
+    [dragNode, childrenById, findParentKey, projectId, fetchChildren, t],
+  )
+
   // --- Render -----------------------------------------------------------------
   const renderRows = (parentKey, depth) => {
     const nodes = childrenById[parentKey]
@@ -127,6 +215,10 @@ export default function TreeGrid() {
     return nodes.map((node) => {
       const isOpen = expanded.has(node.id)
       const isLoading = loadingIds.has(node.id)
+      // Kilitli (onaylanmis) kayitlar surüklenemez; backend zaten 403 doner,
+      // ama kullaniciya ONCEDEN gostermek daha iyi.
+      const draggable = canWrite(node) && !node.locked
+      const isDropTarget = dropTarget?.key === node.id
       return (
         <div key={node.id}>
           <div
@@ -134,11 +226,38 @@ export default function TreeGrid() {
               rowRefs.current[node.id] = el
             }}
             data-testid={`tree-row-${node.text_id}`}
+            draggable={draggable}
+            onDragStart={(e) => {
+              setDragNode(node)
+              e.dataTransfer?.setData?.('text/plain', node.id)
+            }}
+            onDragEnd={() => {
+              setDragNode(null)
+              setDropTarget(null)
+            }}
+            onDragOver={(e) => {
+              if (!dragNode) return
+              const valid = canDropOn(dragNode, node)
+              if (valid) e.preventDefault() // yalnizca gecerli hedef birakmaya izin verir
+              if (e.dataTransfer) e.dataTransfer.dropEffect = valid ? 'move' : 'none'
+              setDropTarget({ key: node.id, valid })
+            }}
+            onDragLeave={() => setDropTarget((prev) => (prev?.key === node.id ? null : prev))}
+            onDrop={(e) => {
+              e.preventDefault()
+              if (canDropOn(dragNode, node)) handleDrop(node)
+              else setDropTarget(null)
+            }}
             className={
               'flex items-center gap-3 border-b border-slate-100 px-3 py-2 text-sm dark:border-slate-800 ' +
-              (highlightId === node.id
-                ? 'bg-brand-50 dark:bg-brand-900/30'
-                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50')
+              (draggable ? 'cursor-grab ' : '') +
+              (isDropTarget && dropTarget.valid
+                ? 'bg-emerald-50 ring-1 ring-inset ring-emerald-400 dark:bg-emerald-900/30 '
+                : isDropTarget
+                  ? 'cursor-not-allowed bg-rose-50 ring-1 ring-inset ring-rose-400 dark:bg-rose-900/30 '
+                  : highlightId === node.id
+                    ? 'bg-brand-50 dark:bg-brand-900/30 '
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 ')
             }
             style={{ paddingLeft: 12 + depth * INDENT_PX }}
           >
@@ -165,6 +284,13 @@ export default function TreeGrid() {
             <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-100">
               {node.title}
             </span>
+            {node.locked && (
+              <IconLock
+                size={13}
+                className="shrink-0 text-amber-500"
+                aria-label={t('tree.locked')}
+              />
+            )}
             {/* Dar ekranda rozetler gizlenir; oncelik baslikta kalir. */}
             <span className="hidden shrink-0 items-center gap-2 lg:flex">
               <TypeBadge value={node.type} />
@@ -215,6 +341,34 @@ export default function TreeGrid() {
       {error && (
         <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
           {error}
+        </div>
+      )}
+
+      {/* "Koke tasi" birakma alani — yalnizca surukleme sirasinda gorunur.
+          Backend kuralina gore koke yalnizca User Requirement tasinabilir. */}
+      {dragNode && (
+        <div
+          data-testid="tree-root-dropzone"
+          onDragOver={(e) => {
+            const valid = canDropOn(dragNode, null)
+            if (valid) e.preventDefault()
+            if (e.dataTransfer) e.dataTransfer.dropEffect = valid ? 'move' : 'none'
+            setDropTarget({ key: ROOT_KEY, valid })
+          }}
+          onDragLeave={() => setDropTarget((prev) => (prev?.key === ROOT_KEY ? null : prev))}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (canDropOn(dragNode, null)) handleDrop(null)
+            else setDropTarget(null)
+          }}
+          className={
+            'rounded-lg border border-dashed px-3 py-2 text-center text-xs font-semibold ' +
+            (dropTarget?.key === ROOT_KEY && dropTarget.valid
+              ? 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+              : 'border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400')
+          }
+        >
+          {t('tree.dropToRoot')}
         </div>
       )}
 

@@ -33,6 +33,10 @@ export const bulkDeleteRequirements = (pid, ids) =>
 export const listTreeChildren = (pid, parentId) =>
   api.get(`/projects/${pid}/requirements/tree`, parentId ? { parentId } : undefined)
 export const getAncestors = (pid, id) => api.get(`/projects/${pid}/requirements/${id}/ancestors`)
+//  Tasima: dongusel tasima / tip uyumsuzlugu 400, kilitli kayit 403 doner.
+//  parentId = null => koke tasi.
+export const moveRequirement = (pid, id, parentId) =>
+  api.patch(`/projects/${pid}/requirements/${id}/move`, { parentId })
 
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)
