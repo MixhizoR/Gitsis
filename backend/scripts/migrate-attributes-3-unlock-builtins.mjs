@@ -1,3 +1,6 @@
+/* eslint-env node */
+/* global console, process */
+
 // ============================================================================
 //  migrate-attributes-3-unlock-builtins.mjs
 //

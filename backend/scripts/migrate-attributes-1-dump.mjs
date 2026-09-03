@@ -1,3 +1,6 @@
+/* eslint-env node */
+/* global console, process */
+
 // ============================================================================
 //  migrate-attributes-1-dump.mjs
 //
