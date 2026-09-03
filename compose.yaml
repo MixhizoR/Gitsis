@@ -19,7 +19,8 @@ services:
 
   migrate:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
       target: builder
     container_name: ehsim_migrate
     restart: "no"
@@ -31,8 +32,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz .env.example)}
     command: sh -c "npx prisma db push --skip-generate --accept-data-loss && node src/seed.js"
 
-  backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: ehsim_api
     restart: unless-stopped
     init: true
@@ -55,7 +57,9 @@ services:
       retries: 3
 
   frontend:
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: ehsim_web
     restart: unless-stopped
     init: true
