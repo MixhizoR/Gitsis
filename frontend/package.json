@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "EHSIM - GITSIS - Requirements Management & Traceability Tool (IBM DOORS alternatifi, MVP)",
-  "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -37,6 +37,6 @@
     "prettier": "^3.9.6",
     "tailwindcss": "^3.4.4",
     "vite": "^5.3.1",
-    "vitest": "^4.1.11"
+    "vitest": "^3.0.0"
   }
 }

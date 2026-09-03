@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "EHSIM - GITSIS / RMT — Express + Prisma (PostgreSQL) backend",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "node src/server.js",
     "start": "node src/server.js",
