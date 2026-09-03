@@ -148,6 +148,10 @@ model ProjectField {
 model Requirement {
   id          String   @id @default(uuid())
   projectId   String
+  // PBS (Urun Agaci) hiyerarsisi — adjacency list (Issue #9).
+  // TraceabilityLink 'Satisfies' cok-ebeveynli izlenebilirlik semantigini
+  // korur; parentId ise agac gezinme icin TEK ebeveynli yapiyi tutar.
+  parentId    String?
   text_id     String
   title       String
   description String   @default("")
@@ -163,9 +167,12 @@ model Requirement {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent      Requirement?  @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Requirement[] @relation("RequirementTree")
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
+  @@index([projectId, parentId])
 }
 
 // --- Test Senaryolari (Acceptance / System / Sub-system Test) ---------------

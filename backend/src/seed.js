@@ -254,11 +254,19 @@ export async function runSeed() {
 
   // 6) Baglar (58)
   const links = [];
+  // PBS agaci (Issue #9): Satisfies bagi kurulurken ayni anda alt gereksinimin
+  // parentId'si de belirlenir; boylece demo veri ayrica backfill istemez.
+  // ust gereksinim id -> alt gereksinim id listesi
+  const treeChildren = new Map();
   const addLink = (fromTid, toTid, type, kind) => {
     const fromId = reqIdOf.get(fromTid);
     const toId = kind === 'test' ? testIdOf.get(toTid) : reqIdOf.get(toTid);
     if (!fromId || !toId) return;
     links.push({ projectId: pid, fromId, toId, type, createdBy: SEED_AUTHOR });
+    if (type === LINK_TYPE.SATISFIES && kind === 'req') {
+      if (!treeChildren.has(fromId)) treeChildren.set(fromId, []);
+      treeChildren.get(fromId).push(toId);
+    }
   };
 
   // 6a) Satisfies: User <- System (20)
@@ -298,6 +306,14 @@ export async function runSeed() {
   verifyMap.forEach(([r, t]) => addLink(r, t, LINK_TYPE.VERIFIES, 'test'));
 
   await prisma.traceabilityLink.createMany({ data: links, skipDuplicates: true });
+
+  // 6d) PBS agaci: Satisfies baglarindan turetilen parentId'ler (Issue #9).
+  // Seed'de her alt gereksinimin tek ebeveyni vardir; cakisma olusmaz.
+  await prisma.$transaction(
+    [...treeChildren].map(([parentId, childIds]) =>
+      prisma.requirement.updateMany({ where: { id: { in: childIds } }, data: { parentId } }),
+    ),
+  );
 
   // 7) Otomatik durum (cascade) hesapla ve gereksinimlere isle
   const changes = recomputeAllStatuses(reqs, tests, links);
