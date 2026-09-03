@@ -487,6 +487,17 @@ export const STRINGS = {
     'tree.error': 'Ağaç yüklenemedi.',
     'tree.locked': 'Onaylandı ve kilitli — taşınamaz',
     'tree.dropToRoot': 'Köke taşımak için buraya bırak',
+    'pbs.addRequirement': 'Gereksinim Ekle',
+    'prefix.button': 'Kod Öneki',
+    'prefix.title': 'Kod Öneki (text_id)',
+    'prefix.hint':
+      'Kodların yapısı: <önek>-<TİP>-<NUMARA>. Tip (USR/SYS/SW/HW/TC-*/GLO) ve numara otomatiktir; burada yalnızca baştaki proje önekini değiştirirsin.',
+    'prefix.label': 'Yeni önek',
+    'prefix.preview': 'Önizleme',
+    'prefix.migrate': 'Mevcut kayıtları da yeni öneke taşı',
+    'prefix.migrateHint':
+      'Tüm gereksinim, test ve sözlük kodları yeni önekle güncellenir. Numaralar korunur; eski kodlar değişiklik geçmişinde saklanır ve bir daha kullanılmaz. İşaretlemezsen yalnızca bundan sonra oluşturulanlar yeni öneki alır.',
+    'prefix.submit': 'Öneki Güncelle',
     'proj.codePrefix': 'Kod öneki (text_id)',
     'proj.codePrefixHint': 'Gereksinim ve test kodları bu önekle üretilir. Örnek: {ornek}',
     'tbl.th.section': 'Bölüm',
@@ -1075,6 +1086,17 @@ export const STRINGS = {
     'tree.error': 'Failed to load the tree.',
     'tree.locked': 'Approved and locked — cannot be moved',
     'tree.dropToRoot': 'Drop here to move to root',
+    'pbs.addRequirement': 'Add Requirement',
+    'prefix.button': 'Code Prefix',
+    'prefix.title': 'Code Prefix (text_id)',
+    'prefix.hint':
+      'Id structure: <prefix>-<TYPE>-<NUMBER>. The type (USR/SYS/SW/HW/TC-*/GLO) and number are automatic; here you only change the leading project prefix.',
+    'prefix.label': 'New prefix',
+    'prefix.preview': 'Preview',
+    'prefix.migrate': 'Also migrate existing records',
+    'prefix.migrateHint':
+      'All requirement, test and glossary ids are updated with the new prefix. Numbers are preserved; old ids are kept in the change history and never reused. If unchecked, only newly created records get the new prefix.',
+    'prefix.submit': 'Update Prefix',
     'proj.codePrefix': 'Code prefix (text_id)',
     'proj.codePrefixHint':
       'Requirement and test ids are generated with this prefix. Example: {ornek}',

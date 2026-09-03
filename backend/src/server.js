@@ -36,6 +36,7 @@ import {
   deleteItem as deleteNavItem,
   ensureMaterialized as ensureNavMaterialized,
 } from './nav.js';
+import { setProjectCodePrefix } from './textIdPrefix.js';
 import { parseReqIF } from './reqifParser.js';
 
 const prisma = new PrismaClient();
@@ -351,6 +352,34 @@ app.patch(
     if (codePrefix != null && codePrefix.trim()) data.codePrefix = codePrefix.trim();
     const project = await prisma.project.update({ where: { id: req.params.pid }, data });
     res.json(project);
+  }),
+);
+
+// text_id kod onegini degistirir; istege bagli olarak MEVCUT kayitlari da
+// yeni onege tasir (numaralar korunur, eski kodlar audit'te kara listede
+// kalir). Yalnizca PM.
+app.post(
+  '/api/projects/:pid/code-prefix',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { codePrefix, migrateExisting } = req.body || {};
+    const before = await prisma.project.findUnique({ where: { id: pid }, select: { codePrefix: true } });
+    const result = await setProjectCodePrefix(prisma, pid, codePrefix, {
+      migrateExisting: Boolean(migrateExisting),
+    });
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'project',
+      entityId: pid,
+      field: 'codePrefix',
+      oldValue: before?.codePrefix || null,
+      newValue: result.project.codePrefix,
+      message: `Kod onegi degistirildi: "${before?.codePrefix}" -> "${result.project.codePrefix}"${
+        result.renamed ? ` (${result.renamed} kayit tasindi)` : ''
+      }.`,
+    });
+    res.json(result);
   }),
 );
 

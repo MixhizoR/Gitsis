@@ -14,10 +14,16 @@
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { useProject } from '../context/ProjectContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { useTreeNodes, ROOT_KEY } from '../hooks/useTreeNodes.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
-import { splitRequirement, mergeRequirements, moveRequirement } from '../services/dataService.js'
+import {
+  splitRequirement,
+  mergeRequirements,
+  moveRequirement,
+  setCodePrefix,
+} from '../services/dataService.js'
 import { componentKeyOf } from '../utils/permissions.js'
 import { SATISFIES_PARENT_OF } from '../utils/constants.js'
 import EntityTable from '../components/common/EntityTable.jsx'
@@ -28,9 +34,17 @@ import RequirementForm from '../components/requirements/RequirementForm.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
 import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.jsx'
 import SplitModal from '../components/tree/SplitModal.jsx'
+import PrefixModal from '../components/tree/PrefixModal.jsx'
 import MergeModal from '../components/tree/MergeModal.jsx'
-import { IconSearch, IconLoader, IconLink, IconUnlink } from '../components/common/Icons.jsx'
-import { REQ_PAGES } from '../utils/constants.js'
+import {
+  IconSearch,
+  IconLoader,
+  IconLink,
+  IconUnlink,
+  IconPlus,
+  IconEdit,
+} from '../components/common/Icons.jsx'
+import { REQ_PAGES, REQ_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 
 export default function PbsTree() {
   const {
@@ -47,6 +61,7 @@ export default function PbsTree() {
   } = useApp()
   const { t } = useLang()
   const { can, isPM, currentUser } = useAuth()
+  const { activeProject, refreshProjects } = useProject()
 
   const tree = useTreeNodes(projectId)
   const del = useUndoableDelete(bulkRemoveRequirements)
@@ -63,6 +78,7 @@ export default function PbsTree() {
   const [mergeOpen, setMergeOpen] = useState(false)
   const [selected, setSelected] = useState(() => new Map()) // id -> row
   const [dragNode, setDragNode] = useState(null)
+  const [prefixOpen, setPrefixOpen] = useState(false)
 
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
 
@@ -73,6 +89,31 @@ export default function PbsTree() {
   const canLinksRow = (r) => can('link_satisfies', compOf(r))
   const canApproveRow = (r) => can('approve', compOf(r))
   const canReadAny = REQ_PAGES ? Object.keys(REQ_PAGES).some((k) => can('read', k)) : false
+  // Ekleme yetkisi: gereksinim bilesenlerinden HERHANGI birine ekleyebiliyorsa.
+  const canAddAny = Object.keys(REQ_PAGES || {}).some((k) => can('add_requirement', k))
+
+  // PBS sayfasinda tip SABIT DEGIL: kullanici formda hangi seviyede gereksinim
+  // olusturacagini secer (Kullanici/Sistem/Yazilim/Donanim).
+  const PBS_FORM_CONFIG = {
+    key: 'pbs-tree',
+    navLabel: t('page.pbsTree.title'),
+    lockedType: null,
+    typeOptions: [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
+    addLabel: t('pbs.addRequirement'),
+  }
+
+  const openCreate = () => {
+    setEditing(null)
+    setFormOpen(true)
+  }
+
+  // Kod onegi degistir; istege bagli olarak mevcut kayitlari da tasi.
+  const handlePrefixSubmit = async (codePrefix, migrateExisting) => {
+    await setCodePrefix(projectId, codePrefix, migrateExisting)
+    await refreshProjects()
+    // Agac ve duz listeler yeni kodlarla yeniden cekilsin.
+    await afterMutation([ROOT_KEY, ...rows.filter((r) => r._expanded).map((r) => r.id)])
+  }
 
   // --- Tablo yardimcilari (Hierarchy ile ayni sozlesme) --------------------
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
@@ -178,6 +219,23 @@ export default function PbsTree() {
             <span className="font-bold text-slate-800 dark:text-slate-100">{rows.length}</span>{' '}
             {t('req.records')} · {t('page.pbsTree.sub')}
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isPM && (
+            <button
+              onClick={() => setPrefixOpen(true)}
+              className="btn-secondary"
+              data-testid="pbs-prefix-btn"
+              title={t('prefix.title')}
+            >
+              <IconEdit size={16} /> {t('prefix.button')}
+            </button>
+          )}
+          {canAddAny && (
+            <button onClick={openCreate} className="btn-primary" data-testid="pbs-add-btn">
+              <IconPlus size={18} /> {t('pbs.addRequirement')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -288,7 +346,9 @@ export default function PbsTree() {
         open={formOpen}
         onClose={() => setFormOpen(false)}
         editing={editing}
-        pageConfig={editing ? REQ_PAGES[componentKeyOf('requirement', editing.type)] : null}
+        pageConfig={
+          editing ? REQ_PAGES[componentKeyOf('requirement', editing.type)] : PBS_FORM_CONFIG
+        }
       />
       <LinkManager
         open={Boolean(linkTarget)}
@@ -328,6 +388,13 @@ export default function PbsTree() {
         nodes={selectedList}
         onClose={() => setMergeOpen(false)}
         onSubmit={handleMerge}
+      />
+      <PrefixModal
+        open={prefixOpen}
+        currentPrefix={activeProject?.codePrefix || DEFAULT_CODE_PREFIX}
+        sampleTextId={rows[0]?.text_id || null}
+        onClose={() => setPrefixOpen(false)}
+        onSubmit={handlePrefixSubmit}
       />
       <UndoToast
         open={del.isPending}

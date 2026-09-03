@@ -15,6 +15,10 @@ export const createProject = (name, description, codePrefix) =>
 export const getProject = (pid) => api.get(`/projects/${pid}`)
 export const updateProject = (pid, data) => api.patch(`/projects/${pid}`, data)
 export const deleteProject = (pid) => api.del(`/projects/${pid}`)
+//  text_id kod onegini degistirir. migrateExisting=true ise MEVCUT
+//  gereksinim/test/sozluk kodlari da yeni onege tasinir (numaralar korunur).
+export const setCodePrefix = (pid, codePrefix, migrateExisting) =>
+  api.post(`/projects/${pid}/code-prefix`, { codePrefix, migrateExisting })
 
 // --- Dinamik Alanlar (Field / Disiplin) ------------------------------------
 export const listFields = (pid) => api.get(`/projects/${pid}/fields`)
