@@ -7,6 +7,7 @@ import { validateLink } from './logic.js';
 import { recomputeStatusesBulk } from './cascade.js';
 import { TYPE_PREFIX } from './constants.js';
 import { parseReqIF } from './reqifParser.js';
+import { cleanRichText } from './sanitize.js';
 
 const ALLOWED_EXT = ['.xlsx', '.xls'];
 const upload = multer({
@@ -213,13 +214,12 @@ router.post('/import/reqif', async (req, res) => {
       for (const reqItem of requirements) {
         currentMax += 1;
         const text_id = `${prefix}-${String(currentMax).padStart(3, '0')}`;
-
         const created = await tx.requirement.create({
           data: {
             projectId: pid,
             text_id,
             title: (reqItem.title || 'Adsız Gereksinim').trim(),
-            description: (reqItem.description || '').trim(),
+            description: cleanRichText((reqItem.description || '').trim()),
             type: 'User Requirement',
             attributes: { priority: 'Medium' },
             status: 'In Review',

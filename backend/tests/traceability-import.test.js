@@ -14,7 +14,7 @@ process.env.JWT_SECRET ||= 'ehsim-test-secret';
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   `postgresql://ehsim:${encodeURIComponent(
-    process.env.POSTGRES_PASSWORD || 'ehsim_pass',
+    process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026',
   )}@localhost:5433/ehsim_rmt_test`;
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;

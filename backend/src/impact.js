@@ -31,10 +31,9 @@ export async function getImpactTree(projectId, reqId) {
   assertUuid('reqId', reqId);
 
   const root = await prisma.requirement.findUnique({
-    where: { id: reqId, projectId },
+    where: { id: reqId },
   });
-  if (!root) return null;
-
+  if (!root || root.projectId !== projectId) return null;
   // Recursive CTE: Satisfies ile UST zincir. depth kolonu ile cycle guard.
   // MAX_DEPTH asilmadan recursive adimlar sinirli; mutual Satisfies baglari
   // sonsuz donguye sokmaz.
