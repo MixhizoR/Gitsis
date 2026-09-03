@@ -16,7 +16,9 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import DynamicAttributeFields, { defaultAttributeValues } from '../common/DynamicAttributeFields.jsx'
+import DynamicAttributeFields, {
+  defaultAttributeValues,
+} from '../common/DynamicAttributeFields.jsx'
 import { STATUS, TEST_STATUS_OPTIONS, TEST_STATUS_LABELS } from '../../utils/constants.js'
 
 export default function TestForm({ open, onClose, editing, pageConfig }) {
@@ -186,7 +188,11 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
 
         {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye
             ozel her turlu ek alan — Oznitelik Yoneticisi'nden tanimlanir. */}
-        <DynamicAttributeFields entityType="testcase" values={customAttrs} onChange={setCustomAttr} />
+        <DynamicAttributeFields
+          entityType="testcase"
+          values={customAttrs}
+          onChange={setCustomAttr}
+        />
       </form>
     </Modal>
   )

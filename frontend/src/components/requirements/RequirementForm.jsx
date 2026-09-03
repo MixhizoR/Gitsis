@@ -19,7 +19,9 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import DynamicAttributeFields, { defaultAttributeValues } from '../common/DynamicAttributeFields.jsx'
+import DynamicAttributeFields, {
+  defaultAttributeValues,
+} from '../common/DynamicAttributeFields.jsx'
 
 export default function RequirementForm({ open, onClose, editing, pageConfig }) {
   const { addRequirement, editRequirement, fields, addField, attributeDefs } = useApp()
@@ -217,7 +219,11 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
 
         {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye
             ozel her turlu ek alan — Oznitelik Yoneticisi'nden tanimlanir. */}
-        <DynamicAttributeFields entityType="requirement" values={customAttrs} onChange={setCustomAttr} />
+        <DynamicAttributeFields
+          entityType="requirement"
+          values={customAttrs}
+          onChange={setCustomAttr}
+        />
       </form>
     </Modal>
   )

@@ -31,7 +31,11 @@ export default function DynamicAttributeFields({ entityType, values, onChange })
               {d.required ? ' *' : ''}
             </label>
             {d.dataType === 'select' ? (
-              <select className="input" value={val} onChange={(e) => onChange(d.key, e.target.value)}>
+              <select
+                className="input"
+                value={val}
+                onChange={(e) => onChange(d.key, e.target.value)}
+              >
                 <option value="">—</option>
                 {(d.options || []).map((o) => (
                   <option key={o.value} value={o.value}>
@@ -88,4 +92,3 @@ export function defaultAttributeValues(attributeDefs, entityType) {
   }
   return out
 }
-

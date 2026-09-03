@@ -92,7 +92,10 @@ export default function AttributeManager({ open, onClose }) {
           </div>
         )}
 
-        <form onSubmit={handleAdd} className="space-y-2.5 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+        <form
+          onSubmit={handleAdd}
+          className="space-y-2.5 rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+        >
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <div>
               <label className="label">{t('attr.newLabel')}</label>
@@ -105,7 +108,11 @@ export default function AttributeManager({ open, onClose }) {
             </div>
             <div>
               <label className="label">{t('attr.entityType')}</label>
-              <select className="input" value={entityType} onChange={(e) => setEntityType(e.target.value)}>
+              <select
+                className="input"
+                value={entityType}
+                onChange={(e) => setEntityType(e.target.value)}
+              >
                 {ENTITY_TYPES.map((v) => (
                   <option key={v} value={v}>
                     {t(`attr.entityType.${v}`)}
@@ -115,7 +122,11 @@ export default function AttributeManager({ open, onClose }) {
             </div>
             <div>
               <label className="label">{t('attr.dataType')}</label>
-              <select className="input" value={dataType} onChange={(e) => setDataType(e.target.value)}>
+              <select
+                className="input"
+                value={dataType}
+                onChange={(e) => setDataType(e.target.value)}
+              >
                 {DATA_TYPES.map((v) => (
                   <option key={v} value={v}>
                     {t(`attr.dataType.${v}`)}
@@ -170,7 +181,9 @@ export default function AttributeManager({ open, onClose }) {
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{a.label}</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {a.label}
+                    </span>
                     {a.system && (
                       <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-700 dark:text-slate-300">
                         {t('attr.system')}
