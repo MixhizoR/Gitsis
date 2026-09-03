@@ -29,6 +29,7 @@ const prisma = new PrismaClient();
 const PM_CREDENTIALS = { username: 'pm-cas', password: 'pm-pass-1234' };
 let proj;
 let pmToken;
+let pmUserId;
 
 before(async () => {
   if (LOCAL_DOCKER_DB) {
@@ -92,7 +93,9 @@ before(async () => {
   // PM login
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   pmToken = res.body.token;
+  pmUserId = res.body.user.id;
   assert.ok(pmToken);
+  assert.ok(pmUserId);
 });
 
 after(async () => {
@@ -230,7 +233,7 @@ test('recomputeApprovalsBulk: PM + 2 personel oyu → requirement Approved+locke
       projectId: proj.id,
       entityType: 'requirement',
       entityId: reqRow.id,
-      voterId: 'PM',
+      voterId: pmUserId,
       voterName: 'PM',
     },
   });
