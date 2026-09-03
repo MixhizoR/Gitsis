@@ -37,6 +37,14 @@ export const getAncestors = (pid, id) => api.get(`/projects/${pid}/requirements/
 //  parentId = null => koke tasi.
 export const moveRequirement = (pid, id, parentId) =>
   api.patch(`/projects/${pid}/requirements/${id}/move`, { parentId })
+//  Bolme: orijinalin text_id'si ve tum baglari/testleri KORUNUR; yeni parcalar
+//  ayni ust dugume baglanir ama Verifies/Assigned-To bagsiz baslar.
+export const splitRequirement = (pid, id, newTitles) =>
+  api.post(`/projects/${pid}/requirements/${id}/split`, { newTitles })
+//  Birlestirme: en eski (createdAt) gereksinim hayatta kalir; digerlerinin tum
+//  baglari + cocuklari ona aktarilir, sonra SILINIRLER (yikici islem).
+export const mergeRequirements = (pid, ids) =>
+  api.post(`/projects/${pid}/requirements/merge`, { ids })
 
 // --- Sol menu duzeni (gruplar + sayfa yerlesimi, Issue #9 / Adim 6) --------
 //  Okuma herkese acik; degisiklikler yalnizca PM'e (backend requirePM).

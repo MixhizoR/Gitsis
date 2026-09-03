@@ -478,6 +478,33 @@ export const STRINGS = {
     'tree.error': 'Ağaç yüklenemedi.',
     'tree.locked': 'Onaylandı ve kilitli — taşınamaz',
     'tree.dropToRoot': 'Köke taşımak için buraya bırak',
+    'tree.split': 'Bu gereksinimi böl',
+    'tree.merge': 'Birleştir',
+    'tree.selected': '{n} seçili',
+    'tree.clearSelection': 'Seçimi temizle',
+    'tree.selectRow': '{id} seç',
+
+    // --- Bölme (split) ---
+    'split.title': 'Gereksinimi Böl',
+    'split.info':
+      'Orijinal gereksinim ve tüm bağları/testleri olduğu gibi korunur. Yeni parçalar aynı üst gereksinime bağlanır, ancak test ve sözlük bağları olmadan başlar.',
+    'split.newParts': 'Yeni parçalar',
+    'split.partPlaceholder': 'Yeni gereksinim başlığı',
+    'split.addPart': 'Parça ekle',
+    'split.removePart': 'Parçayı kaldır',
+    'split.needTitle': 'En az bir parça başlığı girin.',
+    'split.submit': 'Böl',
+
+    // --- Birleştirme (merge) ---
+    'merge.title': 'Gereksinimleri Birleştir',
+    'merge.warning':
+      'Bu işlem geri alınamaz: {n} gereksinim SİLİNECEK. Tüm bağları ve alt gereksinimleri hayatta kalan gereksinime aktarılır. Silinen kodlar (text_id) bir daha kullanılamaz.',
+    'merge.survivor': 'Hayatta kalan',
+    'merge.toDelete': 'Silinecekler',
+    'merge.submit': 'Birleştir',
+    'merge.notSiblings':
+      'Yalnızca aynı üst gereksinime bağlı (kardeş) gereksinimler birleştirilebilir.',
+    'merge.notSameType': 'Yalnızca aynı tipteki gereksinimler birleştirilebilir.',
 
     // --- Yeni sayfa başlıkları (Topbar) ---
     'page.reqUser.title': 'Kullanıcı Gereksinimleri',
@@ -1027,6 +1054,32 @@ export const STRINGS = {
     'tree.error': 'Failed to load the tree.',
     'tree.locked': 'Approved and locked — cannot be moved',
     'tree.dropToRoot': 'Drop here to move to root',
+    'tree.split': 'Split this requirement',
+    'tree.merge': 'Merge',
+    'tree.selected': '{n} selected',
+    'tree.clearSelection': 'Clear selection',
+    'tree.selectRow': 'Select {id}',
+
+    // --- Split ---
+    'split.title': 'Split Requirement',
+    'split.info':
+      'The original requirement and all of its links/tests are preserved. New parts attach to the same parent requirement but start without test or glossary links.',
+    'split.newParts': 'New parts',
+    'split.partPlaceholder': 'New requirement title',
+    'split.addPart': 'Add part',
+    'split.removePart': 'Remove part',
+    'split.needTitle': 'Enter at least one part title.',
+    'split.submit': 'Split',
+
+    // --- Merge ---
+    'merge.title': 'Merge Requirements',
+    'merge.warning':
+      'This cannot be undone: {n} requirement(s) will be DELETED. All their links and child requirements move to the surviving requirement. Deleted ids (text_id) can never be reused.',
+    'merge.survivor': 'Survivor',
+    'merge.toDelete': 'Will be deleted',
+    'merge.submit': 'Merge',
+    'merge.notSiblings': 'Only requirements under the same parent (siblings) can be merged.',
+    'merge.notSameType': 'Only requirements of the same type can be merged.',
 
     // --- New page titles (Topbar) ---
     'page.reqUser.title': 'User Requirements',

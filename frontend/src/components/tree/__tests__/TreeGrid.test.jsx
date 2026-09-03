@@ -5,19 +5,28 @@
 //  hasChildren=false olan dugumde expand butonu yoktur.
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../../context/LanguageContext.jsx'
 
-const { listTreeChildrenMock, getAncestorsMock, moveRequirementMock, canMock } = vi.hoisted(() => ({
+const {
+  listTreeChildrenMock,
+  getAncestorsMock,
+  moveRequirementMock,
+  splitRequirementMock,
+  mergeRequirementsMock,
+  canMock,
+} = vi.hoisted(() => ({
   listTreeChildrenMock: vi.fn(),
   getAncestorsMock: vi.fn(),
   moveRequirementMock: vi.fn(),
+  splitRequirementMock: vi.fn(),
+  mergeRequirementsMock: vi.fn(),
   canMock: vi.fn(() => true),
 }))
 
 vi.mock('../../../context/AppContext.jsx', () => ({
-  useApp: () => ({ projectId: 'p-1', requirements: [] }),
+  useApp: () => ({ projectId: 'p-1', requirements: [], refresh: vi.fn() }),
   AppProvider: ({ children }) => children,
 }))
 
@@ -30,6 +39,8 @@ vi.mock('../../../services/dataService.js', () => ({
   listTreeChildren: listTreeChildrenMock,
   getAncestors: getAncestorsMock,
   moveRequirement: moveRequirementMock,
+  splitRequirement: splitRequirementMock,
+  mergeRequirements: mergeRequirementsMock,
 }))
 
 import TreeGrid from '../TreeGrid.jsx'
@@ -229,5 +240,154 @@ describe('TreeGrid — surukle-birak tasima', () => {
 
     const row = await screen.findByTestId('tree-row-REQ-USR-001')
     expect(row).toHaveAttribute('draggable', 'false')
+  })
+})
+
+// ============================================================================
+//  Bolme (split) / Birlestirme (merge) — Issue #9 / Adim 7
+// ============================================================================
+describe('TreeGrid — split / merge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    canMock.mockReturnValue(true)
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  // Ayni ust dugum altinda iki KARDES Software gereksinimi + bir System.
+  const rootWithSiblings = {
+    items: [node({ id: 'usr-1', text_id: 'REQ-USR-001', hasChildren: true })],
+  }
+  const siblings = {
+    items: [
+      node({
+        id: 'sw-1',
+        text_id: 'REQ-SW-001',
+        title: 'A',
+        type: 'Software Requirement',
+        hasChildren: false,
+        createdAt: '2024-01-01T00:00:00Z',
+      }),
+      node({
+        id: 'sw-2',
+        text_id: 'REQ-SW-002',
+        title: 'B',
+        type: 'Software Requirement',
+        hasChildren: false,
+        createdAt: '2024-02-01T00:00:00Z',
+      }),
+    ],
+  }
+
+  async function renderWithSiblings() {
+    listTreeChildrenMock
+      .mockResolvedValueOnce(rootWithSiblings)
+      .mockResolvedValueOnce(siblings)
+      .mockResolvedValue({ items: [] })
+    renderTree()
+    await screen.findByText('REQ-USR-001')
+    fireEvent.click(screen.getByRole('button', { name: /alt kırılımları aç/i }))
+    await screen.findByTestId('tree-row-REQ-SW-001')
+  }
+
+  it('split modali gonderildiginde splitRequirement dogru argumanlarla cagrilir', async () => {
+    splitRequirementMock.mockResolvedValue({ original: {}, created: [] })
+    await renderWithSiblings()
+
+    const swRow = screen.getByTestId('tree-row-REQ-SW-001')
+    fireEvent.click(within(swRow).getByRole('button', { name: /bu gereksinimi böl/i }))
+    fireEvent.change(await screen.findByTestId('split-title-0'), { target: { value: 'Parça A' } })
+    fireEvent.click(screen.getByRole('button', { name: /^böl$/i }))
+
+    await waitFor(() => expect(splitRequirementMock).toHaveBeenCalledTimes(1))
+    expect(splitRequirementMock).toHaveBeenCalledWith('p-1', 'sw-1', ['Parça A'])
+  })
+
+  it('split: bos basliklar filtrelenir, hicbiri dolu degilse API cagrilmaz', async () => {
+    await renderWithSiblings()
+    const swRow2 = screen.getByTestId('tree-row-REQ-SW-001')
+    fireEvent.click(within(swRow2).getByRole('button', { name: /bu gereksinimi böl/i }))
+    fireEvent.change(await screen.findByTestId('split-title-0'), { target: { value: '   ' } })
+    fireEvent.click(screen.getByRole('button', { name: /^böl$/i }))
+
+    expect(await screen.findByText(/en az bir parça başlığı/i)).toBeInTheDocument()
+    expect(splitRequirementMock).not.toHaveBeenCalled()
+  })
+
+  it('ayni ust dugumdeki iki kardes secilince merge cagrilir ve secim temizlenir', async () => {
+    mergeRequirementsMock.mockResolvedValue({ id: 'sw-1', text_id: 'REQ-SW-001' })
+    await renderWithSiblings()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /REQ-SW-001 seç/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /REQ-SW-002 seç/i }))
+    expect(screen.getByTestId('tree-selection-bar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^birleştir$/i }))
+    // Onay modalinda hayatta kalan gosterilir (en eski createdAt -> SW-001)
+    expect(await screen.findByTestId('merge-survivor')).toHaveTextContent('REQ-SW-001')
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^birleştir$/i }).at(-1))
+
+    await waitFor(() => expect(mergeRequirementsMock).toHaveBeenCalledTimes(1))
+    expect(mergeRequirementsMock).toHaveBeenCalledWith('p-1', ['sw-1', 'sw-2'])
+    await waitFor(() => expect(screen.queryByTestId('tree-selection-bar')).not.toBeInTheDocument())
+  })
+
+  it('farkli ust dugumdeki iki gereksinim secilince Birlestir PASIF olur ve API cagrilmaz', async () => {
+    // Kokte iki User, birinin altinda bir System: farkli parentKey'ler.
+    listTreeChildrenMock
+      .mockResolvedValueOnce({
+        items: [
+          node({ id: 'usr-1', text_id: 'REQ-USR-001', hasChildren: true }),
+          node({ id: 'usr-2', text_id: 'REQ-USR-002', hasChildren: false }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        items: [
+          node({
+            id: 'sys-1',
+            text_id: 'REQ-SYS-001',
+            type: 'System Requirement',
+            hasChildren: false,
+          }),
+        ],
+      })
+      .mockResolvedValue({ items: [] })
+    renderTree()
+    await screen.findByText('REQ-USR-001')
+    fireEvent.click(screen.getAllByRole('button', { name: /alt kırılımları aç/i })[0])
+    await screen.findByTestId('tree-row-REQ-SYS-001')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /REQ-USR-002 seç/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /REQ-SYS-001 seç/i }))
+
+    expect(screen.getByRole('button', { name: /^birleştir$/i })).toBeDisabled()
+    expect(screen.getByText(/kardeş.*birleştirilebilir/i)).toBeInTheDocument()
+    expect(mergeRequirementsMock).not.toHaveBeenCalled()
+  })
+
+  it('kilitli dugumde split dugmesi ve merge secimi kapalidir', async () => {
+    listTreeChildrenMock.mockResolvedValue({
+      items: [node({ id: 'lk', text_id: 'REQ-USR-009', locked: true, hasChildren: false })],
+    })
+    renderTree()
+    await screen.findByTestId('tree-row-REQ-USR-009')
+
+    expect(screen.queryByRole('button', { name: /bu gereksinimi böl/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /REQ-USR-009 seç/i })).toBeDisabled()
+  })
+
+  it('yetkisiz kullanicida split dugmesi ve merge secimi yoktur', async () => {
+    canMock.mockReturnValue(false)
+    listTreeChildrenMock.mockResolvedValue({
+      items: [node({ id: 'usr-1', text_id: 'REQ-USR-001', hasChildren: false })],
+    })
+    renderTree()
+    await screen.findByTestId('tree-row-REQ-USR-001')
+
+    expect(screen.queryByRole('button', { name: /bu gereksinimi böl/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /REQ-USR-001 seç/i })).toBeDisabled()
   })
 })
