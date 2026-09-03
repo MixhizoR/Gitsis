@@ -7,7 +7,7 @@
 //  test-acceptance, test-system, test-subsystem, glossary, coverage,
 //  traceability, documents, audit.
 // ============================================================================
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useApp } from './context/AppContext.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import { useProject } from './context/ProjectContext.jsx'
@@ -35,11 +35,21 @@ const REQ_KEYS = ['req-user', 'req-system', 'req-subsystem']
 const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
 
 export default function App() {
-  const { loading } = useApp()
+  const { loading, nav } = useApp()
   const { currentUser } = useAuth()
   const { activeProjectId, openProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
+
+  // Sol menu ogeleri artik ID ile gezinir (ayni tipten birden fazla sayfa
+  // olabildigi icin). Aktif id'yi temel tipe (pageKey) + ozel ad + Alan
+  // filtresine cozumle. Sabit sayfalar (dashboard, roles, coverage...) icin
+  // eslesme bulunmaz ve `page` dogrudan kullanilir.
+  const navItem = useMemo(() => {
+    const all = [...(nav?.groups || []).flatMap((g) => g.items), ...(nav?.ungrouped || [])]
+    return all.find((i) => (i.id || i.pageKey) === page) || null
+  }, [nav, page])
+  const pageKey = navItem?.pageKey || page
 
   // Personel oturumu: her zaman atandigi projeye kilitlenir (proje secim yok).
   const forcedProjectId = currentUser?.kind === 'personnel' ? currentUser.projectId : null
@@ -77,14 +87,28 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar active={page} onNavigate={setPage} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar active={page} />
+        <Topbar active={pageKey} titleOverride={navItem?.label || null} />
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
           {page === 'pbs-tree' && <PbsTree />}
-          {REQ_KEYS.includes(page) && <Hierarchy key={page} pageKey={page} />}
-          {TEST_KEYS.includes(page) && <TestCases key={page} pageKey={page} />}
-          {page === 'glossary' && <Glossary />}
+          {REQ_KEYS.includes(pageKey) && (
+            <Hierarchy
+              key={page}
+              pageKey={pageKey}
+              titleOverride={navItem?.label || null}
+              fieldFilter={navItem?.fieldFilter || null}
+            />
+          )}
+          {TEST_KEYS.includes(pageKey) && (
+            <TestCases
+              key={page}
+              pageKey={pageKey}
+              titleOverride={navItem?.label || null}
+              fieldFilter={navItem?.fieldFilter || null}
+            />
+          )}
+          {pageKey === 'glossary' && <Glossary />}
           {page === 'traceability' && <Traceability projectId={activeProjectId} />}
           {page === 'traceability-export' && <TraceabilityPage projectId={activeProjectId} />}
           {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}

@@ -55,8 +55,12 @@ export const createNavGroup = (pid, name) => api.post(`/projects/${pid}/nav/grou
 export const updateNavGroup = (pid, id, data) =>
   api.patch(`/projects/${pid}/nav/groups/${id}`, data)
 export const deleteNavGroup = (pid, id) => api.del(`/projects/${pid}/nav/groups/${id}`)
-export const moveNavItem = (pid, pageKey, groupId, order) =>
-  api.patch(`/projects/${pid}/nav/items/${pageKey}`, { groupId, order })
+//  Sayfa ekleme: sabit temel tip (pageKey) + istege bagli ozel ad ve Alan
+//  filtresi. Ayni tipten birden fazla sayfa eklenebilir.
+export const addNavItem = (pid, data) => api.post(`/projects/${pid}/nav/items`, data)
+export const updateNavItem = (pid, id, data) => api.patch(`/projects/${pid}/nav/items/${id}`, data)
+//  Menuden kaldirir; gereksinim/test VERILERINE dokunmaz.
+export const deleteNavItem = (pid, id) => api.del(`/projects/${pid}/nav/items/${id}`)
 
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)

@@ -31,7 +31,9 @@ import {
   createGroup as createNavGroup,
   updateGroup as updateNavGroup,
   deleteGroup as deleteNavGroup,
-  moveItem as moveNavItem,
+  createItem as createNavItem,
+  updateItem as updateNavItem,
+  deleteItem as deleteNavItem,
   ensureMaterialized as ensureNavMaterialized,
 } from './nav.js';
 import { parseReqIF } from './reqifParser.js';
@@ -458,19 +460,60 @@ app.delete(
   }),
 );
 
-app.patch(
-  '/api/projects/:pid/nav/items/:pageKey',
+// Sayfa ekleme: gruba yeni bir menu ogesi (sabit temel tip + istege bagli
+// ozel ad ve Alan filtresi). Ayni tipten birden fazla sayfa eklenebilir.
+app.post(
+  '/api/projects/:pid/nav/items',
   requirePM,
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const item = await moveNavItem(prisma, pid, req.params.pageKey, req.body?.groupId ?? null, req.body?.order);
+    const b = req.body || {};
+    const item = await createNavItem(prisma, pid, {
+      groupId: b.groupId ?? null,
+      pageKey: b.pageKey,
+      label: b.label,
+      fieldFilter: b.fieldFilter,
+    });
+    await audit(pid, {
+      action: 'CREATE',
+      entityType: 'nav-item',
+      entityId: item.id,
+      message: `Menu sayfasi eklendi: "${item.label || item.pageKey}".`,
+    });
+    res.status(201).json(item);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/nav/items/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const item = await updateNavItem(prisma, pid, req.params.id, req.body || {});
     await audit(pid, {
       action: 'UPDATE',
       entityType: 'nav-item',
       entityId: item.id,
-      message: `Menu ogesi tasindi: "${item.pageKey}".`,
+      message: `Menu ogesi guncellendi: "${item.label || item.pageKey}".`,
     });
     res.json(item);
+  }),
+);
+
+// Menuden kaldirir; gereksinim/test VERILERINE dokunmaz.
+app.delete(
+  '/api/projects/:pid/nav/items/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const result = await deleteNavItem(prisma, pid, req.params.id);
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'nav-item',
+      entityId: req.params.id,
+      message: `Menu ogesi kaldirildi: "${result.pageKey}" (veriler silinmedi).`,
+    });
+    res.json(result);
   }),
 );
 

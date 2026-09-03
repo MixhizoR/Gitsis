@@ -169,12 +169,19 @@ model NavItem {
   // null => grupsuz (en ust seviyede gorunur). Grup silinince item'lar
   // SetNull ile grupsuz seviyeye duser; hicbir sayfa kaybolmaz.
   groupId   String?
+  // Temel sayfa tipi (SABIT liste — navDefaults.js NAV_PAGE_KEYS).
+  // Ayni pageKey birden fazla menu ogesinde kullanilabilir: kullanici bir
+  // gruba ayni tipten birden cok "ozel sayfa" ekleyebilir (farkli ad/filtre).
   pageKey   String
+  // Ozel sayfa etiketi. null => varsayilan i18n etiketi kullanilir.
+  label     String?
+  // Ozel sayfanin Alan (disiplin) filtresi. null => filtre yok, tam liste.
+  // Tipler sabit kaldigi icin ayrisma bu filtre uzerinden saglanir.
+  fieldFilter String?
   order     Int       @default(0)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
-  @@unique([projectId, pageKey])
   @@index([projectId])
 }
 

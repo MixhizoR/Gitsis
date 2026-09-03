@@ -25,7 +25,7 @@ const TITLE_KEY = {
   audit: 'audit',
 }
 
-export default function Topbar({ active }) {
+export default function Topbar({ active, titleOverride = null }) {
   const { theme, toggleTheme } = useApp()
   const { currentUser, logout, isPM } = useAuth()
   const { t, lang, toggleLang } = useLang()
@@ -39,7 +39,7 @@ export default function Topbar({ active }) {
     <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white/80 px-6 py-3.5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
       <div>
         <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
-          {t(`page.${key}.title`)}
+          {titleOverride || t(`page.${key}.title`)}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">{t(`page.${key}.sub`)}</p>
       </div>

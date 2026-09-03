@@ -464,6 +464,15 @@ export const STRINGS = {
     'navmgr.rename': 'Yeniden adlandır',
     'navmgr.delete': 'Sil',
     'navmgr.save': 'Kaydet',
+    'navmgr.addPage': 'Sayfa Ekle',
+    'navmgr.removePage': 'Sayfayı menüden kaldır',
+    'navmgr.addPageHint':
+      'Yeni sayfa, mevcut bir gereksinim/test tipini temel alır (tipler sabittir). İstersen bir Alan (disiplin) filtresi seçerek sayfanın yalnızca o alana ait kayıtları göstermesini sağlayabilirsin.',
+    'navmgr.pageType': 'Temel tip',
+    'navmgr.pageName': 'Sayfa adı',
+    'navmgr.pageNamePlaceholder': 'Örn. Haberleşme Gereksinimleri',
+    'navmgr.pageFilter': 'Alan filtresi (isteğe bağlı)',
+    'navmgr.noFilter': '— Filtre yok (tümü) —',
     'navmgr.deleteConfirm':
       '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır.',
     'navmgr.pageCount': '{n} sayfa',
@@ -1040,6 +1049,15 @@ export const STRINGS = {
     'navmgr.rename': 'Rename',
     'navmgr.delete': 'Delete',
     'navmgr.save': 'Save',
+    'navmgr.addPage': 'Add Page',
+    'navmgr.removePage': 'Remove page from menu',
+    'navmgr.addPageHint':
+      'A new page is based on an existing requirement/test type (types are fixed). Optionally pick a Field (discipline) filter so the page shows only records in that field.',
+    'navmgr.pageType': 'Base type',
+    'navmgr.pageName': 'Page name',
+    'navmgr.pageNamePlaceholder': 'e.g. Communication Requirements',
+    'navmgr.pageFilter': 'Field filter (optional)',
+    'navmgr.noFilter': '— No filter (all) —',
     'navmgr.deleteConfirm':
       'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level.',
     'navmgr.pageCount': '{n} pages',

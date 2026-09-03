@@ -86,6 +86,8 @@ export default function Sidebar({ active, onNavigate }) {
   // Materialize edilmemis varsayilan gruplarin etiketi i18n'den gelir;
   // kullanici ozellestirdikten sonra kendi verdigi duz isim kullanilir.
   const groupLabel = (g) => (g.nameKey ? t(g.nameKey) : g.name)
+  // Ozel ad verilmisse onu, yoksa sayfanin varsayilan i18n etiketini kullan.
+  const navItemLabel = (item) => item.label || t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)
   const toggleGroup = (id) =>
     setClosedGroups((prev) => {
       const next = new Set(prev)
@@ -144,7 +146,7 @@ export default function Sidebar({ active, onNavigate }) {
         {groups.map((g, gi) => {
           const gid = g.id || `default-${gi}`
           const isOpen = !closedGroups.has(gid)
-          const groupActive = g.items.some((i) => i.pageKey === active)
+          const groupActive = g.items.some((i) => (i.id || i.pageKey) === active)
           return (
             <div key={gid}>
               <button
@@ -167,11 +169,11 @@ export default function Sidebar({ active, onNavigate }) {
                 <div className="space-y-0.5">
                   {g.items.map((item) => (
                     <NavButton
-                      key={item.pageKey}
-                      active={active === item.pageKey}
-                      onClick={() => onNavigate(item.pageKey)}
+                      key={item.id || item.pageKey}
+                      active={active === (item.id || item.pageKey)}
+                      onClick={() => onNavigate(item.id || item.pageKey)}
                       Icon={null}
-                      label={t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)}
+                      label={navItemLabel(item)}
                       indent
                     />
                   ))}
@@ -184,11 +186,11 @@ export default function Sidebar({ active, onNavigate }) {
         {/* Grupsuz sayfalar (varsayilan: Sozluk) */}
         {ungrouped.map((item) => (
           <NavButton
-            key={item.pageKey}
-            active={active === item.pageKey}
-            onClick={() => onNavigate(item.pageKey)}
+            key={item.id || item.pageKey}
+            active={active === (item.id || item.pageKey)}
+            onClick={() => onNavigate(item.id || item.pageKey)}
             Icon={IconList}
-            label={t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)}
+            label={navItemLabel(item)}
           />
         ))}
 

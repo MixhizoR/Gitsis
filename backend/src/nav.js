@@ -16,6 +16,14 @@ function bad(msg, status = 400) {
   return Object.assign(new Error(msg), { status });
 }
 
+const toItem = (i) => ({
+  id: i.id,
+  pageKey: i.pageKey,
+  label: i.label ?? null,
+  fieldFilter: i.fieldFilter ?? null,
+  order: i.order,
+});
+
 /** Projenin menu duzenini dondurur; ozellestirme yoksa yerlesik varsayilan. */
 export async function getNavLayout(prisma, projectId) {
   const groups = await prisma.navGroup.findMany({
@@ -38,9 +46,9 @@ export async function getNavLayout(prisma, projectId) {
       name: g.name,
       nameKey: null, // materialize edilmis: etiket kullanicinin verdigi isim
       order: g.order,
-      items: g.items.map((i) => ({ pageKey: i.pageKey, order: i.order })),
+      items: g.items.map(toItem),
     })),
-    ungrouped: ungrouped.map((i) => ({ pageKey: i.pageKey, order: i.order })),
+    ungrouped: ungrouped.map(toItem),
     materialized: true,
   };
 }
@@ -122,18 +130,64 @@ export async function deleteGroup(prisma, projectId, groupId) {
   });
 }
 
-/** Bir sayfayi baska bir gruba (veya grupsuz seviyeye) tasir. */
-export async function moveItem(prisma, projectId, pageKey, groupId, order) {
-  if (!isValidPageKey(pageKey)) throw bad('Gecersiz sayfa anahtari.');
+/**
+ * Bir gruba YENI sayfa ekler. Sayfa = sabit bir temel tip (pageKey) +
+ * istege bagli ozel ad ve Alan filtresi. Ayni tipten birden fazla sayfa
+ * eklenebilir; boylece kullanici gruba istedigi kadar sayfa koyabilir.
+ */
+export async function createItem(prisma, projectId, { groupId, pageKey, label, fieldFilter }) {
+  if (!isValidPageKey(pageKey)) throw bad('Gecersiz sayfa tipi.');
   return prisma.$transaction(async (tx) => {
     await materializeDefaults(tx, projectId);
     if (groupId) {
       const group = await tx.navGroup.findUnique({ where: { id: groupId } });
       if (!group || group.projectId !== projectId) throw bad('Hedef grup bulunamadi.', 404);
     }
-    const existing = await tx.navItem.findFirst({ where: { projectId, pageKey } });
-    const data = { groupId: groupId || null, order: Number(order) || 0 };
-    if (existing) return tx.navItem.update({ where: { id: existing.id }, data });
-    return tx.navItem.create({ data: { projectId, pageKey, ...data } });
+    const maxOrder = await tx.navItem.aggregate({
+      where: { projectId, groupId: groupId || null },
+      _max: { order: true },
+    });
+    return tx.navItem.create({
+      data: {
+        projectId,
+        groupId: groupId || null,
+        pageKey,
+        label: label?.trim() || null,
+        fieldFilter: fieldFilter?.trim() || null,
+        order: (maxOrder._max.order ?? -1) + 1,
+      },
+    });
   });
+}
+
+/** Bir menu ogesini gunceller: grup, sira, ozel ad, Alan filtresi. */
+export async function updateItem(prisma, projectId, itemId, data) {
+  return prisma.$transaction(async (tx) => {
+    await materializeDefaults(tx, projectId);
+    const item = await tx.navItem.findUnique({ where: { id: itemId } });
+    if (!item || item.projectId !== projectId) throw bad('Menu ogesi bulunamadi.', 404);
+    if (data.groupId) {
+      const group = await tx.navGroup.findUnique({ where: { id: data.groupId } });
+      if (!group || group.projectId !== projectId) throw bad('Hedef grup bulunamadi.', 404);
+    }
+    const patch = {};
+    if (data.groupId !== undefined) patch.groupId = data.groupId || null;
+    if (data.order !== undefined) patch.order = Number(data.order) || 0;
+    if (data.label !== undefined) patch.label = String(data.label ?? '').trim() || null;
+    if (data.fieldFilter !== undefined) {
+      patch.fieldFilter = String(data.fieldFilter ?? '').trim() || null;
+    }
+    return tx.navItem.update({ where: { id: itemId }, data: patch });
+  });
+}
+
+/**
+ * Bir menu ogesini menuden kaldirir. Yalnizca MENU kaydi silinir —
+ * gereksinim/test verilerine DOKUNULMAZ.
+ */
+export async function deleteItem(prisma, projectId, itemId) {
+  const item = await prisma.navItem.findUnique({ where: { id: itemId } });
+  if (!item || item.projectId !== projectId) throw bad('Menu ogesi bulunamadi.', 404);
+  await prisma.navItem.delete({ where: { id: itemId } });
+  return { ok: true, pageKey: item.pageKey };
 }

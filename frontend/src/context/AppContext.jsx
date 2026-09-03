@@ -227,8 +227,18 @@ export function AppProvider({ children }) {
       await refresh()
       return res
     },
-    async assignNavItem(pageKey, groupId) {
-      await data.moveNavItem(pid, pageKey, groupId, 0)
+    // Sayfa ekleme/guncelleme/kaldirma (menu ogeleri, id bazli).
+    async addNavItem(body) {
+      const it = await data.addNavItem(pid, body)
+      await refresh()
+      return it
+    },
+    async updateNavItem(id, body) {
+      await data.updateNavItem(pid, id, body)
+      await refresh()
+    },
+    async removeNavItem(id) {
+      await data.deleteNavItem(pid, id)
       await refresh()
     },
 
