@@ -36,9 +36,6 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
       - name: Setup pnpm
@@ -54,22 +51,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Lint
-        run: pnpm run lint
+        run: pnpm --filter ehsim-rmt run lint
       - name: Format check
-        run: pnpm run format:check
+        run: pnpm --filter ehsim-rmt run format:check
       - name: Test
-        run: pnpm run test
+        run: pnpm --filter ehsim-rmt test
       - name: Build
-        run: pnpm run build
+        run: pnpm --filter ehsim-rmt run build
 
   backend:
     name: Backend — lint / test
     needs: detect-changes
     if: needs.detect-changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
     env:
       POSTGRES_PASSWORD: test_password
       JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}
@@ -102,14 +96,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Lint
-        run: pnpm run lint
+        run: pnpm --filter ehsim-rmt-backend run lint
       - name: Format check
-        run: pnpm run format:check
+        run: pnpm --filter ehsim-rmt-backend run format:check
       - name: Run migrations & Test
         run: |
-          pnpm run prisma:generate
-          pnpm run db:push
-          pnpm run test
+          pnpm --filter ehsim-rmt-backend run prisma:generate
+          pnpm --filter ehsim-rmt-backend run db:push
+          pnpm --filter ehsim-rmt-backend run test
 
   ci-status:
     name: CI Pipeline Status
