@@ -10,10 +10,10 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_DEPTH = 50;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const MAX_DEPTH = 50;
 
-function assertUuid(name, value) {
+export function assertUuid(name, value) {
   if (typeof value !== 'string' || !UUID_RE.test(value)) {
     throw new Error(`invalid ${name}: must be UUID`);
   }

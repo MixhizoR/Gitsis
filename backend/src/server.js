@@ -16,7 +16,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { TYPE_PREFIX, STATUS } from './constants.js';
+import { STATUS } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
@@ -24,6 +24,8 @@ import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
+import { nextTextId as nextTextIdShared } from './idGen.js';
+import { moveRequirement, splitRequirement, mergeRequirements } from './treeOps.js';
 import { parseReqIF } from './reqifParser.js';
 
 const prisma = new PrismaClient();
@@ -79,39 +81,10 @@ async function audit(projectId, entry) {
   }
 }
 
-// --- text_id ureteci --------------------------------------------------------
-//  OMUR BOYU BENZERSIZLIK (kara liste): bir text_id bir kez uretildiyse, ilgili
-//  kayit SILINSE BILE numarasi asla yeniden kullanilmaz. Bunun icin sadece
-//  CANLI kayitlara degil, AuditLog'daki tum textId izlerine de bakariz
-//  (silme kayitlari audit'te kalir). Boylece "en yuksek numarali kaydi silip
-//  ayni kodu tekrar uretme" acigi kapanir.
-async function nextTextId(projectId, type, isTest) {
-  const prefix = TYPE_PREFIX[type] || 'REQ-GEN';
-  const [rows, auditRows] = await Promise.all([
-    isTest
-      ? prisma.testCase.findMany({ where: { projectId }, select: { text_id: true } })
-      : prisma.requirement.findMany({ where: { projectId }, select: { text_id: true } }),
-    // Audit'te textId "REQ-SYS-001 -> TC-SYS-002" gibi birlesik de olabildigi
-    // icin bosluk/ok'a gore parcalayip her parcayi degerlendiririz.
-    prisma.auditLog.findMany({
-      where: { projectId, textId: { startsWith: prefix + '-' } },
-      select: { textId: true },
-    }),
-  ]);
-  let max = 0;
-  const consider = (raw) => {
-    if (!raw) return;
-    for (const token of String(raw).split(/[\s>-]*->[\s>-]*|\s+/)) {
-      if (token && token.startsWith(prefix + '-')) {
-        const n = parseInt(token.split('-').pop(), 10);
-        if (!Number.isNaN(n) && n > max) max = n;
-      }
-    }
-  };
-  for (const { text_id } of rows) consider(text_id);
-  for (const { textId } of auditRows) consider(textId);
-  return `${prefix}-${String(max + 1).padStart(3, '0')}`;
-}
+// --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
+//  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
+//  icinden uretebilmesi icin paylasilabilir hale getirildi.
+const nextTextId = (projectId, type, isTest) => nextTextIdShared(prisma, projectId, type, isTest);
 
 // --- Cascade: bir projedeki tum gereksinim durumlarini yeniden hesapla ------
 //  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu (1 okuma +
@@ -542,6 +515,41 @@ app.post(
     const n = await batchDelete(pid, 'requirement', req.body?.ids, 'requirement');
     await cascade(pid);
     res.json({ ok: true, deleted: n });
+  }),
+);
+
+// --- PBS agaci yapisal islemleri (Issue #9 / Adim 3) -------------------------
+//  Tasima/bolme/birlestirme atomik transaction icinde (treeOps.js); dongusel
+//  tasima ve tip uyumsuzlugu 400 doner; text_id'ler asla bozulmaz/yeniden
+//  kullanilmaz.
+app.patch(
+  '/api/projects/:pid/requirements/:id/move',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const newParentId = req.body?.parentId ?? null;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const row = await moveRequirement(prisma, pid, req.params.id, newParentId, actor);
+    res.json(row);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/requirements/:id/split',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const result = await splitRequirement(prisma, pid, req.params.id, req.body?.newTitles, actor);
+    res.status(201).json(result);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/requirements/merge',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const survivor = await mergeRequirements(prisma, pid, req.body?.ids, actor);
+    res.json(survivor);
   }),
 );
 
