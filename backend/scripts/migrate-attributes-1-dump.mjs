@@ -32,13 +32,11 @@ async function main() {
 
   let requirements, testCases;
   try {
-    requirements = await prisma.$queryRawUnsafe(
-      `SELECT "id", "priority", "dal_level" FROM "Requirement"`,
-    );
+    requirements = await prisma.$queryRawUnsafe(`SELECT "id", "priority", "dal_level" FROM "Requirement"`);
   } catch (e) {
     console.error(
       '[migrate:1] Requirement.priority/dal_level okunamadi. Bu script `prisma db push` calistirilmadan ONCE ' +
-        'calistirilmalidir (kolonlar hala DB\'de olmali). Hata:',
+        "calistirilmalidir (kolonlar hala DB'de olmali). Hata:",
       e.message,
     );
     process.exit(1);

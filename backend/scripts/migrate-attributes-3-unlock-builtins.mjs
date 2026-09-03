@@ -24,7 +24,7 @@ async function main() {
   const count = await unlockLegacyBuiltinAttributes(prisma);
   console.log(`[migrate:3] ${count} eski Priority/DAL Level tanimi artik silinebilir (system kilidi kaldirildi).`);
   console.log('[migrate:3] DAL Level artik yeni projelerde varsayilan olarak eklenmiyor.');
-  console.log('[migrate:3] Mevcut projelerde DAL Level istenmiyorsa, Oznitelik Yoneticisi\'nden silinebilir.');
+  console.log("[migrate:3] Mevcut projelerde DAL Level istenmiyorsa, Oznitelik Yoneticisi'nden silinebilir.");
 }
 
 main()

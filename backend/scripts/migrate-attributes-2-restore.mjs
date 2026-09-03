@@ -36,7 +36,9 @@ async function main() {
     process.exit(1);
   }
   const dump = JSON.parse(readFileSync(dumpPath, 'utf8'));
-  console.log(`[migrate:2] Dump okundu (${dump.dumpedAt}): ${dump.requirements.length} req, ${dump.testCases.length} test.`);
+  console.log(
+    `[migrate:2] Dump okundu (${dump.dumpedAt}): ${dump.requirements.length} req, ${dump.testCases.length} test.`,
+  );
 
   // 1) Mevcut tum projeler icin gomulu oznitelik tanimlarini backfill et.
   const projects = await prisma.project.findMany({ select: { id: true, name: true } });
