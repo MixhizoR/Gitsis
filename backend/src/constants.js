@@ -35,15 +35,24 @@ export const LINK_TYPE = {
 };
 
 // text_id on ekleri
-export const TYPE_PREFIX = {
-  [REQ_TYPE.USER]: 'REQ-USR',
-  [REQ_TYPE.SYSTEM]: 'REQ-SYS',
-  [REQ_TYPE.SOFTWARE]: 'REQ-SW',
-  [REQ_TYPE.HARDWARE]: 'REQ-HW',
+// --- text_id onek semasi ----------------------------------------------------
+//  Yapi: <codePrefix>-<TIP>-<NNN>     ornek: EH-KAHVE-TİD-USR-001
+//  codePrefix PROJE bazlidir (Project.codePrefix); tip segmenti asagidadir.
+export const DEFAULT_CODE_PREFIX = 'EH-KAHVE-TİD';
+
+export const TYPE_SUFFIX = {
+  [REQ_TYPE.USER]: 'USR',
+  [REQ_TYPE.SYSTEM]: 'SYS',
+  [REQ_TYPE.SOFTWARE]: 'SW',
+  [REQ_TYPE.HARDWARE]: 'HW',
   [TEST_TYPE.ACCEPTANCE]: 'TC-ACC',
   [TEST_TYPE.SYSTEM]: 'TC-SYS',
   [TEST_TYPE.SUBSYSTEM]: 'TC-SUB',
+  glossary: 'GLO',
 };
+
+/** Bir proje + tip icin tam onek: "EH-KAHVE-TİD-USR" */
+export const prefixFor = (codePrefix, type) => `${codePrefix || DEFAULT_CODE_PREFIX}-${TYPE_SUFFIX[type] || 'GEN'}`;
 
 // --- Satisfies kurallari (from = UST, to = ALT) ----------------------------
 //  User  <- System           (System, User gereksinimini karsilar)

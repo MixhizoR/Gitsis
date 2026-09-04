@@ -14,7 +14,9 @@ import {
   STATUS,
   DAL,
   LINK_TYPE,
-  TYPE_PREFIX,
+  TYPE_SUFFIX,
+  DEFAULT_CODE_PREFIX,
+  prefixFor,
   SATISFIES_PARENT_OF,
   VERIFIES_TARGET_TYPES,
   ASSIGNABLE_REQ_TYPES,
@@ -41,22 +43,37 @@ test('TEST_TYPES <-> TEST_TYPE: deger seti ayni', () => {
   assert.deepEqual(new Set(TEST_TYPES), new Set(Object.values(TEST_TYPE)));
 });
 
-test('TYPE_PREFIX: her REQ/TEST tipinin bir text_id on eki var', () => {
-  for (const t of REQ_TYPES) assert.ok(TYPE_PREFIX[t], `Prefix eksik: ${t}`);
-  for (const t of TEST_TYPES) assert.ok(TYPE_PREFIX[t], `Prefix eksik: ${t}`);
+// NOT: text_id onek semasi <codePrefix>-<TIP>-<NNN> yapisina gecti
+// (orn. EH-KAHVE-TİD-USR-001). Eski sabit TYPE_PREFIX yerine tip segmentini
+// TYPE_SUFFIX tutar, tam onegi prefixFor() uretir. Asagidaki testler ayni
+// invariantlari (varlik / tekillik / beklenen degerler) yeni sozlesme
+// uzerinden dogrular.
+test('TYPE_SUFFIX: her REQ/TEST tipinin bir text_id tip segmenti var', () => {
+  for (const t of REQ_TYPES) assert.ok(TYPE_SUFFIX[t], `Tip segmenti eksik: ${t}`);
+  for (const t of TEST_TYPES) assert.ok(TYPE_SUFFIX[t], `Tip segmenti eksik: ${t}`);
 });
 
-test('TYPE_PREFIX on ekleri tekil (REQ-USR, REQ-SYS, REQ-SW, REQ-HW, TC-*)', () => {
-  const vals = Object.values(TYPE_PREFIX);
-  assert.equal(new Set(vals).size, vals.length, 'Prefix tekrari olamaz');
-  // Beklenen on ekler (donusum invariantlari)
-  assert.equal(TYPE_PREFIX[REQ_TYPE.USER], 'REQ-USR');
-  assert.equal(TYPE_PREFIX[REQ_TYPE.SYSTEM], 'REQ-SYS');
-  assert.equal(TYPE_PREFIX[REQ_TYPE.SOFTWARE], 'REQ-SW');
-  assert.equal(TYPE_PREFIX[REQ_TYPE.HARDWARE], 'REQ-HW');
-  assert.equal(TYPE_PREFIX[TEST_TYPE.ACCEPTANCE], 'TC-ACC');
-  assert.equal(TYPE_PREFIX[TEST_TYPE.SYSTEM], 'TC-SYS');
-  assert.equal(TYPE_PREFIX[TEST_TYPE.SUBSYSTEM], 'TC-SUB');
+test('TYPE_SUFFIX segmentleri tekil (USR, SYS, SW, HW, TC-*)', () => {
+  const vals = Object.values(TYPE_SUFFIX);
+  assert.equal(new Set(vals).size, vals.length, 'Tip segmenti tekrari olamaz');
+  // Beklenen segmentler (donusum invariantlari)
+  assert.equal(TYPE_SUFFIX[REQ_TYPE.USER], 'USR');
+  assert.equal(TYPE_SUFFIX[REQ_TYPE.SYSTEM], 'SYS');
+  assert.equal(TYPE_SUFFIX[REQ_TYPE.SOFTWARE], 'SW');
+  assert.equal(TYPE_SUFFIX[REQ_TYPE.HARDWARE], 'HW');
+  assert.equal(TYPE_SUFFIX[TEST_TYPE.ACCEPTANCE], 'TC-ACC');
+  assert.equal(TYPE_SUFFIX[TEST_TYPE.SYSTEM], 'TC-SYS');
+  assert.equal(TYPE_SUFFIX[TEST_TYPE.SUBSYSTEM], 'TC-SUB');
+});
+
+test('prefixFor: proje onegi + tip segmentini birlestirir, tekilligi korur', () => {
+  assert.equal(prefixFor('EH-KAHVE-TİD', REQ_TYPE.USER), 'EH-KAHVE-TİD-USR');
+  assert.equal(prefixFor('EH-OTOPILOT', TEST_TYPE.SYSTEM), 'EH-OTOPILOT-TC-SYS');
+  // Onek verilmezse varsayilan kullanilir
+  assert.equal(prefixFor(null, REQ_TYPE.HARDWARE), `${DEFAULT_CODE_PREFIX}-HW`);
+  // Tum tipler icin uretilen tam onekler de tekil olmali
+  const all = [...REQ_TYPES, ...TEST_TYPES].map((t) => prefixFor(DEFAULT_CODE_PREFIX, t));
+  assert.equal(new Set(all).size, all.length, 'Tam onek tekrari olamaz');
 });
 
 test('SATISFIES_PARENT_OF: User disindaki her req tipinin ust tipi var', () => {

@@ -60,6 +60,35 @@ export function validateLink(from, to, type, toKind) {
 }
 
 /**
+ * PBS agaci (Issue #9): bir gereksinimin verilen ebeveyne baglanip
+ * baglanamayacagini TIP kuralina gore dogrular (SATISFIES_PARENT_OF).
+ * parentId = null (kok dugum) yalnizca User Requirement icin gecerlidir.
+ *
+ * TODO (Issue #9 / Adim 3): Tasima (move) / bolme (split) / birlestirme (merge)
+ * endpoint'lerinde bu kontrol, dongusel tasima kontrolu (Recursive CTE) ve
+ * parentId <-> Satisfies bagi senkronizasyonu ile birlikte tek bir atomik
+ * transaction icinde uygulanacak. Bu adimda yalnizca saf dogrulama vardir;
+ * hicbir cagri noktasina baglanmamistir.
+ *
+ * @param {object} child  { type }
+ * @param {object|null} parent { id, type } — kok dugum icin null
+ */
+export function validateParentType(child, parent) {
+  if (!child) return { ok: false, error: 'Gecersiz gereksinim.' };
+  const expectedParent = SATISFIES_PARENT_OF[child.type];
+  if (!parent) {
+    if (expectedParent) return { ok: false, error: `"${child.type}" kok dugum olamaz; bir ust gereksinim gerekir.` };
+    return { ok: true };
+  }
+  if (child.id && child.id === parent.id) return { ok: false, error: 'Bir gereksinim kendi ust dugumu olamaz.' };
+  if (!expectedParent) return { ok: false, error: `"${child.type}" bir ust gereksinime baglanamaz.` };
+  if (parent.type !== expectedParent) {
+    return { ok: false, error: `"${child.type}" yalnizca "${expectedParent}" altinda yer alabilir.` };
+  }
+  return { ok: true };
+}
+
+/**
  * Bir gereksinimin otomatik durumunu, ona Verifies ile bagli test
  * senaryolarina gore hesaplar.
  *   - hicbir test bagli degil            -> 'In Review' (kilitli)

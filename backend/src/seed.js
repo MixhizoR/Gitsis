@@ -15,7 +15,16 @@
 // ============================================================================
 import { PrismaClient } from '@prisma/client';
 import { fileURLToPath } from 'node:url';
-import { REQ_TYPE, TEST_TYPE, PRIORITY, STATUS, LINK_TYPE } from './constants.js';
+import {
+  REQ_TYPE,
+  TEST_TYPE,
+  PRIORITY,
+  STATUS,
+  LINK_TYPE,
+  TYPE_SUFFIX,
+  DEFAULT_CODE_PREFIX,
+  prefixFor,
+} from './constants.js';
 import { recomputeAllStatuses } from './logic.js';
 import { hashPassword } from './auth.js';
 import { seedDefaultAttributeDefinitions } from './attributes.js';
@@ -202,10 +211,18 @@ export async function runSeed() {
 
   // 4) Gereksinimler (72)
   const reqData = [];
-  USER_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.USER, 'REQ-USR', k + 1, t)));
-  SYSTEM_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.SYSTEM, 'REQ-SYS', k + 1, t)));
-  SW_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.SOFTWARE, 'REQ-SW', k + 1, t)));
-  HW_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.HARDWARE, 'REQ-HW', k + 1, t)));
+  // text_id onegi proje bazlidir; seed varsayilan oneki kullanir
+  // (orn. EH-KAHVE-TİD-USR-001).
+  // NOT: modul seviyesindeki `P` oncelik dizisidir; onek uretici PFX olarak
+  // adlandirildi ki golgelenme olmasin.
+  const PFX = (type) => prefixFor(DEFAULT_CODE_PREFIX, type);
+  // Kisa kod (USR-001) -> tam text_id (EH-KAHVE-TİD-USR-001) donusturucu:
+  // asagidaki bag haritalari kisa kodla yazilir, okunakli kalsin diye.
+  const code = (type, i) => `${PFX(type)}-${pad(i)}`;
+  USER_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.USER, PFX(REQ_TYPE.USER), k + 1, t)));
+  SYSTEM_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.SYSTEM, PFX(REQ_TYPE.SYSTEM), k + 1, t)));
+  SW_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.SOFTWARE, PFX(REQ_TYPE.SOFTWARE), k + 1, t)));
+  HW_TITLES.forEach((t, k) => reqData.push(makeReq(pid, REQ_TYPE.HARDWARE, PFX(REQ_TYPE.HARDWARE), k + 1, t)));
   await prisma.requirement.createMany({ data: reqData });
 
   // 5) Test senaryolari (16) — durumlar cascade'i cesitlendirmek icin secildi
@@ -228,8 +245,11 @@ export async function runSeed() {
     'TC-SUB-005': STATUS.REJECTED,
   };
   const testData = [];
-  const pushTest = (type, prefix, i, title) => {
-    const text_id = `${prefix}-${pad(i)}`;
+  // TEST_STATUS anahtarlari KISA kod ile tutulur (TC-ACC-001); tam text_id
+  // proje onegiyle uretilir (EH-KAHVE-TİD-TC-ACC-001).
+  const pushTest = (type, i, title) => {
+    const shortKey = `${TYPE_SUFFIX[type]}-${pad(i)}`;
+    const text_id = `${PFX(type)}-${pad(i)}`;
     testData.push({
       projectId: pid,
       text_id,
@@ -237,14 +257,17 @@ export async function runSeed() {
       description: `${title} — dogrulama senaryosu.`,
       type,
       field: null,
+      // Modular oznitelikler (main): sabit priority/dal_level kolonlari yok.
       attributes: {},
-      status: TEST_STATUS[text_id] || STATUS.IN_REVIEW,
+      // shortKey: text_id artik proje onegi tasiyor (EH-KAHVE-TİD-TC-ACC-001),
+      // TEST_STATUS haritasi ise KISA kod ile yazili (TC-ACC-001).
+      status: TEST_STATUS[shortKey] || STATUS.IN_REVIEW,
       author: SEED_AUTHOR,
     });
   };
-  ACC_TITLES.forEach((t, k) => pushTest(TEST_TYPE.ACCEPTANCE, 'TC-ACC', k + 1, t));
-  SYS_TEST_TITLES.forEach((t, k) => pushTest(TEST_TYPE.SYSTEM, 'TC-SYS', k + 1, t));
-  SUB_TEST_TITLES.forEach((t, k) => pushTest(TEST_TYPE.SUBSYSTEM, 'TC-SUB', k + 1, t));
+  ACC_TITLES.forEach((t, k) => pushTest(TEST_TYPE.ACCEPTANCE, k + 1, t));
+  SYS_TEST_TITLES.forEach((t, k) => pushTest(TEST_TYPE.SYSTEM, k + 1, t));
+  SUB_TEST_TITLES.forEach((t, k) => pushTest(TEST_TYPE.SUBSYSTEM, k + 1, t));
   await prisma.testCase.createMany({ data: testData });
 
   // ID haritalari (text_id -> id)
@@ -255,50 +278,67 @@ export async function runSeed() {
 
   // 6) Baglar (58)
   const links = [];
+  // PBS agaci (Issue #9): Satisfies bagi kurulurken ayni anda alt gereksinimin
+  // parentId'si de belirlenir; boylece demo veri ayrica backfill istemez.
+  // ust gereksinim id -> alt gereksinim id listesi
+  const treeChildren = new Map();
   const addLink = (fromTid, toTid, type, kind) => {
     const fromId = reqIdOf.get(fromTid);
     const toId = kind === 'test' ? testIdOf.get(toTid) : reqIdOf.get(toTid);
     if (!fromId || !toId) return;
     links.push({ projectId: pid, fromId, toId, type, createdBy: SEED_AUTHOR });
+    if (type === LINK_TYPE.SATISFIES && kind === 'req') {
+      if (!treeChildren.has(fromId)) treeChildren.set(fromId, []);
+      treeChildren.get(fromId).push(toId);
+    }
   };
 
   // 6a) Satisfies: User <- System (20)
   for (let i = 1; i <= 20; i++) {
     const userIdx = ((i - 1) % 12) + 1;
-    addLink(`REQ-USR-${pad(userIdx)}`, `REQ-SYS-${pad(i)}`, LINK_TYPE.SATISFIES, 'req');
+    addLink(code(REQ_TYPE.USER, userIdx), code(REQ_TYPE.SYSTEM, i), LINK_TYPE.SATISFIES, 'req');
   }
   // 6b) Satisfies: System <- Sub-system (22) — 14 SW + 8 HW
   let sysCursor = 1;
   const nextSys = () => {
-    const s = `REQ-SYS-${pad(((sysCursor - 1) % 20) + 1)}`;
+    const s = code(REQ_TYPE.SYSTEM, ((sysCursor - 1) % 20) + 1);
     sysCursor++;
     return s;
   };
-  for (let i = 1; i <= 14; i++) addLink(nextSys(), `REQ-SW-${pad(i)}`, LINK_TYPE.SATISFIES, 'req');
-  for (let i = 1; i <= 8; i++) addLink(nextSys(), `REQ-HW-${pad(i)}`, LINK_TYPE.SATISFIES, 'req');
+  for (let i = 1; i <= 14; i++) addLink(nextSys(), code(REQ_TYPE.SOFTWARE, i), LINK_TYPE.SATISFIES, 'req');
+  for (let i = 1; i <= 8; i++) addLink(nextSys(), code(REQ_TYPE.HARDWARE, i), LINK_TYPE.SATISFIES, 'req');
 
   // 6c) Verifies: gereksinim <- test (16)
+  // [gereksinim tipi, no, test tipi, no]
   const verifyMap = [
-    ['REQ-USR-001', 'TC-ACC-001'],
-    ['REQ-USR-002', 'TC-ACC-002'],
-    ['REQ-USR-003', 'TC-ACC-003'],
-    ['REQ-USR-004', 'TC-ACC-004'],
-    ['REQ-USR-005', 'TC-ACC-005'],
-    ['REQ-SYS-001', 'TC-SYS-001'],
-    ['REQ-SYS-002', 'TC-SYS-002'],
-    ['REQ-SYS-003', 'TC-SYS-003'],
-    ['REQ-SYS-004', 'TC-SYS-004'],
-    ['REQ-SYS-005', 'TC-SYS-005'],
-    ['REQ-SYS-006', 'TC-SYS-006'],
-    ['REQ-SW-001', 'TC-SUB-001'],
-    ['REQ-SW-002', 'TC-SUB-002'],
-    ['REQ-SW-003', 'TC-SUB-003'],
-    ['REQ-HW-001', 'TC-SUB-004'],
-    ['REQ-HW-002', 'TC-SUB-005'],
+    [REQ_TYPE.USER, 1, TEST_TYPE.ACCEPTANCE, 1],
+    [REQ_TYPE.USER, 2, TEST_TYPE.ACCEPTANCE, 2],
+    [REQ_TYPE.USER, 3, TEST_TYPE.ACCEPTANCE, 3],
+    [REQ_TYPE.USER, 4, TEST_TYPE.ACCEPTANCE, 4],
+    [REQ_TYPE.USER, 5, TEST_TYPE.ACCEPTANCE, 5],
+    [REQ_TYPE.SYSTEM, 1, TEST_TYPE.SYSTEM, 1],
+    [REQ_TYPE.SYSTEM, 2, TEST_TYPE.SYSTEM, 2],
+    [REQ_TYPE.SYSTEM, 3, TEST_TYPE.SYSTEM, 3],
+    [REQ_TYPE.SYSTEM, 4, TEST_TYPE.SYSTEM, 4],
+    [REQ_TYPE.SYSTEM, 5, TEST_TYPE.SYSTEM, 5],
+    [REQ_TYPE.SYSTEM, 6, TEST_TYPE.SYSTEM, 6],
+    [REQ_TYPE.SOFTWARE, 1, TEST_TYPE.SUBSYSTEM, 1],
+    [REQ_TYPE.SOFTWARE, 2, TEST_TYPE.SUBSYSTEM, 2],
+    [REQ_TYPE.SOFTWARE, 3, TEST_TYPE.SUBSYSTEM, 3],
+    [REQ_TYPE.HARDWARE, 1, TEST_TYPE.SUBSYSTEM, 4],
+    [REQ_TYPE.HARDWARE, 2, TEST_TYPE.SUBSYSTEM, 5],
   ];
-  verifyMap.forEach(([r, t]) => addLink(r, t, LINK_TYPE.VERIFIES, 'test'));
+  verifyMap.forEach(([rt, ri, tt, ti]) => addLink(code(rt, ri), code(tt, ti), LINK_TYPE.VERIFIES, 'test'));
 
   await prisma.traceabilityLink.createMany({ data: links, skipDuplicates: true });
+
+  // 6d) PBS agaci: Satisfies baglarindan turetilen parentId'ler (Issue #9).
+  // Seed'de her alt gereksinimin tek ebeveyni vardir; cakisma olusmaz.
+  await prisma.$transaction(
+    [...treeChildren].map(([parentId, childIds]) =>
+      prisma.requirement.updateMany({ where: { id: { in: childIds } }, data: { parentId } }),
+    ),
+  );
 
   // 7) Otomatik durum (cascade) hesapla ve gereksinimlere isle
   const changes = recomputeAllStatuses(reqs, tests, links);
