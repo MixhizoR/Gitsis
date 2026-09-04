@@ -47,6 +47,7 @@ model Project {
   personnel    Personnel[]
   approvals    Approval[]
   snapshots    ProjectSnapshot[]
+  history      RequirementHistory[]
 }
 
 // --- Snaphotlar (baseline / sürüm) ----------------------------------------
@@ -166,9 +167,47 @@ model Requirement {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  history     RequirementHistory[]
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
+}
+
+// --- Gereksinim versiyon gecmisi (SCD Type 4) ------------------------------
+//  Issue #57: Her ICERIK degisiminde (title/description/field + attributes
+//  icindeki priority/dal_level) ESKI durumun tam kopyasi bu tabloya yazilir.
+//  Ana tablo guncel durumu tasir; bu tablo gecmis versiyonlari saklar.
+//  version sayaci gereksinim bazli 1'den baslar; her satir, degisikligi
+//  yapan UPDATE kaydina (AuditLog) auditLogId ile baglanir (kim neyi
+//  degistirdi tek yerden izlenir). Otomatik status/approval cascade'leri bu
+//  tabloya YAZMAZ (yalnizca PUT ile yapilan icerik degisimleri tetikler).
+model RequirementHistory {
+  id               String   @id @default(uuid())
+  projectId        String
+  requirementId    String
+  version          Int      // gereksinim bazli, 1'den baslar
+  // Ana tablo alan kopyasi (degisiklik ONCESI durum)
+  text_id          String
+  title            String
+  description      String   @default("")
+  type             String
+  field            String?
+  status           String
+  approvalStatus   String   @default("Pending")
+  locked           Boolean  @default(false)
+  attributes       Json     @default("{}")
+  author           String?
+  relatedDocuments String[] @default([])
+  changedAt        DateTime @default(now())
+  changedBy        String?
+  auditLogId       String?  @unique
+  requirement      Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  project          Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditLog         AuditLog?   @relation(fields: [auditLogId], references: [id], onDelete: SetNull)
+
+  @@unique([requirementId, version])
+  @@index([projectId])
+  @@index([requirementId])
 }
 
 // --- Test Senaryolari (Acceptance / System / Sub-system Test) ---------------
@@ -231,6 +270,10 @@ model TraceabilityLink {
   fromId    String
   toId      String
   type      String
+  // Issue #57: Kaynak (fromId) gereksinimde ICERIK degisikligi oldugunda bu
+  // bag 'supheli' (suspect) isaretlenir — alt gereksinimler (Satisfies) ve
+  // testler (Verifies) icin. approve izni olanlar temizleyebilir.
+  isSuspect Boolean  @default(false)
   createdAt DateTime @default(now())
   createdBy String?
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -270,6 +313,7 @@ model AuditLog {
   actor      String?
   createdAt  DateTime @default(now())
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  historyEntry RequirementHistory? // Issue #57: versiyon satirinin bagli oldugu audit kaydi
 
   @@index([projectId])
 }
