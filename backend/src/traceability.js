@@ -7,6 +7,7 @@ import { validateLink } from './logic.js';
 import { recomputeStatusesBulk } from './cascade.js';
 import { prefixFor } from './constants.js';
 import { parseReqIF } from './reqifParser.js';
+import { cleanRichText } from './sanitize.js';
 
 const ALLOWED_EXT = ['.xlsx', '.xls'];
 const upload = multer({
@@ -214,15 +215,14 @@ router.post('/import/reqif', async (req, res) => {
       for (const reqItem of requirements) {
         currentMax += 1;
         const text_id = `${prefix}-${String(currentMax).padStart(3, '0')}`;
-
         const created = await tx.requirement.create({
           data: {
             projectId: pid,
             text_id,
             title: (reqItem.title || 'Adsız Gereksinim').trim(),
-            description: (reqItem.description || '').trim(),
+            description: cleanRichText((reqItem.description || '').trim()),
             type: 'User Requirement',
-            priority: 'Medium',
+            attributes: { priority: 'Medium' },
             status: 'In Review',
             author: 'reqif.import',
           },
@@ -285,7 +285,7 @@ router.get('/export/matrix', async (req, res) => {
              r."title" AS "reqTitle",
              r."description" AS "reqDescription",
              r."status" AS "reqStatus",
-             r."priority" AS "reqPriority",
+             r."attributes"->>'priority' AS "reqPriority",
              l."id" AS "linkId",
              t."id" AS "testId",
              t."text_id" AS "testTextId",
@@ -589,7 +589,7 @@ router.get('/matrix', async (req, res) => {
              r."description" AS "reqDescription",
              r."type" AS "reqType",
              r."status" AS "reqStatus",
-             r."priority" AS "reqPriority",
+             r."attributes"->>'priority' AS "reqPriority",
              r."author" AS "reqAuthor",
              COALESCE(
                json_agg(

@@ -301,7 +301,10 @@ export default function PbsTree() {
       ) : (
         <EntityTable
           rows={rows}
-          columns={['type', 'field', 'priority', 'dal', 'links']}
+          columns={['type', 'field', 'links']}
+          // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
+          // gereksinim sayfalariyla AYNI sekilde dinamik sutun olarak gelir.
+          attributeEntityType="requirement"
           linkCountFor={linkCountFor}
           // Tabloda yalnizca BASLIK gorunur; TANIM (description) satirda
           // gosterilmez — goz ikonuyla acilan ViewModal'da okunur.

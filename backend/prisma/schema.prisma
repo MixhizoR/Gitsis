@@ -40,6 +40,7 @@ model Project {
   updatedAt    DateTime           @updatedAt
 
   fields       ProjectField[]
+  attributeDefs AttributeDefinition[]
   requirements Requirement[]
   testCases    TestCase[]
   links        TraceabilityLink[]
@@ -201,9 +202,11 @@ model Requirement {
   description String   @default("")
   type        String   // 'User Requirement' | 'System Requirement' | 'Software Requirement' | 'Hardware Requirement'
   field       String? // dinamik Alan / disiplin
-  priority    String   @default("Medium")
   status      String   @default("In Review")
-  dal_level   String   @default("DAL D")
+  // Modular oznitelikler (Priority, DAL Level, ve projeye ozel her turlu ek
+  // alan) artik sabit kolon degil; AttributeDefinition tarafindan tanimlanan
+  // semaya gore bu JSONB torbada saklanir. Bkz. src/attributes.js.
+  attributes  Json     @default("{}")
   author      String?
   approvalStatus String @default("Pending") // 'Pending' | 'Approved'
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
@@ -228,9 +231,9 @@ model TestCase {
   description String   @default("")
   type        String   // 'Acceptance Test' | 'System Test' | 'Sub-system Test'
   field       String? // gereksinimden otomatik kopyalanir
-  priority    String? // gereksinimden otomatik kopyalanir
   status      String   @default("In Review") // 'Approved' (Passed) | 'Rejected' (Failed) | 'In Review'
-  dal_level   String? // gereksinimden otomatik kopyalanir
+  // Modular oznitelikler (Priority, DAL Level, projeye ozel ek alanlar).
+  attributes  Json     @default("{}")
   author      String?
   approvalStatus String @default("Pending") // 'Pending' | 'Approved'
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
@@ -240,6 +243,31 @@ model TestCase {
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
+}
+
+// --- Dinamik oznitelik tanimlari (Priority / DAL Level / ozel alanlar) -----
+//  Proje bazli, admin (PM) tarafindan yonetilebilen semaya gore Requirement
+//  ve TestCase kayitlarinin `attributes` JSONB torbasindaki degerler
+//  dogrulanir. `system=true` olanlar (Priority, DAL Level) uygulamanin
+//  varsayilan/gomulu oznitelikleridir; silinemez ama duzenlenebilir.
+model AttributeDefinition {
+  id           String   @id @default(uuid())
+  projectId    String
+  entityType   String   // 'requirement' | 'testcase' | 'both'
+  key          String   // makine-okur anahtar, orn. 'priority', 'risk_score'
+  label        String   // UI'da gosterilen etiket
+  dataType     String   @default("text") // 'text' | 'number' | 'boolean' | 'date' | 'select'
+  options      Json?    // dataType='select' icin [{ "value": "...", "label": "..." }, ...]
+  required     Boolean  @default(false)
+  defaultValue String?
+  order        Int      @default(0)
+  system       Boolean  @default(false) // gomulu (Priority/DAL Level) ise true; silinemez
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, entityType, key])
+  @@index([projectId])
 }
 
 // --- Izlenebilirlik baglari -------------------------------------------------

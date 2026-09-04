@@ -20,7 +20,6 @@ import {
   TEST_TYPE,
   PRIORITY,
   STATUS,
-  DAL,
   LINK_TYPE,
   TYPE_SUFFIX,
   DEFAULT_CODE_PREFIX,
@@ -28,6 +27,7 @@ import {
 } from './constants.js';
 import { recomputeAllStatuses } from './logic.js';
 import { hashPassword } from './auth.js';
+import { seedDefaultAttributeDefinitions } from './attributes.js';
 
 const prisma = new PrismaClient();
 const SEED_AUTHOR = 'system.seed';
@@ -44,7 +44,6 @@ const FIELDS = [
   'Genel',
 ];
 const P = [PRIORITY.HIGH, PRIORITY.MEDIUM, PRIORITY.LOW];
-const D = [DAL.A, DAL.B, DAL.C, DAL.D, DAL.E];
 
 const pad = (n) => String(n).padStart(3, '0');
 
@@ -163,9 +162,8 @@ function makeReq(projectId, type, prefix, i, title) {
     description: `${title} — gereksinimi. (Resmi seed veri seti, ${type}.)`,
     type,
     field: FIELDS[(i - 1) % FIELDS.length],
-    priority: P[(i - 1) % P.length],
     status: STATUS.IN_REVIEW,
-    dal_level: D[(i - 1) % D.length],
+    attributes: { priority: P[(i - 1) % P.length] },
     author: SEED_AUTHOR,
   };
 }
@@ -201,6 +199,9 @@ export async function runSeed() {
     },
   });
   const pid = project.id;
+
+  // 2b) Modular oznitelik tanimlari (Priority — varsayilan olarak gelir, silinebilir)
+  await seedDefaultAttributeDefinitions(prisma, pid);
 
   // 3) Dinamik Alan secenekleri
   await prisma.projectField.createMany({
@@ -256,8 +257,10 @@ export async function runSeed() {
       description: `${title} — dogrulama senaryosu.`,
       type,
       field: null,
-      priority: null,
-      dal_level: null,
+      // Modular oznitelikler (main): sabit priority/dal_level kolonlari yok.
+      attributes: {},
+      // shortKey: text_id artik proje onegi tasiyor (EH-KAHVE-TİD-TC-ACC-001),
+      // TEST_STATUS haritasi ise KISA kod ile yazili (TC-ACC-001).
       status: TEST_STATUS[shortKey] || STATUS.IN_REVIEW,
       author: SEED_AUTHOR,
     });

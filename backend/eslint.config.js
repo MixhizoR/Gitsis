@@ -9,7 +9,7 @@ export default [
   { ignores: ['node_modules/**'] },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.{js,mjs}'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

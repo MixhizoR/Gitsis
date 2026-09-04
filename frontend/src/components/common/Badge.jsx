@@ -54,4 +54,19 @@ export function DalBadge({ value }) {
   )
 }
 
+// Herhangi bir modular oznitelik degeri icin genel amacli rozet. `def.key`
+// 'priority'/'dal_level' ise gorsel surekliligi korumak icin mevcut ozel
+// stilleri (PRIORITY_STYLES/DAL_STYLES) kullanir; digerlerinde notr bir
+// rozet gosterir. Boolean/diger tipler duz metin olarak yazilir.
+export function AttrBadge({ def, value }) {
+  if (value === null || value === undefined || value === '') return null
+  if (def.dataType === 'boolean') {
+    return <Pill>{value ? '✓' : '—'}</Pill>
+  }
+  if (def.key === 'priority') return <PriorityBadge value={value} />
+  if (def.key === 'dal_level') return <DalBadge value={value} />
+  if (def.dataType === 'select') return <Pill>{value}</Pill>
+  return <span className="text-xs text-slate-600 dark:text-slate-300">{String(value)}</span>
+}
+
 export default Pill

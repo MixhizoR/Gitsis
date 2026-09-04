@@ -123,9 +123,11 @@ export async function splitRequirement(prisma, projectId, reqId, newTitles, acto
           description: '',
           type: original.type,
           field: original.field,
-          priority: original.priority,
+          // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
+          // orijinalden kopyalanir — onceki sabit priority/dal_level
+          // kolonlarinin kopyalanmasiyla ayni davranis.
+          attributes: original.attributes ?? {},
           status: 'In Review',
-          dal_level: original.dal_level,
           author: actor,
           parentId: original.parentId,
         },

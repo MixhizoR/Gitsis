@@ -6,12 +6,10 @@ on:
   pull_request:
     branches: [main]
 
-# Ayni PR'a ust uste commit atilirsa eski run'lari iptal et (Action dakikasi tasarrufu).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Pipeline sadece kod cekip test kosuyor; token'i read-only birak (least privilege).
 permissions:
   contents: read
 
@@ -37,20 +35,29 @@ jobs:
     name: Frontend — lint / test / build
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest # ADD THIS LINE
-    env:
-      POSTGRES_PASSWORD: test_password
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Lint (Docker)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm frontend-lint
-      - name: Format check (Docker)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm frontend-format-check
-      - name: Test + build (Docker)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm frontend-test
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: './pnpm-lock.yaml'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter ehsim-rmt run lint
+      - name: Format check
+        run: pnpm --filter ehsim-rmt run format:check
+      - name: Test
+        run: pnpm --filter ehsim-rmt test
+      - name: Build
+        run: pnpm --filter ehsim-rmt run build
 
   backend:
     name: Backend — lint / test
@@ -60,24 +67,44 @@ jobs:
     env:
       POSTGRES_PASSWORD: test_password
       JWT_SECRET: ${{ secrets.CI_JWT_SECRET || 'ci-test-secret' }}
+      DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
+      TEST_DATABASE_URL: postgresql://postgres:test_password@localhost:5432/test_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Lint (Docker)
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: './pnpm-lock.yaml'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter ehsim-rmt-backend run lint
+      - name: Format check
+        run: pnpm --filter ehsim-rmt-backend run format:check
+      - name: Run migrations & Test
         run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm backend-lint
-      - name: Format check (Docker)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm backend-format-check
-      - name: Clean DB volume (fresh init)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml down -v
-      - name: Test (Docker)
-        run: |
-          docker compose -f docker-compose.dev-tools.yml run --rm backend-test
-      - name: Cleanup
-        if: always()
-        run: |
-          docker compose -f docker-compose.dev-tools.yml down -v
+          pnpm --filter ehsim-rmt-backend run prisma:generate
+          pnpm --filter ehsim-rmt-backend run db:push
+          pnpm --filter ehsim-rmt-backend run test
 
   ci-status:
     name: CI Pipeline Status

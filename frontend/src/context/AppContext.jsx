@@ -27,6 +27,7 @@ export function AppProvider({ children }) {
   const [links, setLinks] = useState(EMPTY)
   const [glossary, setGlossary] = useState(EMPTY)
   const [fields, setFields] = useState(EMPTY)
+  const [attributeDefs, setAttributeDefs] = useState(EMPTY)
   const [auditLog, setAuditLog] = useState(EMPTY)
   const [roles, setRoles] = useState(EMPTY)
   const [personnel, setPersonnel] = useState(EMPTY)
@@ -64,6 +65,7 @@ export function AppProvider({ children }) {
       setLinks(EMPTY)
       setGlossary(EMPTY)
       setFields(EMPTY)
+      setAttributeDefs(EMPTY)
       setAuditLog(EMPTY)
       setRoles(EMPTY)
       setPersonnel(EMPTY)
@@ -73,26 +75,27 @@ export function AppProvider({ children }) {
       return
     }
     const pid = activeProjectId
-    const [reqs, tcs, lnks, glo, flds, audit, rls, prs, apps, snaps, navLayout] = await Promise.all(
-      [
+    const [reqs, tcs, lnks, glo, flds, attrDefs, audit, rls, prs, apps, snaps, navLayout] =
+      await Promise.all([
         data.listRequirements(pid),
         data.listTestCases(pid),
         data.listLinks(pid),
         data.listGlossary(pid),
         data.listFields(pid),
+        data.listAttributes(pid),
         data.listAudit(pid),
         data.listRoles(pid),
         data.listPersonnel(pid),
         data.listApprovals(pid),
         data.listSnapshots(pid),
         data.getNav(pid),
-      ],
-    )
+      ])
     setRequirements(reqs)
     setTestCases(tcs)
     setLinks(lnks)
     setGlossary(glo)
     setFields(flds)
+    setAttributeDefs(attrDefs)
     setAuditLog(audit)
     setRoles(rls)
     setPersonnel(prs)
@@ -242,6 +245,22 @@ export function AppProvider({ children }) {
       await refresh()
     },
 
+    // Modular Oznitelikler (Priority / DAL Level / ozel alanlar) -----------
+    async addAttribute(payload) {
+      const a = await data.createAttribute(pid, payload)
+      await refresh()
+      return a
+    },
+    async editAttribute(id, updates) {
+      const a = await data.updateAttribute(pid, id, updates)
+      await refresh()
+      return a
+    },
+    async removeAttribute(id) {
+      await data.deleteAttribute(pid, id)
+      await refresh()
+    },
+
     // Izlenebilirlik baglari ------------------------------------------------
     //  body: { fromId, toId, type, testStatus? }
     async link(body) {
@@ -334,6 +353,7 @@ export function AppProvider({ children }) {
     links,
     glossary,
     fields,
+    attributeDefs,
     auditLog,
     roles,
     personnel,

@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import EntityTable from '../components/common/EntityTable.jsx'
 import RequirementForm from '../components/requirements/RequirementForm.jsx'
 import FieldManager from '../components/requirements/FieldManager.jsx'
+import AttributeManager from '../components/requirements/AttributeManager.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
 import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.jsx'
 import BulkActionBar from '../components/common/BulkActionBar.jsx'
@@ -48,6 +49,7 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
   const [fieldMgr, setFieldMgr] = useState(false)
+  const [attrMgr, setAttrMgr] = useState(false)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [viewRow, setViewRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
@@ -153,6 +155,11 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
               {t('field.manage')}
             </button>
           )}
+          {canFields && (
+            <button onClick={() => setAttrMgr(true)} className="btn-secondary">
+              {t('attr.manage')}
+            </button>
+          )}
           {canAdd && (
             <button onClick={openCreate} className="btn-primary">
               <IconPlus size={18} /> {cfg.addLabel}
@@ -178,7 +185,8 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'priority', 'dal', 'links']}
+        columns={['type', 'field', 'links']}
+        attributeEntityType="requirement"
         linkCountFor={linkCountFor}
         onView={canRead ? setViewRow : undefined}
         onEdit={openEdit}
@@ -209,6 +217,7 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
         pageConfig={cfg}
       />
       <FieldManager open={fieldMgr} onClose={() => setFieldMgr(false)} />
+      <AttributeManager open={attrMgr} onClose={() => setAttrMgr(false)} />
       <LinkManager
         open={Boolean(linkTarget)}
         onClose={() => setLinkTarget(null)}

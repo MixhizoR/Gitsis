@@ -30,6 +30,17 @@ vi.mock('../../context/AppContext.jsx', () => ({
     personnel: [],
     roles: [],
     fields: [],
+    // Modular oznitelikler (main): EntityTable sutunlari bundan turetilir.
+    attributeDefs: [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        order: 0,
+      },
+    ],
     createLink: vi.fn(),
     deleteLink: vi.fn(),
     addRequirement: vi.fn(),
@@ -74,9 +85,8 @@ const node = (over = {}) => ({
   description: '',
   type: 'User Requirement',
   field: 'Arayuz / HMI',
-  priority: 'High',
   status: 'In Review',
-  dal_level: 'DAL A',
+  attributes: { priority: 'High' },
   locked: false,
   approvalStatus: 'Pending',
   hasChildren: true,
@@ -107,15 +117,15 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
     renderPage()
     await screen.findByText('EH-KAHVE-TİD-USR-001')
 
-    for (const th of ['Bölüm', 'Kod', 'Başlık', 'Tip', 'Alan', 'Öncelik', 'DAL', 'Bağ']) {
+    for (const th of ['Bölüm', 'Kod', 'Başlık', 'Tip', 'Alan', 'Priority', 'Bağ']) {
       expect(screen.getByRole('columnheader', { name: new RegExp(th, 'i') })).toBeInTheDocument()
     }
     // Satirda gereksinim alanlari gorunur (fotograf 1 ile ayni bilgi seti)
     const row = rowOf('EH-KAHVE-TİD-USR-001')
     expect(within(row).getByText('User Requirement')).toBeInTheDocument()
     expect(within(row).getByText('Arayuz / HMI')).toBeInTheDocument()
+    // Priority artik modular oznitelik sutunu olarak render edilir.
     expect(within(row).getByText('High')).toBeInTheDocument()
-    expect(within(row).getByText('DAL A')).toBeInTheDocument()
   })
 
   it("mount'ta yalnizca kok dugumler cekilir (lazy-load korunur)", async () => {

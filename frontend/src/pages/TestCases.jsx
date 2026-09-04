@@ -13,6 +13,7 @@ import { useLang } from '../context/LanguageContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import EntityTable from '../components/common/EntityTable.jsx'
 import TestForm from '../components/tests/TestForm.jsx'
+import AttributeManager from '../components/requirements/AttributeManager.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
 import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
@@ -46,11 +47,13 @@ export default function TestCases({ pageKey, titleOverride = null, fieldFilter =
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [viewRow, setViewRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
+  const [attrMgr, setAttrMgr] = useState(false)
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
   const canRead = can('read', comp)
   const canAdd = can('add_test', comp)
+  const canFields = can('manage_fields')
   const canEditRow = () => can('write', comp)
   const canDeleteRow = () => can('delete', comp)
   const canLinksRow = () => can('link_verifies', comp)
@@ -137,11 +140,18 @@ export default function TestCases({ pageKey, titleOverride = null, fieldFilter =
             {t('test.records')}
           </p>
         </div>
-        {canAdd && (
-          <button onClick={openCreate} className="btn-primary">
-            <IconPlus size={18} /> {cfg.addLabel}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canFields && (
+            <button onClick={() => setAttrMgr(true)} className="btn-secondary">
+              {t('attr.manage')}
+            </button>
+          )}
+          {canAdd && (
+            <button onClick={openCreate} className="btn-primary">
+              <IconPlus size={18} /> {cfg.addLabel}
+            </button>
+          )}
+        </div>
       </div>
 
       <input
@@ -161,7 +171,8 @@ export default function TestCases({ pageKey, titleOverride = null, fieldFilter =
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'priority', 'status', 'dal', 'links']}
+        columns={['type', 'field', 'status', 'links']}
+        attributeEntityType="testcase"
         statusLabel={t('tbl.th.testResult')}
         linkCountFor={linkCountFor}
         onView={canRead ? setViewRow : undefined}
@@ -191,6 +202,7 @@ export default function TestCases({ pageKey, titleOverride = null, fieldFilter =
         editing={editing}
         pageConfig={cfg}
       />
+      <AttributeManager open={attrMgr} onClose={() => setAttrMgr(false)} />
       <LinkManager
         open={Boolean(linkTarget)}
         onClose={() => setLinkTarget(null)}

@@ -38,6 +38,15 @@ import {
 } from './nav.js';
 import { setProjectCodePrefix } from './textIdPrefix.js';
 import { parseReqIF } from './reqifParser.js';
+import {
+  listDefs,
+  validateAndMergeAttributes,
+  extractAttributeInput,
+  seedDefaultAttributeDefinitions,
+  normalizeDefinitionInput,
+  flatten,
+  flattenAll,
+} from './attributes.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -169,7 +178,7 @@ async function requiredVotersFor(pid, entityType, entity) {
     const perm = (p.role?.permissions || {}).approve;
     return perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(compKey);
   });
-  return { requiredPersonnel, requiredVoterIds: ['PM', ...requiredPersonnel.map((p) => p.id)] };
+  return { requiredPersonnel, requiredVoterIds: requiredPersonnel.map((p) => p.id) };
 }
 
 async function recomputeApproval(pid, entityType, entityId) {
@@ -179,7 +188,13 @@ async function recomputeApproval(pid, entityType, entityId) {
   const { requiredVoterIds } = await requiredVotersFor(pid, entityType, entity);
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
-  const approved = requiredVoterIds.every((v) => votedIds.has(v));
+  const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
+  const pmUsers = await prisma.user.findMany({
+    where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' },
+    select: { id: true },
+  });
+  const pmVoted = pmUsers.length > 0;
+  const approved = allPersonnelVoted && pmVoted;
   await prisma[model].update({
     where: { id: entityId },
     data: { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved },
@@ -320,6 +335,9 @@ app.post(
         ...(codePrefix && codePrefix.trim() ? { codePrefix: codePrefix.trim() } : {}),
       },
     });
+    // Her yeni proje, mevcut davranisi koruyan iki gomulu (system) oznitelik
+    // tanimiyla baslar: Priority ve DAL Level. Bkz. src/attributes.js.
+    await seedDefaultAttributeDefinitions(prisma, project.id);
     await audit(project.id, {
       action: 'PROJECT_CREATE',
       entityType: 'project',
@@ -465,6 +483,41 @@ app.post(
   }),
 );
 
+// ===========================================================================
+//  ATTRIBUTE DEFINITIONS (modular oznitelikler — Requirement/TestCase JSONB
+//  `attributes` alaninin semasini tanimlar; Priority ve DAL Level dahil her
+//  proje icin dinamik olarak eklenip/duzenlenip/silinebilir).
+// ===========================================================================
+app.get(
+  '/api/projects/:pid/attributes',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const where = { projectId: pid };
+    if (req.query.entityType) where.entityType = { in: [req.query.entityType, 'both'] };
+    const rows = await prisma.attributeDefinition.findMany({
+      where,
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    });
+    res.json(rows);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/attributes',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const payload = normalizeDefinitionInput(req.body);
+    const row = await prisma.attributeDefinition.create({ data: { projectId: pid, ...payload, system: false } });
+    await audit(pid, {
+      action: 'ATTRIBUTE_CREATE',
+      entityType: 'attribute',
+      entityId: row.id,
+      message: `Yeni oznitelik tanimlandi: "${row.label}" (${row.entityType}).`,
+    });
+    res.status(201).json(row);
+  }),
+);
+
 app.patch(
   '/api/projects/:pid/nav/groups/:id',
   requirePM,
@@ -554,6 +607,61 @@ app.delete(
   }),
 );
 
+app.patch(
+  '/api/projects/:pid/attributes/:id',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const before = await prisma.attributeDefinition.findUnique({ where: { id: req.params.id } });
+    if (!before || before.projectId !== pid) throw bad('Oznitelik bulunamadi.', 404);
+    // key/entityType/dataType degistirilemez — mevcut veriyle tutarliligi bozar.
+    // Yalnizca goruntu/kural alanlari duzenlenebilir.
+    const b = req.body || {};
+    const data = {};
+    if (b.label != null) data.label = String(b.label).trim() || before.label;
+    if (b.required != null) data.required = Boolean(b.required);
+    if (b.order != null && Number.isFinite(Number(b.order))) data.order = Number(b.order);
+    if (b.defaultValue !== undefined) data.defaultValue = b.defaultValue === '' ? null : String(b.defaultValue);
+    if (before.dataType === 'select' && Array.isArray(b.options)) {
+      const options = b.options
+        .map((o) => {
+          if (typeof o === 'string') return { value: o.trim(), label: o.trim() };
+          const value = String(o?.value ?? '').trim();
+          const optLabel = String(o?.label ?? value).trim();
+          return value ? { value, label: optLabel || value } : null;
+        })
+        .filter(Boolean);
+      if (options.length === 0) throw bad('Secim (select) tipi oznitelik icin en az bir secenek gerekli.');
+      data.options = options;
+    }
+    const row = await prisma.attributeDefinition.update({ where: { id: req.params.id }, data });
+    await audit(pid, {
+      action: 'ATTRIBUTE_UPDATE',
+      entityType: 'attribute',
+      entityId: row.id,
+      message: `Oznitelik guncellendi: "${row.label}".`,
+    });
+    res.json(row);
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/attributes/:id',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const before = await prisma.attributeDefinition.findUnique({ where: { id: req.params.id } });
+    if (!before || before.projectId !== pid) throw bad('Oznitelik bulunamadi.', 404);
+    if (before.system) throw bad('Gomulu oznitelikler (Priority, DAL Level) silinemez.', 403);
+    await prisma.attributeDefinition.delete({ where: { id: req.params.id } });
+    await audit(pid, {
+      action: 'ATTRIBUTE_DELETE',
+      entityType: 'attribute',
+      entityId: req.params.id,
+      message: `Oznitelik silindi: "${before.label}".`,
+    });
+    res.json({ ok: true });
+  }),
+);
+
 // ===========================================================================
 //  REQUIREMENTS
 // ===========================================================================
@@ -563,7 +671,7 @@ app.get(
     const where = { projectId: req.params.pid };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.requirement.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(rows);
+    res.json(flattenAll(rows));
   }),
 );
 
@@ -574,6 +682,8 @@ app.post(
     const b = req.body || {};
     if (!b.type) throw bad('Gereksinim tipi zorunlu.');
     const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, b.type, false));
+    const defs = await listDefs(prisma, pid, 'requirement');
+    const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
     const row = await prisma.requirement.create({
       data: {
@@ -583,9 +693,8 @@ app.post(
         description: cleanRichText((b.description || '').trim()),
         type: b.type,
         field: b.field || null,
-        priority: b.priority || 'Medium',
         status: STATUS.IN_REVIEW,
-        dal_level: b.dal_level || 'DAL D',
+        attributes,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
       },
@@ -597,7 +706,7 @@ app.post(
       textId: row.text_id,
       message: `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
-    res.status(201).json(row);
+    res.status(201).json(flatten(row));
   }),
 );
 
@@ -625,9 +734,10 @@ app.get(
 app.get(
   '/api/projects/:pid/requirements/:id',
   wrap(async (req, res) => {
+    const pid = req.params.pid;
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
-    if (!row) throw bad('Gereksinim bulunamadi.', 404);
-    res.json(row);
+    if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    res.json(flatten(row));
   }),
 );
 
@@ -640,11 +750,16 @@ app.put(
     if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     if (before.locked) throw bad('Bu gereksinim onaylandi ve kilitli. Duzenlemek icin once PM kilidi acmalidir.', 403);
     const data = {};
-    for (const k of ['text_id', 'title', 'description', 'field', 'priority', 'dal_level']) {
+    for (const k of ['text_id', 'title', 'description', 'field']) {
       if (b[k] != null) data[k] = typeof b[k] === 'string' ? b[k].trim() : b[k];
     }
     if (data.description != null) data.description = cleanRichText(data.description);
     if (b.relatedDocuments != null) data.relatedDocuments = normalizeDocuments(b.relatedDocuments);
+    const attrInput = extractAttributeInput(b);
+    if (Object.keys(attrInput).length > 0) {
+      const defs = await listDefs(prisma, pid, 'requirement');
+      data.attributes = validateAndMergeAttributes(defs, attrInput, before.attributes || {});
+    }
     // Tip degistirilemez (kilitli) ve status ELLE degistirilemez (otomatik).
     const row = await prisma.requirement.update({ where: { id: req.params.id }, data });
     await audit(pid, {
@@ -654,7 +769,7 @@ app.put(
       textId: row.text_id,
       message: `Gereksinim guncellendi: "${row.title}".`,
     });
-    res.json(row);
+    res.json(flatten(row));
   }),
 );
 
@@ -736,7 +851,7 @@ app.get(
     const where = { projectId: req.params.pid };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.testCase.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(rows);
+    res.json(flattenAll(rows));
   }),
 );
 
@@ -751,6 +866,16 @@ app.post(
     // baglanmak bu degerleri OTOMATIK doldurmaz (bir test coklu gereksinim dogrular).
     const status = b.status || STATUS.IN_REVIEW;
     if (![STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW].includes(status)) throw bad('Gecersiz test sonucu.');
+    const defs = await listDefs(prisma, pid, 'testcase');
+    // Test senaryolarinda oznitelikler bos birakilabilir (zorunlu degil); yalnizca
+    // gonderilenler dogrulanir, bos birakilanlar null kalir.
+    const attrInput = extractAttributeInput(b);
+    const attributes = validateAndMergeAttributes(
+      defs.map((d) => ({ ...d, required: false })),
+      attrInput,
+      {},
+      { isCreate: false },
+    );
     const row = await prisma.testCase.create({
       data: {
         projectId: pid,
@@ -759,8 +884,7 @@ app.post(
         description: cleanRichText((b.description || '').trim()),
         type: b.type,
         field: b.field || null,
-        priority: b.priority || null,
-        dal_level: b.dal_level || null,
+        attributes,
         status,
         author: b.author || 'ehsim.user',
       },
@@ -772,7 +896,7 @@ app.post(
       textId: row.text_id,
       message: `Yeni test senaryosu: "${row.title}" (${row.type}).`,
     });
-    res.status(201).json(row);
+    res.status(201).json(flatten(row));
   }),
 );
 
@@ -787,9 +911,16 @@ app.put(
     const data = {};
     for (const k of ['text_id', 'title', 'description']) if (b[k] != null) data[k] = b[k].trim();
     if (data.description != null) data.description = cleanRichText(data.description);
-    // Alan / Oncelik / DAL elle duzenlenebilir (bagdan bagimsiz).
-    for (const k of ['field', 'priority', 'dal_level']) {
-      if (b[k] !== undefined) data[k] = b[k] === null ? null : String(b[k]).trim() || null;
+    if (b.field !== undefined) data.field = b.field === null ? null : String(b.field).trim() || null;
+    // Oznitelikler (Priority, DAL Level, ozel alanlar) elle duzenlenebilir (bagdan bagimsiz).
+    const attrInput = extractAttributeInput(b);
+    if (Object.keys(attrInput).length > 0) {
+      const defs = await listDefs(prisma, pid, 'testcase');
+      data.attributes = validateAndMergeAttributes(
+        defs.map((d) => ({ ...d, required: false })),
+        attrInput,
+        before.attributes || {},
+      );
     }
     // Durum elle degistirilebilir (test sonucu: Passed/Failed/In Review)
     if (b.status != null) {
@@ -806,7 +937,7 @@ app.put(
     });
     // Test durumu degistiyse cascade
     await cascade(pid);
-    res.json(row);
+    res.json(flatten(row));
   }),
 );
 
@@ -866,7 +997,7 @@ app.post(
         projectId: pid,
         text_id,
         term: b.term.trim(),
-        definition: (b.definition || '').trim(),
+        definition: cleanRichText((b.definition || '').trim()),
         author: b.author || 'ehsim.user',
       },
     });
@@ -890,7 +1021,15 @@ app.put(
     const b = req.body || {};
     const data = {};
     for (const k of ['term', 'definition', 'text_id']) if (b[k] != null) data[k] = b[k].trim();
+    if (data.definition != null) data.definition = cleanRichText(data.definition);
     const row = await prisma.glossaryTerm.update({ where: { id: req.params.id }, data });
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'glossary',
+      entityId: row.id,
+      textId: row.text_id,
+      message: `Sozluk terimi guncellendi: "${row.term}".`,
+    });
     res.json(row);
   }),
 );
@@ -905,6 +1044,13 @@ app.delete(
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
     await prisma.glossaryTerm.delete({ where: { id: req.params.id } });
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'glossary',
+      entityId: req.params.id,
+      textId: before.text_id,
+      message: `Sozluk terimi silindi: "${before.term}".`,
+    });
     res.json({ ok: true });
   }),
 );
@@ -1108,10 +1254,10 @@ app.post(
 
       const items = [];
       for (const r of requirements) {
-        items.push({ snapshotId: snap.id, entityType: 'requirement', entityId: r.id, data: r });
+        items.push({ snapshotId: snap.id, entityType: 'requirement', entityId: r.id, data: flatten(r) });
       }
       for (const t of testCases) {
-        items.push({ snapshotId: snap.id, entityType: 'testcase', entityId: t.id, data: t });
+        items.push({ snapshotId: snap.id, entityType: 'testcase', entityId: t.id, data: flatten(t) });
       }
       for (const g of glossary) {
         items.push({ snapshotId: snap.id, entityType: 'glossary', entityId: g.id, data: g });
@@ -1379,14 +1525,35 @@ app.post(
   '/api/projects/:pid/approvals/vote',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const { entityType, entityId, voterId, voterName, personnelId } = req.body || {};
-    if (!entityType || !entityId || !voterId) throw bad('entityType, entityId, voterId zorunlu.');
+    const { entityType, entityId } = req.body || {};
+    if (!entityType || !entityId) throw bad('entityType, entityId zorunlu.');
     if (!['requirement', 'testcase'].includes(entityType)) throw bad('Gecersiz entityType.');
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    if (entity.locked && voterId !== 'PM') {
+    let voterId, voterName, personnelId, personnelPermissions;
+    if (req.auth.isPM) {
+      voterId = req.auth.userId;
+      voterName = req.auth.name || 'Proje Yoneticisi';
+      personnelId = null;
+    } else if (req.auth.kind === 'personnel') {
+      voterId = req.auth.personnelId;
+      personnelId = voterId;
+      const pers = await prisma.personnel.findUnique({
+        where: { id: voterId },
+        select: { firstName: true, lastName: true, role: { select: { permissions: true } } },
+      });
+      if (!pers) throw bad('Personel bulunamadi.', 404);
+      voterName = (pers.firstName + ' ' + pers.lastName).trim();
+      personnelPermissions = pers.role ? pers.role.permissions || {} : {};
+    } else throw bad('Gecersiz kimlik.', 401);
+    if (entity.locked && !req.auth.isPM)
       throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+    if (!req.auth.isPM) {
+      const compKey = componentKeyOf(entityType, entity.type);
+      const perm = personnelPermissions ? personnelPermissions.approve || {} : {};
+      if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
+        throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
     }
     const existing = await prisma.approval.findFirst({ where: { projectId: pid, entityType, entityId, voterId } });
     if (existing) {
@@ -1396,8 +1563,8 @@ app.post(
         entityType,
         entityId,
         textId: entity.text_id,
-        actor: voterName || voterId,
-        message: `Onay geri cekildi: ${voterName || voterId}.`,
+        actor: voterId,
+        message: `Onay geri cekildi: ${voterName}.`,
       });
     } else {
       await prisma.approval.create({
@@ -1415,8 +1582,8 @@ app.post(
         entityType,
         entityId,
         textId: entity.text_id,
-        actor: voterName || voterId,
-        message: `Onaylandi: ${voterName || voterId}.`,
+        actor: voterId,
+        message: `Onaylandi: ${voterName}.`,
       });
     }
     const state = await recomputeApproval(pid, entityType, entityId);
@@ -1427,11 +1594,12 @@ app.post(
 // PM kilit acar: PM'in onayini geri ceker -> durum Beklemede'ye doner.
 app.post(
   '/api/projects/:pid/approvals/unlock',
+  requirePM,
   wrap(async (req, res) => {
     const pid = req.params.pid;
     const { entityType, entityId } = req.body || {};
     if (!entityType || !entityId) throw bad('entityType, entityId zorunlu.');
-    await prisma.approval.deleteMany({ where: { projectId: pid, entityType, entityId, voterId: 'PM' } });
+    await prisma.approval.deleteMany({ where: { projectId: pid, entityType, entityId, voterId: req.auth.userId } });
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     await audit(pid, {
@@ -1439,7 +1607,7 @@ app.post(
       entityType,
       entityId,
       textId: entity?.text_id,
-      actor: 'Proje Yoneticisi',
+      actor: req.auth.userId,
       message: 'Kilit acildi; PM onayi geri cekildi, durum Beklemede.',
     });
     const state = await recomputeApproval(pid, entityType, entityId);
@@ -1517,7 +1685,7 @@ app.post(
             title: (reqItem.title || 'Adsız Gereksinim').trim(),
             description: cleanRichText((reqItem.description || '').trim()),
             type: 'User Requirement',
-            priority: 'Medium',
+            attributes: { priority: 'Medium' },
             status: STATUS.IN_REVIEW,
             author: 'reqif.import',
           },

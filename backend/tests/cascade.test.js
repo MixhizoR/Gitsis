@@ -14,7 +14,7 @@ process.env.JWT_SECRET ||= 'ehsim-test-secret';
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
   `postgresql://ehsim:${encodeURIComponent(
-    process.env.POSTGRES_PASSWORD || 'ehsim_pass',
+    process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026',
   )}@localhost:5433/ehsim_rmt_test`;
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
@@ -29,6 +29,7 @@ const prisma = new PrismaClient();
 const PM_CREDENTIALS = { username: 'pm-cas', password: 'pm-pass-1234' };
 let proj;
 let pmToken;
+let pmUserId;
 
 before(async () => {
   if (LOCAL_DOCKER_DB) {
@@ -92,7 +93,9 @@ before(async () => {
   // PM login
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   pmToken = res.body.token;
+  pmUserId = res.body.user.id;
   assert.ok(pmToken);
+  assert.ok(pmUserId);
 });
 
 after(async () => {
@@ -230,7 +233,7 @@ test('recomputeApprovalsBulk: PM + 2 personel oyu → requirement Approved+locke
       projectId: proj.id,
       entityType: 'requirement',
       entityId: reqRow.id,
-      voterId: 'PM',
+      voterId: pmUserId,
       voterName: 'PM',
     },
   });

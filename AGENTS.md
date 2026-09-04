@@ -81,25 +81,25 @@ FastAPI Bridge (ai-bridge:8008) ──► LM Studio + Gemma (:1234)
 
 ### Backend (`backend/`)
 ```bash
-npm ci                     # Install (CI uses this)
-npm run dev                # node src/server.js (requires JWT_SECRET)
-npx prisma generate        # Generate Prisma client (required before test/build)
-npx prisma db push         # Push schema to DB (dev: --force-reset)
-npm test                   # node --test --test-concurrency=1 (tests/*.test.js; needs DB)
-npm run lint               # eslint .
-npm run format             # prettier --write .
-npm run format:check       # prettier --check .
+pnpm install --frozen-lockfile   # Install (CI uses this)
+pnpm run dev                     # node src/server.js (requires JWT_SECRET)
+pnpm run prisma:generate         # Generate Prisma client (required before test/build)
+pnpm run db:push                 # Push schema to DB (dev: --force-reset)
+pnpm test                        # node --test --test-concurrency=1 (tests/*.test.js; needs DB)
+pnpm run lint                    # eslint .
+pnpm run format                  # prettier --write .
+pnpm run format:check            # prettier --check .
 ```
 
 ### Frontend (`frontend/`)
 ```bash
-npm ci                     # Install
-npm run dev                # Vite dev server
-npm run build              # Production build
-npm test                   # vitest run (JSDOM)
-npm run lint               # eslint .
-npm run format             # prettier --write .
-npm run format:check       # prettier --check .
+pnpm install --frozen-lockfile   # Install
+pnpm run dev                     # Vite dev server
+pnpm run build                   # Production build
+pnpm test                        # vitest run (JSDOM)
+pnpm run lint                    # eslint .
+pnpm run format                  # prettier --write .
+pnpm run format:check            # prettier --check .
 ```
 
 ### Docker (root)
@@ -184,26 +184,26 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 ## Runtime/Tooling Preferences
 
 - **Node**: 20 (Docker) / 24 (CI) — ESM (`"type": "module"` in both packages)
-- **Package Manager**: npm (lockfiles committed: `package-lock.json`)
+- **Package Manager**: pnpm@9.15.9 (lockfiles: `backend/pnpm-lock.yaml`, `frontend/pnpm-lock.yaml` — not committed; see `.gitignore`)
 - **Database**: PostgreSQL 15 via Docker; Prisma ORM
-- **Testing**: 
+- **Testing**:
   - Backend: `node --test` + supertest (integration against real DB)
   - Frontend: Vitest + Testing Library (JSDOM)
-- **CI**: GitHub Actions, Node 24, `npm ci`, PostgreSQL service container for backend
+- **CI**: GitHub Actions, Node 24, `pnpm install --frozen-lockfile`, native PostgreSQL 16 service container
 - **Docker**: Multi-stage builds; `builder` target runs `prisma db push --skip-generate && node src/seed.js`
 
 ## Testing & QA
 
 ### Backend Tests (`backend/tests/`)
 - `api.test.js`: Auth (login, passcode), IDOR protection (personnel cross-project access), register guard
-- Run locally: `docker compose up -d db` then `npm test` (uses `localhost:5433`)
+- Run locally: `docker compose up -d db` then `pnpm test` (uses `localhost:5433`)
 - CI: PostgreSQL service container, `TEST_DATABASE_URL` + `DATABASE_URL` env
 
 ### Frontend Tests (`frontend/src/**/__tests__/`)
 - Unit: `coverage.test.js`, `impact.test.js` (pure functions)
 - Component: `Badge.test.jsx`, `ImpactAnalysisModal.test.jsx`, `smoke.test.jsx` (Modal, ViewModal render)
 - Hooks: `useBulkSelection.test.jsx`, `useUndoableDelete.test.jsx`
-- Run: `npm test` (vitest run)
+- Run: `pnpm test` (vitest run)
 
 ### Coverage Expectations
 - Backend: 7 integration tests covering auth + IDOR
@@ -228,7 +228,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 | Fix IDOR issue | `backend/src/auth.js` `projectAccessGuard` |
 | Update taxonomy | `backend/src/constants.js` + `frontend/src/utils/constants.js` (keep in sync) |
 | Debug AI bridge | `ai-bridge/api_server.py` `/health`, check LM Studio `:1234/v1` |
-| Run single test | Backend: `node --test tests/api.test.js`; Frontend: `npm test -- <file>` |
+| Run single test | Backend: `node --test tests/api.test.js`; Frontend: `pnpm test -- <file>` |
 
 **Key invariants to preserve:**
 1. Project isolation — every query filters by `projectId`

@@ -50,8 +50,8 @@ Bu komut PostgreSQL'i acar, `migrate` servisi ile semayi uygular ve seed'i yukle
 ### Terminal 2 — Frontend (site)
 Proje kökünde:
 ```
-cd frontend && npm install        # sadece ilk sefer
-npm run dev
+cd frontend && pnpm install        # sadece ilk sefer
+pnpm run dev
 ```
 Çıkan http://localhost:5173/ linkini tarayıcıda aç.
 
@@ -67,7 +67,7 @@ python -m uvicorn api_server:app --port 8008 --reload
 Kontrol: http://localhost:8008/health → "lmstudio_reachable": true görürsen hazır.
 Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offline" motor mevcut).
 
-**Minimum çalıştırma:** Terminal 1 (docker compose up --build) + Terminal 2 (npm run dev) → localhost:5173.
+**Minimum çalıştırma:** Terminal 1 (docker compose up --build) + Terminal 2 (pnpm run dev) → localhost:5173.
 
 ---
 
@@ -91,10 +91,10 @@ Alternatif: **Git Bash** veya **WSL** kullanıyorsanız mevcut `.sh` dosyaları 
 Frontend/Backend bağımsız çalıştırma (Docker'sız):
 ```
 # Backend
-cd backend && npm install && npm run dev
+cd backend && pnpm install && pnpm run dev
 
 # Frontend
-cd frontend && npm install && npm run dev
+cd frontend && pnpm install && pnpm run dev
 ```
 
 > Not: `seed-coffee-project.mjs` Node.js scriptidir, `node scripts/seed-coffee-project.mjs` ile her platformda çalışır.
@@ -145,7 +145,7 @@ node scripts/seed-coffee-project.mjs
 ## 7. Özet akış
 
 1. `docker compose up --build` → backend + DB (4001)
-2. `npm install` + `npm run dev` → site (5173)
+2. `pnpm install` + `pnpm run dev` → site (5173)
 3. (opsiyonel) `ai-bridge`'da uvicorn → AI köprüsü (8008) + LM Studio
 4. Tarayıcı: http://localhost:5173
 
