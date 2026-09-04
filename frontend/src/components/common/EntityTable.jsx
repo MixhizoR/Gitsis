@@ -16,6 +16,7 @@ import {
   IconCheckCircle,
   IconLock,
   IconTarget,
+  IconAlert,
   IconChevron,
   IconLoader,
 } from './Icons.jsx'
@@ -33,6 +34,9 @@ export default function EntityTable({
   columns = ['type', 'field', 'status', 'links'],
   attributeEntityType, // 'requirement' | 'testcase' — modular oznitelik sutunlari icin
   linkCountFor,
+  // --- Issue #57: supheli bag gostergesi ---
+  suspectCountFor, // (row) => suspect bag sayisi; verilmezse gosterge kapali
+  onOpenSuspect, // (row) => tiklandiginda supheli bag yonetim sayfasina gider
   onEdit,
   onDelete,
   onManageLinks,
@@ -150,6 +154,7 @@ export default function EntityTable({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((r) => {
               const locked = Boolean(r.locked)
+              const suspectCount = suspectCountFor ? suspectCountFor(r) || 0 : 0
               const info = approvalInfoFor
                 ? approvalInfoFor(r)
                 : { approved: r.approvalStatus === 'Approved', voted: false }
@@ -177,7 +182,7 @@ export default function EntityTable({
                         }
                       : undefined
                   }
-                  className={`group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${isSelected(r.id) ? 'bg-brand-50/60 dark:bg-brand-950/20' : ''} ${locked ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : ''} ${treeMode && rowDraggable && rowDraggable(r) ? 'cursor-grab' : ''}`}
+                  className={`group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${isSelected(r.id) ? 'bg-brand-50/60 dark:bg-brand-950/20' : ''} ${locked ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : ''} ${suspectCount > 0 ? 'bg-amber-50/50 dark:bg-amber-950/10' : ''} ${treeMode && rowDraggable && rowDraggable(r) ? 'cursor-grab' : ''}`}
                 >
                   {selectable && (
                     <td className="px-4 py-3 align-top">
@@ -197,7 +202,9 @@ export default function EntityTable({
                       </span>
                     </td>
                   )}
-                  <td className="whitespace-nowrap px-4 py-3 align-top">
+                  <td
+                    className={`whitespace-nowrap px-4 py-3 align-top ${suspectCount > 0 ? 'border-l-4 border-l-amber-400' : ''}`}
+                  >
                     <div
                       className="flex items-center gap-1.5"
                       style={treeMode ? { paddingLeft: (r._depth || 0) * 18 } : undefined}
@@ -229,6 +236,27 @@ export default function EntityTable({
                           title={t('tbl.locked')}
                         />
                       )}
+                      {suspectCount > 0 &&
+                        (onOpenSuspect ? (
+                          <button
+                            onClick={() => onOpenSuspect(r)}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 transition-colors hover:bg-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900/50"
+                            title={t('tbl.suspectTitle', { n: suspectCount })}
+                            aria-label={t('tbl.suspectTitle', { n: suspectCount })}
+                          >
+                            <IconAlert size={12} />
+                            {suspectCount}
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                            title={t('tbl.suspectTitle', { n: suspectCount })}
+                            aria-label={t('tbl.suspectTitle', { n: suspectCount })}
+                          >
+                            <IconAlert size={12} />
+                            {suspectCount}
+                          </span>
+                        ))}
                     </div>
                   </td>
                   <td className="px-4 py-3 align-top">

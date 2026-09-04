@@ -24,10 +24,16 @@ import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES } from '../utils/constants.js'
+import { suspectLinksForRequirement } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 
-export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter = null }) {
+export default function Hierarchy({
+  pageKey,
+  titleOverride = null,
+  fieldFilter = null,
+  onOpenSuspect,
+}) {
   // titleOverride / fieldFilter: kullanicinin menuye ekledigi OZEL sayfalar
   // icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa ayni tipin
   // Alan (disiplin) filtresiyle daraltilmis gorunumudur.
@@ -89,6 +95,9 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
   const sel = useBulkSelection(visibleIds)
 
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
+
+  // Issue #57: satirin supheli (suspect) cikis bag sayisi — gosterge + yonlendirme.
+  const suspectCountFor = (r) => suspectLinksForRequirement(links, r.id).length
 
   // --- Onay bilgisi ----------------------------------------------------------
   const approvalInfoFor = (r) => ({
@@ -188,6 +197,8 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
         columns={['type', 'field', 'links']}
         attributeEntityType="requirement"
         linkCountFor={linkCountFor}
+        suspectCountFor={suspectCountFor}
+        onOpenSuspect={onOpenSuspect}
         onView={canRead ? setViewRow : undefined}
         onEdit={openEdit}
         onDelete={handleDelete}
@@ -236,6 +247,7 @@ export default function Hierarchy({ pageKey, titleOverride = null, fieldFilter =
         row={viewRow}
         canWrite={can('write', comp)}
         showStatus={false}
+        showHistory
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
       />

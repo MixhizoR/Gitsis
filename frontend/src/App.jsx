@@ -25,6 +25,7 @@ import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
 import AuditLogPage from './pages/AuditLog.jsx'
 import SnapshotsPage from './pages/Snapshots.jsx'
+import SuspectPage from './pages/SuspectPage.jsx'
 import ProjectSelect from './pages/ProjectSelect.jsx'
 import Login from './pages/Login.jsx'
 import AIAssistant from './components/common/AIAssistant.jsx'
@@ -40,6 +41,8 @@ export default function App() {
   const { activeProjectId, openProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
+  // Issue #57: suspect gostergesinden gelindiginde vurgulanacak kayit id'si.
+  const [suspectFocusId, setSuspectFocusId] = useState(null)
 
   // Sol menu ogeleri artik ID ile gezinir (ayni tipten birden fazla sayfa
   // olabildigi icin). Aktif id'yi temel tipe (pageKey) + ozel ad + Alan
@@ -71,6 +74,17 @@ export default function App() {
     )
   }
 
+  // Sayfa degisiminde suspect vurgusunu sifirla (sidebar tiklamasiyla).
+  const navigate = (key) => {
+    setSuspectFocusId(null)
+    setPage(key)
+  }
+  // Suspect gostergesine tiklayinca: vurgu hedefini ayarla + sayfaya git.
+  const openSuspect = (row) => {
+    setSuspectFocusId(row?.id ?? null)
+    setPage('suspect')
+  }
+
   // 3) Calisma alani
   if (loading) {
     return (
@@ -85,7 +99,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar active={page} onNavigate={setPage} />
+      <Sidebar active={page} onNavigate={navigate} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar active={pageKey} titleOverride={navItem?.label || null} />
         <main className="flex-1 overflow-y-auto p-6">
@@ -98,6 +112,7 @@ export default function App() {
               pageKey={pageKey}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
+              onOpenSuspect={openSuspect}
             />
           )}
           {TEST_KEYS.includes(pageKey) && (
@@ -106,6 +121,7 @@ export default function App() {
               pageKey={pageKey}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
+              onOpenSuspect={openSuspect}
             />
           )}
           {pageKey === 'glossary' && <Glossary />}
@@ -116,6 +132,7 @@ export default function App() {
           {page === 'documents' && <DocumentAnalysis />}
           {page === 'audit' && <AuditLogPage />}
           {page === 'snapshots' && <SnapshotsPage />}
+          {page === 'suspect' && <SuspectPage focusId={suspectFocusId} />}
         </main>
       </div>
       <AIAssistant onNavigate={setPage} />

@@ -21,6 +21,7 @@ const TITLE_KEY = {
   traceability: 'traceability',
   'traceability-export': 'traceabilityExport',
   'traceability-import': 'traceabilityImport',
+  suspect: 'suspect',
   documents: 'documents',
   audit: 'audit',
 }

@@ -16,6 +16,7 @@ import {
   IconChevron,
   IconUsers,
   IconDoc,
+  IconAlert,
   IconPlus,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
@@ -48,6 +49,7 @@ const BOTTOM = [
   { key: 'traceability', labelKey: 'nav.traceability', icon: IconMatrix },
   { key: 'traceability-export', labelKey: 'nav.traceabilityExport', icon: IconMatrix },
   { key: 'traceability-import', labelKey: 'nav.traceabilityImport', icon: IconMatrix },
+  { key: 'suspect', labelKey: 'nav.suspect', icon: IconAlert },
   { key: 'documents', labelKey: 'nav.documents', icon: IconSparkle },
   { key: 'audit', labelKey: 'nav.audit', icon: IconHistory },
   { key: 'snapshots', labelKey: 'nav.snapshots', icon: IconDoc },
