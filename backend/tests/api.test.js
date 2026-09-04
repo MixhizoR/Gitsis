@@ -11,23 +11,11 @@
 // ============================================================================
 
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
 import { before, after, test } from 'node:test';
 import request from 'supertest';
-
-// --- Import'lardan ONCE ortam ayarlari (PrismaClient kurulumda env okur) ----
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'ehsim-test-secret';
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ||
-  // Yerel gelistirmede compose db'si host'a yalnizca 5433'ten acilir.
-  // Sifre kok .env'deki POSTGRES_PASSWORD'dan okunur; eski kurulumlarla
-  // uyumluluk icin fallback 'ehsim_local_pass_2026' (compose/.env varsayilani).
-  `postgresql://ehsim:${encodeURIComponent(
-    process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026',
-  )}@localhost:5433/ehsim_rmt_test`;
-process.env.DATABASE_URL = TEST_DATABASE_URL;
-const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
+// Ortak env + DB reset yardimcisi (tek dogruluk kaynagi: tests/_setup.js).
+import './_setup.js';
+import { resetDb } from './_setup.js';
 
 const { default: app } = await import('../src/server.js');
 const { PrismaClient } = await import('@prisma/client');
@@ -39,22 +27,9 @@ const PM_CREDENTIALS = { username: 'pm-test', password: 'pm-pass-1234' };
 let projA;
 let projB;
 let personnelToken = null;
-
 before(async () => {
-  // Test veritabanini sifirdan kur.
-  if (LOCAL_DOCKER_DB) {
-    try {
-      execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
-        stdio: 'pipe',
-      });
-    } catch {
-      // Zaten var — sorun degil.
-    }
-  }
-  execSync('npx prisma db push --force-reset --skip-generate', {
-    stdio: 'inherit',
-    env: { ...process.env },
-  });
+  // Test veritabanini sifirdan kur (ortak yardimci).
+  resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
 

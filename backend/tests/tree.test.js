@@ -4,18 +4,12 @@
 //  (getTreeAncestorPath), SQL injection guard, /requirements/tree ve
 //  /requirements/:id/ancestors endpoint'leri.
 // ============================================================================
+// Ortak test setup'i (Issue #69): env degiskenleri + resetDb.
+// PrismaClient import'undan ONCE yuklenmeli.
+import { resetDb } from './_setup.js';
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
 import { before, after, test } from 'node:test';
 import request from 'supertest';
-
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'ci-test-secret';
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ||
-  `postgresql://ehsim:${encodeURIComponent(process.env.POSTGRES_PASSWORD || 'ehsim_pass')}@localhost:5433/ehsim_rmt_test`;
-process.env.DATABASE_URL = TEST_DATABASE_URL;
-const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
 
 const { default: app } = await import('../src/server.js');
 const { PrismaClient } = await import('@prisma/client');
@@ -28,16 +22,7 @@ let swLeaf; // sysReq'in cocugu, yapraq
 let pmToken;
 
 before(async () => {
-  if (LOCAL_DOCKER_DB) {
-    try {
-      execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
-        stdio: 'pipe',
-      });
-    } catch {
-      /* already exists */
-    }
-  }
-  execSync('npx prisma db push --force-reset --skip-generate', { stdio: 'inherit', env: { ...process.env } });
+  resetDb();
 
   const { hashPassword, signToken } = await import('../src/auth.js');
   const user = await prisma.user.create({
