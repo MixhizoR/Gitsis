@@ -1,6 +1,11 @@
 FROM node:24-slim AS base
 WORKDIR /app
 RUN corepack enable pnpm
+# Corepack pnpm'yi ilk kullanimda indirir. Docker daemon'i TLS-intercepting
+# bir proxy'den gecebilecegi icin indirmeyi sertifika dogrulamasi olmadan yap,
+# sonra pnpm'in kendi strict-ssl ayarini kapat (sadece build zamani).
+RUN NODE_TLS_REJECT_UNAUTHORIZED=0 corepack prepare pnpm@9.15.9 --activate
+RUN pnpm config set strict-ssl false
 
 # Build context MUST be the repo root so the pnpm workspace can resolve.
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc ./
