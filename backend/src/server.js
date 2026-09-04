@@ -33,6 +33,7 @@ import {
   flatten,
   flattenAll,
 } from './attributes.js';
+import { contentFieldsChanged, nextHistoryVersion, SUSPECT_LINK_TYPES } from './versioning.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -168,6 +169,31 @@ function componentKeyOf(entityType, type) {
   if (type === 'Acceptance Test') return 'test-acceptance';
   if (type === 'System Test') return 'test-system';
   return 'test-subsystem';
+}
+
+// --- Issue #57: approve izni denetimi ---------------------------------------
+//  Clear-suspect islemleri icin: PM her zaman yetkili; personel ise yalnizca
+//  rolunde o bilesen icin approve izni varsa yetkilidir (vote handler ile ayni
+//  kural, tek kaynak: componentKeyOf + role.permissions.approve).
+async function assertApprovePermission(req, pid, entityType, entity) {
+  if (req.auth?.isPM) return;
+  if (req.auth?.kind !== 'personnel') throw bad('Gecersiz kimlik.', 401);
+  const pers = await prisma.personnel.findUnique({
+    where: { id: req.auth.personnelId },
+    select: { role: { select: { permissions: true } } },
+  });
+  const perm = (pers?.role?.permissions || {}).approve || {};
+  const compKey = componentKeyOf(entityType, entity.type);
+  if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
+    throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
+}
+
+// --- Aktor (kim degistirdi) -------------------------------------------------
+//  PM -> userId; personel -> personnelId; bilinmeyen -> 'unknown'.
+function actorOf(req) {
+  if (req.auth?.isPM) return req.auth.userId;
+  if (req.auth?.kind === 'personnel') return req.auth.personnelId;
+  return req.auth?.userId || 'unknown';
 }
 
 // --- Benzersiz 5 karakterlik passcode ureteci -------------------------------
@@ -591,16 +617,107 @@ app.put(
       const defs = await listDefs(prisma, pid, 'requirement');
       data.attributes = validateAndMergeAttributes(defs, attrInput, before.attributes || {});
     }
-    // Tip degistirilemez (kilitli) ve status ELLE degistirilemez (otomatik).
-    const row = await prisma.requirement.update({ where: { id: req.params.id }, data });
-    await audit(pid, {
-      action: 'UPDATE',
-      entityType: 'requirement',
-      entityId: row.id,
-      textId: row.text_id,
-      message: `Gereksinim guncellendi: "${row.title}".`,
+    // Issue #57: yalnizca ICERIK alanlari (title/description/field + attributes
+    // icindeki priority/dal_level) degistiginde history + suspect tetiklenir.
+    // Status/approvalStatus/locked/updatedAt otomatik cascade tarafindan
+    // dogrudan yazilir (PUT'a ugramaz) — bu yuzden burada tetiklenmezler.
+    const contentChanged = contentFieldsChanged(before, data);
+    const actor = actorOf(req);
+    // Kopyalama + UPDATE + AuditLog tek $transaction (issue: kim neyi degistirdi
+    // tek yerden; eski versiyon her zaman onceki durumu saklar).
+    const row = await prisma.$transaction(async (tx) => {
+      const updated = await tx.requirement.update({ where: { id: req.params.id }, data });
+      const auditRow = await tx.auditLog.create({
+        data: {
+          projectId: pid,
+          action: 'UPDATE',
+          entityType: 'requirement',
+          entityId: updated.id,
+          textId: updated.text_id,
+          actor,
+          message: `Gereksinim guncellendi: "${updated.title}".`,
+        },
+      });
+      if (contentChanged) {
+        // SCD Type 4: degisiklik ONCESI durum, versiyon numarasiyla saklanir.
+        await tx.requirementHistory.create({
+          data: {
+            projectId: pid,
+            requirementId: updated.id,
+            version: await nextHistoryVersion(tx, updated.id),
+            text_id: before.text_id,
+            title: before.title,
+            description: before.description,
+            type: before.type,
+            field: before.field,
+            status: before.status,
+            approvalStatus: before.approvalStatus,
+            locked: before.locked,
+            attributes: before.attributes || {},
+            author: before.author,
+            relatedDocuments: before.relatedDocuments,
+            changedAt: new Date(),
+            changedBy: actor,
+            auditLogId: auditRow.id,
+          },
+        });
+        // Downstream suspect: degisen gereksinimin Satisfies (alt gereksinimler)
+        // ve Verifies (testler) baglarini isaretle. Alt degisimi ust baglarini
+        // (toId oldugu baglar) suspect YAPMAZ.
+        await tx.traceabilityLink.updateMany({
+          where: { projectId: pid, fromId: updated.id, type: { in: SUSPECT_LINK_TYPES } },
+          data: { isSuspect: true },
+        });
+      }
+      return updated;
     });
     res.json(flatten(row));
+  }),
+);
+
+// Issue #57: gereksinimin versiyon gecmisi (SCD Type 4) — salt okunur.
+//  GET /api/projects/:pid/requirements/:id/history
+app.get(
+  '/api/projects/:pid/requirements/:id/history',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    const history = await prisma.requirementHistory.findMany({
+      where: { projectId: pid, requirementId: req.params.id },
+      orderBy: { version: 'desc' },
+    });
+    res.json(flattenAll(history));
+  }),
+);
+
+// Issue #57: bir gereksinimin TUM supheli baglarini temizle (yalnizca approve
+//  izni olanlar; islem AuditLog'a yazilir).
+app.post(
+  '/api/projects/:pid/requirements/:id/clear-suspect',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const before = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    await assertApprovePermission(req, pid, 'requirement', before);
+    const r = await prisma.traceabilityLink.updateMany({
+      where: {
+        projectId: pid,
+        fromId: before.id,
+        isSuspect: true,
+        type: { in: SUSPECT_LINK_TYPES },
+      },
+      data: { isSuspect: false },
+    });
+    await audit(pid, {
+      action: 'SUSPECT_CLEAR',
+      entityType: 'requirement',
+      entityId: before.id,
+      textId: before.text_id,
+      actor: actorOf(req),
+      message: `Supheli baglar temizlendi (${r.count}): "${before.title}".`,
+    });
+    res.json({ ok: true, cleared: r.count });
   }),
 );
 
@@ -979,6 +1096,30 @@ app.delete(
     });
     await cascade(pid);
     res.json({ ok: true });
+  }),
+);
+
+// Issue #57: TEK bir supheli bagi temizle (yalnizca approve izni olanlar;
+//  izin, bagin fromId'sindeki gereksinimin bilesenine gore denetlenir).
+app.post(
+  '/api/projects/:pid/links/:id/clear-suspect',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const link = await prisma.traceabilityLink.findUnique({ where: { id: req.params.id } });
+    if (!link || link.projectId !== pid) throw bad('Bag bulunamadi.', 404);
+    const from = await prisma.requirement.findUnique({ where: { id: link.fromId } });
+    if (!from || from.projectId !== pid) throw bad('Bag kaynagi bulunamadi.', 404);
+    await assertApprovePermission(req, pid, 'requirement', from);
+    const updated = await prisma.traceabilityLink.update({ where: { id: link.id }, data: { isSuspect: false } });
+    await audit(pid, {
+      action: 'SUSPECT_CLEAR',
+      entityType: 'link',
+      entityId: link.id,
+      textId: `${from.text_id} -> ${updated.toId}`,
+      actor: actorOf(req),
+      message: `Supheli bag temizlendi: ${from.text_id} (${link.type}).`,
+    });
+    res.json({ ok: true, cleared: 1 });
   }),
 );
 
