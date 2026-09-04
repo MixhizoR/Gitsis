@@ -89,6 +89,18 @@ export function useTreeNodes(projectId) {
     [fetchChildren],
   )
 
+  /**
+   * YUKLENMIS tum dugumleri yeniden ceker. Bir gereksinim baska bir yerden
+   * (form, onay oylamasi, toplu islem...) degistiginde agac satirlarindaki
+   * degerler bayat kalmasin diye kullanilir — hangi dugumun etkilendigini
+   * bilmedigimiz durumlar icin.
+   */
+  const refreshLoaded = useCallback(async () => {
+    const keys = Object.keys(childrenById)
+    if (keys.length === 0) return
+    await Promise.all(keys.map((k) => fetchChildren(k === ROOT_KEY ? null : k, { force: true })))
+  }, [childrenById, fetchChildren])
+
   /** Bir dugumun hangi ust anahtarin listesinde durdugunu bulur. */
   const findParentKey = useCallback(
     (nodeId) => {
@@ -146,6 +158,7 @@ export function useTreeNodes(projectId) {
     setError,
     toggle,
     refreshKeys,
+    refreshLoaded,
     findParentKey,
     revealPath,
   }

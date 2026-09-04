@@ -11,7 +11,7 @@
 //    2) BOLUM numarasi: DOORS tarzi anahat (1, 1.1, 3.3.2 ...)
 //  Surukle-birak tasima, bolme (split) ve birlestirme (merge) korunur.
 // ============================================================================
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useProject } from '../context/ProjectContext.jsx'
@@ -31,6 +31,7 @@ import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import RequirementForm from '../components/requirements/RequirementForm.jsx'
+import AttributeManager from '../components/requirements/AttributeManager.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
 import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.jsx'
 import SplitModal from '../components/tree/SplitModal.jsx'
@@ -43,6 +44,7 @@ import {
   IconUnlink,
   IconPlus,
   IconEdit,
+  IconList,
 } from '../components/common/Icons.jsx'
 import { REQ_PAGES, REQ_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 
@@ -79,6 +81,7 @@ export default function PbsTree() {
   const [selected, setSelected] = useState(() => new Map()) // id -> row
   const [dragNode, setDragNode] = useState(null)
   const [prefixOpen, setPrefixOpen] = useState(false)
+  const [attrMgrOpen, setAttrMgrOpen] = useState(false)
 
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
 
@@ -91,6 +94,8 @@ export default function PbsTree() {
   const canReadAny = REQ_PAGES ? Object.keys(REQ_PAGES).some((k) => can('read', k)) : false
   // Ekleme yetkisi: gereksinim bilesenlerinden HERHANGI birine ekleyebiliyorsa.
   const canAddAny = Object.keys(REQ_PAGES || {}).some((k) => can('add_requirement', k))
+  // Oznitelik yonetimi Hierarchy sayfalariyla AYNI izne bagli.
+  const canFields = can('manage_fields')
 
   // PBS sayfasinda tip SABIT DEGIL: kullanici formda hangi seviyede gereksinim
   // olusturacagini secer (Kullanici/Sistem/Yazilim/Donanim).
@@ -142,6 +147,29 @@ export default function PbsTree() {
       .filter((r) => !pendingSet.has(r.id))
       .filter((r) => (!needle ? true : `${r.text_id} ${r.title}`.toLowerCase().includes(needle)))
   }, [tree.flatRows, q, pendingSet])
+
+  // Gereksinimler baska bir yerden degistiginde (form kaydi, onay oylamasi,
+  // toplu islem...) agac satirlari bayat kalmasin: AppContext'teki listenin
+  // "imzasi" degisince yuklenmis dugumleri yeniden cek.
+  //   imza = kayit sayisi + en son guncelleme zamani
+  // Boylece ekleme / silme / alan-deger degisikliklerinin hepsi yakalanir.
+  const reqSignature = useMemo(() => {
+    const list = requirements || []
+    let newest = ''
+    for (const r of list) if (r.updatedAt > newest) newest = r.updatedAt
+    return `${list.length}|${newest}`
+  }, [requirements])
+  const lastSignature = useRef(null)
+  useEffect(() => {
+    // Ilk render'da agac zaten yukleniyor; yalnizca SONRAKI degisimlerde tazele.
+    if (lastSignature.current === null) {
+      lastSignature.current = reqSignature
+      return
+    }
+    if (lastSignature.current === reqSignature) return
+    lastSignature.current = reqSignature
+    tree.refreshLoaded()
+  }, [reqSignature, tree])
 
   // --- Mutasyon sonrasi tazeleme ------------------------------------------
   const afterMutation = async (keys) => {
@@ -221,6 +249,16 @@ export default function PbsTree() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canFields && (
+            <button
+              onClick={() => setAttrMgrOpen(true)}
+              className="btn-secondary"
+              data-testid="pbs-attr-btn"
+              title={t('attr.manage')}
+            >
+              <IconList size={16} /> {t('attr.manage')}
+            </button>
+          )}
           {isPM && (
             <button
               onClick={() => setPrefixOpen(true)}
@@ -392,6 +430,7 @@ export default function PbsTree() {
         onClose={() => setMergeOpen(false)}
         onSubmit={handleMerge}
       />
+      <AttributeManager open={attrMgrOpen} onClose={() => setAttrMgrOpen(false)} />
       <PrefixModal
         open={prefixOpen}
         currentPrefix={activeProject?.codePrefix || DEFAULT_CODE_PREFIX}
