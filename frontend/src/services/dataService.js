@@ -79,6 +79,17 @@ export const approvalMatrix = (pid, entityType, entityId) =>
 // --- Audit ------------------------------------------------------------------
 export const listAudit = (pid) => api.get(`/projects/${pid}/audit`)
 
+// --- Issue #57: Versiyon Gecmisi (SCD4) + Suspect baglar -------------------
+//  Gereksinimin versiyon gecmisi (salt okunur; desc sirali).
+export const getRequirementHistory = (pid, requirementId) =>
+  api.get(`/projects/${pid}/requirements/${requirementId}/history`)
+//  Bir gereksinimin TUM supheli baglarini temizle (approve izni gerekir).
+export const clearSuspectLinks = (pid, requirementId) =>
+  api.post(`/projects/${pid}/requirements/${requirementId}/clear-suspect`)
+//  TEK bir supheli bagi temizle (approve izni gerekir).
+export const clearLinkSuspect = (pid, linkId) =>
+  api.post(`/projects/${pid}/links/${linkId}/clear-suspect`)
+
 // --- Cascade durum yeniden hesabi (manuel tetik) ---------------------------
 export const recompute = (pid) => api.post(`/projects/${pid}/recompute`)
 

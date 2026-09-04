@@ -285,6 +285,28 @@ export function AppProvider({ children }) {
       await refresh()
     },
 
+    // Issue #57: Versiyon gecmisi + supheli baglar -------------------------
+    //  Gecmis on-demand cekilir (global koleksiyonlari sismez); mutasyon
+    //  gerektirmez, bu yuzden refresh yok.
+    async getRequirementHistory(requirementId) {
+      if (!pid) throw new Error('Aktif proje yok')
+      return data.getRequirementHistory(pid, requirementId)
+    },
+    //  Temizleme mutasyonudur; backend isSuspect kolonunu gunceller,
+    //  sonrasinda link koleksiyonu yeniden cekilir.
+    async clearSuspect(requirementId) {
+      if (!pid) throw new Error('Aktif proje yok')
+      const r = await data.clearSuspectLinks(pid, requirementId)
+      await refresh()
+      return r
+    },
+    async clearLinkSuspect(linkId) {
+      if (!pid) throw new Error('Aktif proje yok')
+      const r = await data.clearLinkSuspect(pid, linkId)
+      await refresh()
+      return r
+    },
+
     // Snapshots (Issue #8) ----------------------------------------------------
     async createSnapshot(name) {
       if (!pid) throw new Error('Aktif proje yok')

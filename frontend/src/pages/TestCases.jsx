@@ -22,10 +22,11 @@ import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
+import { suspectLinksForTestCase } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 
-export default function TestCases({ pageKey }) {
+export default function TestCases({ pageKey, onOpenSuspect }) {
   const cfg = TEST_PAGES[pageKey]
   const {
     testCases,
@@ -78,6 +79,9 @@ export default function TestCases({ pageKey }) {
   const sel = useBulkSelection(visibleIds)
 
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
+
+  // Issue #57: testin supheli GIRIS bag sayisi (gelen Verifies) — gosterge.
+  const suspectCountFor = (tc) => suspectLinksForTestCase(links, tc.id).length
 
   // --- Onay bilgisi ----------------------------------------------------------
   const approvalInfoFor = (r) => ({
@@ -171,6 +175,8 @@ export default function TestCases({ pageKey }) {
         attributeEntityType="testcase"
         statusLabel={t('tbl.th.testResult')}
         linkCountFor={linkCountFor}
+        suspectCountFor={suspectCountFor}
+        onOpenSuspect={onOpenSuspect}
         onView={canRead ? setViewRow : undefined}
         onEdit={openEdit}
         onDelete={handleDelete}

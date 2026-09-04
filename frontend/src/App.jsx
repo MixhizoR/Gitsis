@@ -24,6 +24,7 @@ import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
 import AuditLogPage from './pages/AuditLog.jsx'
 import SnapshotsPage from './pages/Snapshots.jsx'
+import SuspectPage from './pages/SuspectPage.jsx'
 import ProjectSelect from './pages/ProjectSelect.jsx'
 import Login from './pages/Login.jsx'
 import AIAssistant from './components/common/AIAssistant.jsx'
@@ -39,6 +40,8 @@ export default function App() {
   const { activeProjectId, openProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
+  // Issue #57: suspect gostergesinden gelindiginde vurgulanacak kayit id'si.
+  const [suspectFocusId, setSuspectFocusId] = useState(null)
 
   // Personel oturumu: her zaman atandigi projeye kilitlenir (proje secim yok).
   const forcedProjectId = currentUser?.kind === 'personnel' ? currentUser.projectId : null
@@ -60,6 +63,17 @@ export default function App() {
     )
   }
 
+  // Sayfa degisiminde suspect vurgusunu sifirla (sidebar tiklamasiyla).
+  const navigate = (key) => {
+    setSuspectFocusId(null)
+    setPage(key)
+  }
+  // Suspect gostergesine tiklayinca: vurgu hedefini ayarla + sayfaya git.
+  const openSuspect = (row) => {
+    setSuspectFocusId(row?.id ?? null)
+    setPage('suspect')
+  }
+
   // 3) Calisma alani
   if (loading) {
     return (
@@ -74,14 +88,18 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar active={page} onNavigate={setPage} />
+      <Sidebar active={page} onNavigate={navigate} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar active={page} />
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
-          {REQ_KEYS.includes(page) && <Hierarchy key={page} pageKey={page} />}
-          {TEST_KEYS.includes(page) && <TestCases key={page} pageKey={page} />}
+          {REQ_KEYS.includes(page) && (
+            <Hierarchy key={page} pageKey={page} onOpenSuspect={openSuspect} />
+          )}
+          {TEST_KEYS.includes(page) && (
+            <TestCases key={page} pageKey={page} onOpenSuspect={openSuspect} />
+          )}
           {page === 'glossary' && <Glossary />}
           {page === 'traceability' && <Traceability projectId={activeProjectId} />}
           {page === 'traceability-export' && <TraceabilityPage projectId={activeProjectId} />}
@@ -90,6 +108,7 @@ export default function App() {
           {page === 'documents' && <DocumentAnalysis />}
           {page === 'audit' && <AuditLogPage />}
           {page === 'snapshots' && <SnapshotsPage />}
+          {page === 'suspect' && <SuspectPage focusId={suspectFocusId} />}
         </main>
       </div>
       <AIAssistant onNavigate={setPage} />

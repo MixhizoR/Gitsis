@@ -54,6 +54,7 @@ export const STRINGS = {
     'nav.documents': 'AI Belge Analizi',
     'nav.audit': 'Değişiklik Tarihçesi',
     'nav.snapshots': 'Snapshotlar',
+    'nav.suspect': 'Şüpheli Bağlar',
     'sidebar.locked': 'Bu bölüm yalnızca Sistem Mühendisi rolüne açıktır',
     'sidebar.dataNote': '{b} uyumlu izlenebilirlik · MVP · Veri katmanı:',
     'sidebar.dataLayer': 'json-server',
@@ -75,6 +76,8 @@ export const STRINGS = {
     'page.documents.sub': 'Belgeden gereksinim çıkarımı · offline kalite analizi',
     'page.audit.title': 'Değişiklik Tarihçesi',
     'page.audit.sub': 'Tüm mutasyonların denetim kaydı (Audit Log)',
+    'page.suspect.title': 'Şüpheli Bağlar',
+    'page.suspect.sub': 'İçerik değişiminden etkilenen Satisfies/Verifies bağlarını doğrulayın',
 
     'page.snapshots.title': 'Snapshotlar (Sürümler)',
     'page.snapshots.sub':
@@ -172,6 +175,7 @@ export const STRINGS = {
     'tbl.th.approvalStatus': 'Onay Durumu',
     'tbl.view': 'Görüntüle',
     'tbl.locked': 'Onaylandı — kilitli',
+    'tbl.suspectTitle': 'Şüpheli bağlar ({n}) — yönetmek için tıkla',
     'tbl.approved': 'Onaylandı',
     'tbl.pending': 'Beklemede',
     'tbl.approvalDetail': 'Onay Detayı',
@@ -201,6 +205,33 @@ export const STRINGS = {
     'view.meta.priority': 'Öncelik',
     'view.meta.status': 'Durum',
     'view.meta.dal': 'DAL',
+    // --- Issue #57: versiyon geçmişi sekmesi ---
+    'view.tab.detail': 'Detay',
+    'view.tab.history': 'Geçmiş',
+    'view.history.loading': 'Geçmiş yükleniyor…',
+    'view.history.error': 'Versiyon geçmişi yüklenemedi.',
+    'view.history.empty': 'Henüz versiyon kaydı yok.',
+    'view.history.version': 'Versiyon',
+    'view.history.changedAt': 'Değişim Tarihi',
+    'view.history.changedBy': 'Değiştiren',
+    'view.history.changedFields': 'Değişen Alanlar',
+    'view.history.toggle': 'Sürümü görüntüle',
+    'view.history.attributes': 'Öznitelikler',
+    'view.history.yes': 'Evet',
+    'view.history.no': 'Hayır',
+    // --- Issue #57: şüpheli bağlar sayfası ---
+    'suspect.subtitle':
+      'İçerik değişen gereksinimlerin Satisfies/Verifies bağları şüpheli işaretlenir; onay yetkisi olanlar temizleyebilir.',
+    'suspect.totalSuffix': 'şüpheli kayıt',
+    'suspect.empty': 'Şüpheli bağ yok.',
+    'suspect.emptySub':
+      'Tüm bağlar doğrulanmış durumda. İçerik değişince bağlar burada listelenir.',
+    'suspect.reqsTitle': 'Şüpheli Gereksinimler',
+    'suspect.testsTitle': 'Şüpheli Testler',
+    'suspect.clearAll': 'Tümünü Temizle',
+    'suspect.clear': 'Temizle',
+    'suspect.clearing': 'Temizleniyor…',
+    'suspect.error': 'Temizleme başarısız.',
     // --- Onay matrisi modalı ---
     'apm.title': 'Onay Detayı',
     'apm.subtitle': 'Consensus (uzlaşı) oy durumu. Tüm yetkililer onaylayınca kayıt kilitlenir.',
@@ -662,6 +693,8 @@ export const STRINGS = {
     'page.documents.sub': 'Requirement extraction from documents · offline quality analysis',
     'page.audit.title': 'Change History',
     'page.audit.sub': 'Audit log of all mutations',
+    'page.suspect.title': 'Suspect Links',
+    'page.suspect.sub': 'Review Satisfies/Verifies links affected by content changes',
 
     // --- Topbar actions ---
     'topbar.reset': 'Reset Demo',
@@ -754,6 +787,7 @@ export const STRINGS = {
     'tbl.th.approvalStatus': 'Approval Status',
     'tbl.view': 'View',
     'tbl.locked': 'Approved — locked',
+    'tbl.suspectTitle': 'Suspect links ({n}) — click to manage',
     'tbl.approved': 'Approved',
     'tbl.pending': 'Pending',
     'tbl.approvalDetail': 'Approval Detail',
@@ -783,6 +817,32 @@ export const STRINGS = {
     'view.meta.priority': 'Priority',
     'view.meta.status': 'Status',
     'view.meta.dal': 'DAL',
+    // --- Issue #57: version history tab ---
+    'view.tab.detail': 'Detail',
+    'view.tab.history': 'History',
+    'view.history.loading': 'Loading history…',
+    'view.history.error': 'Could not load version history.',
+    'view.history.empty': 'No version history yet.',
+    'view.history.version': 'Version',
+    'view.history.changedAt': 'Changed At',
+    'view.history.changedBy': 'Changed By',
+    'view.history.changedFields': 'Changed Fields',
+    'view.history.toggle': 'View version',
+    'view.history.attributes': 'Attributes',
+    'view.history.yes': 'Yes',
+    'view.history.no': 'No',
+    // --- Issue #57: suspect links page ---
+    'suspect.subtitle':
+      'Satisfies/Verifies links of requirements whose content changed are flagged suspect; users with approve permission can clear them.',
+    'suspect.totalSuffix': 'suspect records',
+    'suspect.empty': 'No suspect links.',
+    'suspect.emptySub': 'All links are verified. Links appear here when content changes.',
+    'suspect.reqsTitle': 'Suspect Requirements',
+    'suspect.testsTitle': 'Suspect Tests',
+    'suspect.clearAll': 'Clear All',
+    'suspect.clear': 'Clear',
+    'suspect.clearing': 'Clearing…',
+    'suspect.error': 'Failed to clear.',
     // --- Approval matrix modal ---
     'apm.title': 'Approval Detail',
     'apm.subtitle': 'Consensus voting status. The record locks once all authorized voters approve.',
@@ -1135,6 +1195,7 @@ export const STRINGS = {
 
     // --- Snapshots ---
     'nav.snapshots': 'Snapshots',
+    'nav.suspect': 'Suspect Links',
     'page.snapshots.title': 'Snapshots (Versions)',
     'page.snapshots.sub': 'Manage project snapshots — create baselines, review, archive',
     'snapshot.new': 'New Snapshot',
