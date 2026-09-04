@@ -16,13 +16,27 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { TYPE_PREFIX, STATUS } from './constants.js';
+import { STATUS } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
+import { getTreeChildren, getTreeAncestorPath } from './tree.js';
+import { nextTextId as nextTextIdShared } from './idGen.js';
+import { moveRequirement, splitRequirement, mergeRequirements } from './treeOps.js';
+import {
+  getNavLayout,
+  createGroup as createNavGroup,
+  updateGroup as updateNavGroup,
+  deleteGroup as deleteNavGroup,
+  createItem as createNavItem,
+  updateItem as updateNavItem,
+  deleteItem as deleteNavItem,
+  ensureMaterialized as ensureNavMaterialized,
+} from './nav.js';
+import { setProjectCodePrefix } from './textIdPrefix.js';
 import { parseReqIF } from './reqifParser.js';
 import {
   listDefs,
@@ -88,39 +102,10 @@ async function audit(projectId, entry) {
   }
 }
 
-// --- text_id ureteci --------------------------------------------------------
-//  OMUR BOYU BENZERSIZLIK (kara liste): bir text_id bir kez uretildiyse, ilgili
-//  kayit SILINSE BILE numarasi asla yeniden kullanilmaz. Bunun icin sadece
-//  CANLI kayitlara degil, AuditLog'daki tum textId izlerine de bakariz
-//  (silme kayitlari audit'te kalir). Boylece "en yuksek numarali kaydi silip
-//  ayni kodu tekrar uretme" acigi kapanir.
-async function nextTextId(projectId, type, isTest) {
-  const prefix = TYPE_PREFIX[type] || 'REQ-GEN';
-  const [rows, auditRows] = await Promise.all([
-    isTest
-      ? prisma.testCase.findMany({ where: { projectId }, select: { text_id: true } })
-      : prisma.requirement.findMany({ where: { projectId }, select: { text_id: true } }),
-    // Audit'te textId "REQ-SYS-001 -> TC-SYS-002" gibi birlesik de olabildigi
-    // icin bosluk/ok'a gore parcalayip her parcayi degerlendiririz.
-    prisma.auditLog.findMany({
-      where: { projectId, textId: { startsWith: prefix + '-' } },
-      select: { textId: true },
-    }),
-  ]);
-  let max = 0;
-  const consider = (raw) => {
-    if (!raw) return;
-    for (const token of String(raw).split(/[\s>-]*->[\s>-]*|\s+/)) {
-      if (token && token.startsWith(prefix + '-')) {
-        const n = parseInt(token.split('-').pop(), 10);
-        if (!Number.isNaN(n) && n > max) max = n;
-      }
-    }
-  };
-  for (const { text_id } of rows) consider(text_id);
-  for (const { textId } of auditRows) consider(textId);
-  return `${prefix}-${String(max + 1).padStart(3, '0')}`;
-}
+// --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
+//  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
+//  icinden uretebilmesi icin paylasilabilir hale getirildi.
+const nextTextId = (projectId, type, isTest) => nextTextIdShared(prisma, projectId, type, isTest);
 
 // --- Cascade: bir projedeki tum gereksinim durumlarini yeniden hesapla ------
 //  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu (1 okuma +
@@ -366,10 +351,15 @@ app.post(
   '/api/projects',
   requirePM,
   wrap(async (req, res) => {
-    const { name, description } = req.body || {};
+    const { name, description, codePrefix } = req.body || {};
     if (!name || !name.trim()) throw bad('Proje adi zorunlu.');
     const project = await prisma.project.create({
-      data: { name: name.trim(), description: (description || '').trim() },
+      data: {
+        name: name.trim(),
+        description: (description || '').trim(),
+        // Bos birakilirsa sema varsayilani (DEFAULT_CODE_PREFIX) gecerli olur.
+        ...(codePrefix && codePrefix.trim() ? { codePrefix: codePrefix.trim() } : {}),
+      },
     });
     // Her yeni proje, mevcut davranisi koruyan iki gomulu (system) oznitelik
     // tanimiyla baslar: Priority ve DAL Level. Bkz. src/attributes.js.
@@ -397,12 +387,43 @@ app.patch(
   '/api/projects/:pid',
   requirePM,
   wrap(async (req, res) => {
-    const { name, description } = req.body || {};
+    const { name, description, codePrefix } = req.body || {};
     const data = {};
     if (name != null) data.name = name.trim();
     if (description != null) data.description = description.trim();
+    // text_id onegi: sonradan degistirilirse YENI kayitlar yeni oneki alir;
+    // mevcut kayitlar icin prisma/migrate-text-id-prefix.js calistirilmalidir.
+    if (codePrefix != null && codePrefix.trim()) data.codePrefix = codePrefix.trim();
     const project = await prisma.project.update({ where: { id: req.params.pid }, data });
     res.json(project);
+  }),
+);
+
+// text_id kod onegini degistirir; istege bagli olarak MEVCUT kayitlari da
+// yeni onege tasir (numaralar korunur, eski kodlar audit'te kara listede
+// kalir). Yalnizca PM.
+app.post(
+  '/api/projects/:pid/code-prefix',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { codePrefix, migrateExisting } = req.body || {};
+    const before = await prisma.project.findUnique({ where: { id: pid }, select: { codePrefix: true } });
+    const result = await setProjectCodePrefix(prisma, pid, codePrefix, {
+      migrateExisting: Boolean(migrateExisting),
+    });
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'project',
+      entityId: pid,
+      field: 'codePrefix',
+      oldValue: before?.codePrefix || null,
+      newValue: result.project.codePrefix,
+      message: `Kod onegi degistirildi: "${before?.codePrefix}" -> "${result.project.codePrefix}"${
+        result.renamed ? ` (${result.renamed} kayit tasindi)` : ''
+      }.`,
+    });
+    res.json(result);
   }),
 );
 
@@ -451,6 +472,44 @@ app.delete(
 );
 
 // ===========================================================================
+//  SOL MENU DUZENI (nav) — proje bazli gruplar + sayfa yerlesimi (Issue #9/6)
+//  Okuma herkese acik; degisiklikler yalnizca PM'e (requirePM). Kullanici
+//  YALNIZCA gruplama yapar — sayfa anahtarlari sabittir (navDefaults.js).
+// ===========================================================================
+app.get(
+  '/api/projects/:pid/nav',
+  wrap(async (req, res) => {
+    res.json(await getNavLayout(prisma, req.params.pid));
+  }),
+);
+
+// Duzenlemeye baslarken varsayilan duzeni DB'ye yazar (idempotent) — boylece
+// varsayilan gruplar da id kazanir ve hedef olarak secilebilir.
+app.post(
+  '/api/projects/:pid/nav/materialize',
+  requirePM,
+  wrap(async (req, res) => {
+    res.json(await ensureNavMaterialized(prisma, req.params.pid));
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/nav/groups',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const group = await createNavGroup(prisma, pid, req.body?.name);
+    await audit(pid, {
+      action: 'CREATE',
+      entityType: 'nav-group',
+      entityId: group.id,
+      message: `Menu grubu eklendi: "${group.name}".`,
+    });
+    res.status(201).json(group);
+  }),
+);
+
+// ===========================================================================
 //  ATTRIBUTE DEFINITIONS (modular oznitelikler — Requirement/TestCase JSONB
 //  `attributes` alaninin semasini tanimlar; Priority ve DAL Level dahil her
 //  proje icin dinamik olarak eklenip/duzenlenip/silinebilir).
@@ -482,6 +541,95 @@ app.post(
       message: `Yeni oznitelik tanimlandi: "${row.label}" (${row.entityType}).`,
     });
     res.status(201).json(row);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/nav/groups/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const group = await updateNavGroup(prisma, pid, req.params.id, req.body || {});
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'nav-group',
+      entityId: group.id,
+      message: `Menu grubu guncellendi: "${group.name}".`,
+    });
+    res.json(group);
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/nav/groups/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const result = await deleteNavGroup(prisma, pid, req.params.id);
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'nav-group',
+      entityId: req.params.id,
+      message: `Menu grubu silindi; ${result.movedToUngrouped} sayfa grupsuz seviyeye tasindi.`,
+    });
+    res.json(result);
+  }),
+);
+
+// Sayfa ekleme: gruba yeni bir menu ogesi (sabit temel tip + istege bagli
+// ozel ad ve Alan filtresi). Ayni tipten birden fazla sayfa eklenebilir.
+app.post(
+  '/api/projects/:pid/nav/items',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const b = req.body || {};
+    const item = await createNavItem(prisma, pid, {
+      groupId: b.groupId ?? null,
+      pageKey: b.pageKey,
+      label: b.label,
+      fieldFilter: b.fieldFilter,
+    });
+    await audit(pid, {
+      action: 'CREATE',
+      entityType: 'nav-item',
+      entityId: item.id,
+      message: `Menu sayfasi eklendi: "${item.label || item.pageKey}".`,
+    });
+    res.status(201).json(item);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/nav/items/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const item = await updateNavItem(prisma, pid, req.params.id, req.body || {});
+    await audit(pid, {
+      action: 'UPDATE',
+      entityType: 'nav-item',
+      entityId: item.id,
+      message: `Menu ogesi guncellendi: "${item.label || item.pageKey}".`,
+    });
+    res.json(item);
+  }),
+);
+
+// Menuden kaldirir; gereksinim/test VERILERINE dokunmaz.
+app.delete(
+  '/api/projects/:pid/nav/items/:id',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const result = await deleteNavItem(prisma, pid, req.params.id);
+    await audit(pid, {
+      action: 'DELETE',
+      entityType: 'nav-item',
+      entityId: req.params.id,
+      message: `Menu ogesi kaldirildi: "${result.pageKey}" (veriler silinmedi).`,
+    });
+    res.json(result);
   }),
 );
 
@@ -585,6 +733,27 @@ app.post(
       message: `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
     res.status(201).json(flatten(row));
+  }),
+);
+
+// PBS agaci (Issue #9 / Adim 2): lazy-load cocuk sorgusu + ust-zincir.
+// Sabit path'ler ("/tree") parametreli "/:id" route'undan ONCE tanimlanmali,
+// yoksa Express "tree"yi :id olarak yakalar.
+app.get(
+  '/api/projects/:pid/requirements/tree',
+  wrap(async (req, res) => {
+    const parentId = req.query.parentId ? String(req.query.parentId).trim() : null;
+    const items = await getTreeChildren(req.params.pid, parentId);
+    res.json({ items });
+  }),
+);
+
+app.get(
+  '/api/projects/:pid/requirements/:id/ancestors',
+  wrap(async (req, res) => {
+    const path = await getTreeAncestorPath(req.params.pid, req.params.id);
+    if (!path) throw bad('Gereksinim bulunamadi.', 404);
+    res.json({ path });
   }),
 );
 
@@ -755,6 +924,41 @@ app.post(
   }),
 );
 
+// --- PBS agaci yapisal islemleri (Issue #9 / Adim 3) -------------------------
+//  Tasima/bolme/birlestirme atomik transaction icinde (treeOps.js); dongusel
+//  tasima ve tip uyumsuzlugu 400 doner; text_id'ler asla bozulmaz/yeniden
+//  kullanilmaz.
+app.patch(
+  '/api/projects/:pid/requirements/:id/move',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const newParentId = req.body?.parentId ?? null;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const row = await moveRequirement(prisma, pid, req.params.id, newParentId, actor);
+    res.json(row);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/requirements/:id/split',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const result = await splitRequirement(prisma, pid, req.params.id, req.body?.newTitles, actor);
+    res.status(201).json(result);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/requirements/merge',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const actor = req.auth?.userId || 'ehsim.user';
+    const survivor = await mergeRequirements(prisma, pid, req.body?.ids, actor);
+    res.json(survivor);
+  }),
+);
+
 // ===========================================================================
 //  TEST CASES
 // ===========================================================================
@@ -904,8 +1108,7 @@ app.post(
     const pid = req.params.pid;
     const b = req.body || {};
     if (!b.term || !b.term.trim()) throw bad('Terim zorunlu.');
-    const count = await prisma.glossaryTerm.count({ where: { projectId: pid } });
-    const text_id = (b.text_id && b.text_id.trim()) || `GLO-${String(count + 1).padStart(3, '0')}`;
+    const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, 'glossary', false));
     const row = await prisma.glossaryTerm.create({
       data: {
         projectId: pid,

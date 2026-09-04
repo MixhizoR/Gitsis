@@ -8,10 +8,17 @@ import * as api from './apiClient.js'
 
 // --- Projeler ---------------------------------------------------------------
 export const listProjects = () => api.get('/projects')
-export const createProject = (name, description) => api.post('/projects', { name, description })
+//  codePrefix: text_id onegi (orn. EH-KAHVE-TİD). Bos birakilirsa backend
+//  varsayilani kullanilir.
+export const createProject = (name, description, codePrefix) =>
+  api.post('/projects', { name, description, codePrefix })
 export const getProject = (pid) => api.get(`/projects/${pid}`)
 export const updateProject = (pid, data) => api.patch(`/projects/${pid}`, data)
 export const deleteProject = (pid) => api.del(`/projects/${pid}`)
+//  text_id kod onegini degistirir. migrateExisting=true ise MEVCUT
+//  gereksinim/test/sozluk kodlari da yeni onege tasinir (numaralar korunur).
+export const setCodePrefix = (pid, codePrefix, migrateExisting) =>
+  api.post(`/projects/${pid}/code-prefix`, { codePrefix, migrateExisting })
 
 // --- Dinamik Alanlar (Field / Disiplin) ------------------------------------
 export const listFields = (pid) => api.get(`/projects/${pid}/fields`)
@@ -35,6 +42,41 @@ export const updateRequirement = (pid, id, data) =>
 export const deleteRequirement = (pid, id) => api.del(`/projects/${pid}/requirements/${id}`)
 export const bulkDeleteRequirements = (pid, ids) =>
   api.post(`/projects/${pid}/requirements/batch-delete`, { ids })
+
+// --- PBS (Urun Agaci) — lazy-load hiyerarsi (Issue #9) ----------------------
+//  Tum agac TEK seferde cekilmez: yalnizca kok dugumler, kullanici expand
+//  ettikce alt seviyeler dinamik gelir. `parentId` yoksa kok dugumler doner.
+export const listTreeChildren = (pid, parentId) =>
+  api.get(`/projects/${pid}/requirements/tree`, parentId ? { parentId } : undefined)
+export const getAncestors = (pid, id) => api.get(`/projects/${pid}/requirements/${id}/ancestors`)
+//  Tasima: dongusel tasima / tip uyumsuzlugu 400, kilitli kayit 403 doner.
+//  parentId = null => koke tasi.
+export const moveRequirement = (pid, id, parentId) =>
+  api.patch(`/projects/${pid}/requirements/${id}/move`, { parentId })
+//  Bolme: orijinalin text_id'si ve tum baglari/testleri KORUNUR; yeni parcalar
+//  ayni ust dugume baglanir ama Verifies/Assigned-To bagsiz baslar.
+export const splitRequirement = (pid, id, newTitles) =>
+  api.post(`/projects/${pid}/requirements/${id}/split`, { newTitles })
+//  Birlestirme: en eski (createdAt) gereksinim hayatta kalir; digerlerinin tum
+//  baglari + cocuklari ona aktarilir, sonra SILINIRLER (yikici islem).
+export const mergeRequirements = (pid, ids) =>
+  api.post(`/projects/${pid}/requirements/merge`, { ids })
+
+// --- Sol menu duzeni (gruplar + sayfa yerlesimi, Issue #9 / Adim 6) --------
+//  Okuma herkese acik; degisiklikler yalnizca PM'e (backend requirePM).
+//  Sayfa anahtarlari SABIT — kullanici yalnizca gruplama yapar.
+export const getNav = (pid) => api.get(`/projects/${pid}/nav`)
+export const materializeNav = (pid) => api.post(`/projects/${pid}/nav/materialize`)
+export const createNavGroup = (pid, name) => api.post(`/projects/${pid}/nav/groups`, { name })
+export const updateNavGroup = (pid, id, data) =>
+  api.patch(`/projects/${pid}/nav/groups/${id}`, data)
+export const deleteNavGroup = (pid, id) => api.del(`/projects/${pid}/nav/groups/${id}`)
+//  Sayfa ekleme: sabit temel tip (pageKey) + istege bagli ozel ad ve Alan
+//  filtresi. Ayni tipten birden fazla sayfa eklenebilir.
+export const addNavItem = (pid, data) => api.post(`/projects/${pid}/nav/items`, data)
+export const updateNavItem = (pid, id, data) => api.patch(`/projects/${pid}/nav/items/${id}`, data)
+//  Menuden kaldirir; gereksinim/test VERILERINE dokunmaz.
+export const deleteNavItem = (pid, id) => api.del(`/projects/${pid}/nav/items/${id}`)
 
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)

@@ -26,7 +26,13 @@ import { suspectLinksForTestCase } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 
-export default function TestCases({ pageKey, onOpenSuspect }) {
+export default function TestCases({
+  pageKey,
+  titleOverride = null,
+  fieldFilter = null,
+  onOpenSuspect,
+}) {
+  // titleOverride / fieldFilter: menuye eklenen OZEL sayfalar icin (Issue #9).
   const cfg = TEST_PAGES[pageKey]
   const {
     testCases,
@@ -66,13 +72,14 @@ export default function TestCases({ pageKey, onOpenSuspect }) {
     const needle = q.trim().toLowerCase()
     return testCases
       .filter((tc) => tc.type === cfg?.lockedType)
+      .filter((tc) => !fieldFilter || tc.field === fieldFilter)
       .filter((tc) =>
         !needle
           ? true
           : `${tc.text_id} ${tc.title} ${tc.description}`.toLowerCase().includes(needle),
       )
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [testCases, cfg, q])
+  }, [testCases, cfg, q, fieldFilter])
 
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
   const visibleIds = useMemo(() => visibleRows.map((r) => r.id), [visibleRows])
@@ -132,7 +139,9 @@ export default function TestCases({ pageKey, onOpenSuspect }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">{cfg.navLabel}</h2>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+            {titleOverride || cfg.navLabel}
+          </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}

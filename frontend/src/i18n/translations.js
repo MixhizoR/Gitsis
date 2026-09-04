@@ -477,6 +477,88 @@ export const STRINGS = {
     'nav.testSubsystem': 'Alt Sistem Testleri',
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
+    'nav.pbsTree': 'Gereksinimler',
+    'nav.groupRequirements': 'Gereksinimler',
+    'nav.groupTests': 'Testler',
+    'nav.manageMenu': 'Menüyü düzenle',
+
+    // --- Menü düzeni yönetimi (NavManager) ---
+    'navmgr.title': 'Menü Düzeni',
+    'navmgr.hint':
+      'Grup ekleyip silebilir, sayfaları gruplar arasında taşıyabilirsiniz. Sayfaların kendisi (gereksinim/test tipleri) sabittir. Bir grubu silerseniz içindeki sayfalar kaybolmaz, grupsuz seviyeye taşınır.',
+    'navmgr.newGroupPlaceholder': 'Yeni grup adı',
+    'navmgr.addGroup': 'Grup Ekle',
+    'navmgr.groups': 'Gruplar',
+    'navmgr.noGroups': 'Henüz grup yok.',
+    'navmgr.pages': 'Sayfalar',
+    'navmgr.ungrouped': '— Grupsuz —',
+    'navmgr.rename': 'Yeniden adlandır',
+    'navmgr.delete': 'Sil',
+    'navmgr.save': 'Kaydet',
+    'navmgr.addPage': 'Sayfa Ekle',
+    'navmgr.removePage': 'Sayfayı menüden kaldır',
+    'navmgr.addPageHint':
+      'Yeni sayfa, mevcut bir gereksinim/test tipini temel alır (tipler sabittir). İstersen bir Alan (disiplin) filtresi seçerek sayfanın yalnızca o alana ait kayıtları göstermesini sağlayabilirsin.',
+    'navmgr.pageType': 'Temel tip',
+    'navmgr.pageName': 'Sayfa adı',
+    'navmgr.pageNamePlaceholder': 'Örn. Haberleşme Gereksinimleri',
+    'navmgr.pageFilter': 'Alan filtresi (isteğe bağlı)',
+    'navmgr.noFilter': '— Filtre yok (tümü) —',
+    'navmgr.deleteConfirm':
+      '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır.',
+    'navmgr.pageCount': '{n} sayfa',
+
+    // --- Ürün Ağacı (PBS) ---
+    'page.pbsTree.title': 'Gereksinimler',
+    'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
+    'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
+    'tree.expand': 'Alt kırılımları aç',
+    'tree.collapse': 'Alt kırılımları kapat',
+    'tree.empty': 'Bu projede henüz gereksinim yok.',
+    'tree.error': 'Ağaç yüklenemedi.',
+    'tree.locked': 'Onaylandı ve kilitli — taşınamaz',
+    'tree.dropToRoot': 'Köke taşımak için buraya bırak',
+    'pbs.addRequirement': 'Gereksinim Ekle',
+    'prefix.button': 'Kod Öneki',
+    'prefix.title': 'Kod Öneki (text_id)',
+    'prefix.hint':
+      'Kodların yapısı: <önek>-<TİP>-<NUMARA>. Tip (USR/SYS/SW/HW/TC-*/GLO) ve numara otomatiktir; burada yalnızca baştaki proje önekini değiştirirsin.',
+    'prefix.label': 'Yeni önek',
+    'prefix.preview': 'Önizleme',
+    'prefix.migrate': 'Mevcut kayıtları da yeni öneke taşı',
+    'prefix.migrateHint':
+      'Tüm gereksinim, test ve sözlük kodları yeni önekle güncellenir. Numaralar korunur; eski kodlar değişiklik geçmişinde saklanır ve bir daha kullanılmaz. İşaretlemezsen yalnızca bundan sonra oluşturulanlar yeni öneki alır.',
+    'prefix.submit': 'Öneki Güncelle',
+    'proj.codePrefix': 'Kod öneki (text_id)',
+    'proj.codePrefixHint': 'Gereksinim ve test kodları bu önekle üretilir. Örnek: {ornek}',
+    'tbl.th.section': 'Bölüm',
+    'tree.split': 'Bu gereksinimi böl',
+    'tree.merge': 'Birleştir',
+    'tree.selected': '{n} seçili',
+    'tree.clearSelection': 'Seçimi temizle',
+    'tree.selectRow': '{id} seç',
+
+    // --- Bölme (split) ---
+    'split.title': 'Gereksinimi Böl',
+    'split.info':
+      'Orijinal gereksinim ve tüm bağları/testleri olduğu gibi korunur. Yeni parçalar aynı üst gereksinime bağlanır, ancak test ve sözlük bağları olmadan başlar.',
+    'split.newParts': 'Yeni parçalar',
+    'split.partPlaceholder': 'Yeni gereksinim başlığı',
+    'split.addPart': 'Parça ekle',
+    'split.removePart': 'Parçayı kaldır',
+    'split.needTitle': 'En az bir parça başlığı girin.',
+    'split.submit': 'Böl',
+
+    // --- Birleştirme (merge) ---
+    'merge.title': 'Gereksinimleri Birleştir',
+    'merge.warning':
+      'Bu işlem geri alınamaz: {n} gereksinim SİLİNECEK. Tüm bağları ve alt gereksinimleri hayatta kalan gereksinime aktarılır. Silinen kodlar (text_id) bir daha kullanılamaz.',
+    'merge.survivor': 'Hayatta kalan',
+    'merge.toDelete': 'Silinecekler',
+    'merge.submit': 'Birleştir',
+    'merge.notSiblings':
+      'Yalnızca aynı üst gereksinime bağlı (kardeş) gereksinimler birleştirilebilir.',
+    'merge.notSameType': 'Yalnızca aynı tipteki gereksinimler birleştirilebilir.',
 
     // --- Yeni sayfa başlıkları (Topbar) ---
     'page.reqUser.title': 'Kullanıcı Gereksinimleri',
@@ -1048,6 +1130,88 @@ export const STRINGS = {
     'nav.testSubsystem': 'Sub-system Tests',
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
+    'nav.pbsTree': 'Requirements',
+    'nav.groupRequirements': 'Requirements',
+    'nav.groupTests': 'Tests',
+    'nav.manageMenu': 'Edit menu',
+
+    // --- Menu layout management (NavManager) ---
+    'navmgr.title': 'Menu Layout',
+    'navmgr.hint':
+      'You can add and delete groups and move pages between them. The pages themselves (requirement/test types) are fixed. Deleting a group does not delete its pages — they move to the ungrouped level.',
+    'navmgr.newGroupPlaceholder': 'New group name',
+    'navmgr.addGroup': 'Add Group',
+    'navmgr.groups': 'Groups',
+    'navmgr.noGroups': 'No groups yet.',
+    'navmgr.pages': 'Pages',
+    'navmgr.ungrouped': '— Ungrouped —',
+    'navmgr.rename': 'Rename',
+    'navmgr.delete': 'Delete',
+    'navmgr.save': 'Save',
+    'navmgr.addPage': 'Add Page',
+    'navmgr.removePage': 'Remove page from menu',
+    'navmgr.addPageHint':
+      'A new page is based on an existing requirement/test type (types are fixed). Optionally pick a Field (discipline) filter so the page shows only records in that field.',
+    'navmgr.pageType': 'Base type',
+    'navmgr.pageName': 'Page name',
+    'navmgr.pageNamePlaceholder': 'e.g. Communication Requirements',
+    'navmgr.pageFilter': 'Field filter (optional)',
+    'navmgr.noFilter': '— No filter (all) —',
+    'navmgr.deleteConfirm':
+      'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level.',
+    'navmgr.pageCount': '{n} pages',
+
+    // --- Product Tree (PBS) ---
+    'page.pbsTree.title': 'Requirements',
+    'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
+    'tree.search': 'Search requirements (id or title) — click a result to reveal it',
+    'tree.expand': 'Expand children',
+    'tree.collapse': 'Collapse children',
+    'tree.empty': 'No requirements in this project yet.',
+    'tree.error': 'Failed to load the tree.',
+    'tree.locked': 'Approved and locked — cannot be moved',
+    'tree.dropToRoot': 'Drop here to move to root',
+    'pbs.addRequirement': 'Add Requirement',
+    'prefix.button': 'Code Prefix',
+    'prefix.title': 'Code Prefix (text_id)',
+    'prefix.hint':
+      'Id structure: <prefix>-<TYPE>-<NUMBER>. The type (USR/SYS/SW/HW/TC-*/GLO) and number are automatic; here you only change the leading project prefix.',
+    'prefix.label': 'New prefix',
+    'prefix.preview': 'Preview',
+    'prefix.migrate': 'Also migrate existing records',
+    'prefix.migrateHint':
+      'All requirement, test and glossary ids are updated with the new prefix. Numbers are preserved; old ids are kept in the change history and never reused. If unchecked, only newly created records get the new prefix.',
+    'prefix.submit': 'Update Prefix',
+    'proj.codePrefix': 'Code prefix (text_id)',
+    'proj.codePrefixHint':
+      'Requirement and test ids are generated with this prefix. Example: {ornek}',
+    'tbl.th.section': 'Section',
+    'tree.split': 'Split this requirement',
+    'tree.merge': 'Merge',
+    'tree.selected': '{n} selected',
+    'tree.clearSelection': 'Clear selection',
+    'tree.selectRow': 'Select {id}',
+
+    // --- Split ---
+    'split.title': 'Split Requirement',
+    'split.info':
+      'The original requirement and all of its links/tests are preserved. New parts attach to the same parent requirement but start without test or glossary links.',
+    'split.newParts': 'New parts',
+    'split.partPlaceholder': 'New requirement title',
+    'split.addPart': 'Add part',
+    'split.removePart': 'Remove part',
+    'split.needTitle': 'Enter at least one part title.',
+    'split.submit': 'Split',
+
+    // --- Merge ---
+    'merge.title': 'Merge Requirements',
+    'merge.warning':
+      'This cannot be undone: {n} requirement(s) will be DELETED. All their links and child requirements move to the surviving requirement. Deleted ids (text_id) can never be reused.',
+    'merge.survivor': 'Survivor',
+    'merge.toDelete': 'Will be deleted',
+    'merge.submit': 'Merge',
+    'merge.notSiblings': 'Only requirements under the same parent (siblings) can be merged.',
+    'merge.notSameType': 'Only requirements of the same type can be merged.',
 
     // --- New page titles (Topbar) ---
     'page.reqUser.title': 'User Requirements',

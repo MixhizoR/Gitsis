@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk } from './cascade.js';
-import { TYPE_PREFIX } from './constants.js';
+import { prefixFor } from './constants.js';
 import { parseReqIF } from './reqifParser.js';
 import { cleanRichText } from './sanitize.js';
 
@@ -191,8 +191,9 @@ router.post('/import/reqif', async (req, res) => {
     const { requirements, relations } = parseReqIF(xmlContent);
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Mevcut en yüksek text_id numarasını bul
-      const prefix = TYPE_PREFIX['User Requirement'] || 'REQ-USR';
+      // 1. Mevcut en yüksek text_id numarasını bul (önek PROJE bazlıdır)
+      const proj = await tx.project.findUnique({ where: { id: pid }, select: { codePrefix: true } });
+      const prefix = prefixFor(proj?.codePrefix, 'User Requirement');
       const existingReqs = await tx.requirement.findMany({
         where: { projectId: pid },
         select: { text_id: true },

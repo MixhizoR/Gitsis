@@ -7,7 +7,7 @@
 //  test-acceptance, test-system, test-subsystem, glossary, coverage,
 //  traceability, documents, audit.
 // ============================================================================
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useApp } from './context/AppContext.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import { useProject } from './context/ProjectContext.jsx'
@@ -16,6 +16,7 @@ import Sidebar from './components/layout/Sidebar.jsx'
 import Topbar from './components/layout/Topbar.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Hierarchy from './pages/Hierarchy.jsx'
+import PbsTree from './pages/PbsTree.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
 import Roles from './pages/Roles.jsx'
@@ -35,13 +36,23 @@ const REQ_KEYS = ['req-user', 'req-system', 'req-subsystem']
 const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
 
 export default function App() {
-  const { loading } = useApp()
+  const { loading, nav } = useApp()
   const { currentUser } = useAuth()
   const { activeProjectId, openProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
   // Issue #57: suspect gostergesinden gelindiginde vurgulanacak kayit id'si.
   const [suspectFocusId, setSuspectFocusId] = useState(null)
+
+  // Sol menu ogeleri artik ID ile gezinir (ayni tipten birden fazla sayfa
+  // olabildigi icin). Aktif id'yi temel tipe (pageKey) + ozel ad + Alan
+  // filtresine cozumle. Sabit sayfalar (dashboard, roles, coverage...) icin
+  // eslesme bulunmaz ve `page` dogrudan kullanilir.
+  const navItem = useMemo(() => {
+    const all = [...(nav?.groups || []).flatMap((g) => g.items), ...(nav?.ungrouped || [])]
+    return all.find((i) => (i.id || i.pageKey) === page) || null
+  }, [nav, page])
+  const pageKey = navItem?.pageKey || page
 
   // Personel oturumu: her zaman atandigi projeye kilitlenir (proje secim yok).
   const forcedProjectId = currentUser?.kind === 'personnel' ? currentUser.projectId : null
@@ -90,17 +101,30 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar active={page} onNavigate={navigate} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar active={page} />
+        <Topbar active={pageKey} titleOverride={navItem?.label || null} />
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
-          {REQ_KEYS.includes(page) && (
-            <Hierarchy key={page} pageKey={page} onOpenSuspect={openSuspect} />
+          {page === 'pbs-tree' && <PbsTree />}
+          {REQ_KEYS.includes(pageKey) && (
+            <Hierarchy
+              key={page}
+              pageKey={pageKey}
+              titleOverride={navItem?.label || null}
+              fieldFilter={navItem?.fieldFilter || null}
+              onOpenSuspect={openSuspect}
+            />
           )}
-          {TEST_KEYS.includes(page) && (
-            <TestCases key={page} pageKey={page} onOpenSuspect={openSuspect} />
+          {TEST_KEYS.includes(pageKey) && (
+            <TestCases
+              key={page}
+              pageKey={pageKey}
+              titleOverride={navItem?.label || null}
+              fieldFilter={navItem?.fieldFilter || null}
+              onOpenSuspect={openSuspect}
+            />
           )}
-          {page === 'glossary' && <Glossary />}
+          {pageKey === 'glossary' && <Glossary />}
           {page === 'traceability' && <Traceability projectId={activeProjectId} />}
           {page === 'traceability-export' && <TraceabilityPage projectId={activeProjectId} />}
           {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}

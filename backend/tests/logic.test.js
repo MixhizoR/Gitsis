@@ -3,7 +3,8 @@ import { test } from 'node:test';
 
 process.env.JWT_SECRET ||= 'unit-test-jwt-secret';
 
-const { validateLink, computeRequirementStatus, recomputeAllStatuses } = await import('../src/logic.js');
+const { validateLink, validateParentType, computeRequirementStatus, recomputeAllStatuses } =
+  await import('../src/logic.js');
 const { STATUS, LINK_TYPE, REQ_TYPE, TEST_TYPE } = await import('../src/constants.js');
 
 const req = (id, type = REQ_TYPE.SYSTEM) => ({ id, type, text_id: `R-${id}` });
@@ -110,4 +111,27 @@ test('recomputeAllStatuses: hiç değişim yoksa boş döner', () => {
   const testCases = [];
   const links = [];
   assert.deepEqual(recomputeAllStatuses(requirements, testCases, links), []);
+});
+
+// --- validateParentType (PBS ağacı, Issue #9) --------------------------------
+
+test('validateParentType: System → User altında olabilir', () => {
+  assert.deepEqual(validateParentType(req('c', REQ_TYPE.SYSTEM), req('p', REQ_TYPE.USER)), { ok: true });
+});
+
+test('validateParentType: Software → System altında olabilir, User altında olamaz', () => {
+  assert.equal(validateParentType(req('c', REQ_TYPE.SOFTWARE), req('p', REQ_TYPE.SYSTEM)).ok, true);
+  assert.equal(validateParentType(req('c', REQ_TYPE.SOFTWARE), req('p', REQ_TYPE.USER)).ok, false);
+});
+
+test('validateParentType: User kök düğüm olabilir, System olamaz', () => {
+  assert.equal(validateParentType(req('c', REQ_TYPE.USER), null).ok, true);
+  assert.equal(validateParentType(req('c', REQ_TYPE.SYSTEM), null).ok, false);
+});
+
+test('validateParentType: bir gereksinim kendi üst düğümü olamaz', () => {
+  const self = req('same', REQ_TYPE.SYSTEM);
+  const r = validateParentType(self, { id: 'same', type: REQ_TYPE.USER });
+  assert.equal(r.ok, false);
+  assert.ok(r.error);
 });

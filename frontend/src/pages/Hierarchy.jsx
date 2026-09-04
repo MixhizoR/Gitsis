@@ -28,7 +28,15 @@ import { suspectLinksForRequirement } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 
-export default function Hierarchy({ pageKey, onOpenSuspect }) {
+export default function Hierarchy({
+  pageKey,
+  titleOverride = null,
+  fieldFilter = null,
+  onOpenSuspect,
+}) {
+  // titleOverride / fieldFilter: kullanicinin menuye ekledigi OZEL sayfalar
+  // icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa ayni tipin
+  // Alan (disiplin) filtresiyle daraltilmis gorunumudur.
   const cfg = REQ_PAGES[pageKey]
   const {
     requirements,
@@ -74,11 +82,12 @@ export default function Hierarchy({ pageKey, onOpenSuspect }) {
     const needle = q.trim().toLowerCase()
     return requirements
       .filter((r) => types.includes(r.type))
+      .filter((r) => !fieldFilter || r.field === fieldFilter)
       .filter((r) =>
         !needle ? true : `${r.text_id} ${r.title} ${r.description}`.toLowerCase().includes(needle),
       )
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [requirements, types, q])
+  }, [requirements, types, q, fieldFilter])
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
@@ -139,7 +148,9 @@ export default function Hierarchy({ pageKey, onOpenSuspect }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">{cfg.navLabel}</h2>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+            {titleOverride || cfg.navLabel}
+          </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}

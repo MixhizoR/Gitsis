@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import Logo from '../components/common/Logo.jsx'
 import Modal from '../components/common/Modal.jsx'
+import { DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 import { IconPlus, IconTrash, IconChevron } from '../components/common/Icons.jsx'
 
 function CreateModal({ open, onClose }) {
@@ -19,6 +20,8 @@ function CreateModal({ open, onClose }) {
   const { t } = useLang()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  // text_id onegi: <codePrefix>-<TIP>-<NNN> (orn. EH-KAHVE-TİD-USR-001)
+  const [codePrefix, setCodePrefix] = useState(DEFAULT_CODE_PREFIX)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -28,9 +31,10 @@ function CreateModal({ open, onClose }) {
     setSaving(true)
     setError('')
     try {
-      await createProject(name.trim(), description.trim())
+      await createProject(name.trim(), description.trim(), codePrefix.trim())
       setName('')
       setDescription('')
+      setCodePrefix(DEFAULT_CODE_PREFIX)
       onClose()
     } catch (err) {
       setError(err.message || t('form.saveError'))
@@ -85,6 +89,18 @@ function CreateModal({ open, onClose }) {
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t('proj.descPh')}
           />
+        </div>
+        <div>
+          <label className="label">{t('proj.codePrefix')}</label>
+          <input
+            className="input font-mono"
+            value={codePrefix}
+            onChange={(e) => setCodePrefix(e.target.value)}
+            placeholder={DEFAULT_CODE_PREFIX}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t('proj.codePrefixHint', { ornek: `${codePrefix || DEFAULT_CODE_PREFIX}-USR-001` })}
+          </p>
         </div>
       </form>
     </Modal>

@@ -17,6 +17,8 @@ import {
   IconLock,
   IconTarget,
   IconAlert,
+  IconChevron,
+  IconLoader,
 } from './Icons.jsx'
 import { truncate } from '../../utils/format.js'
 import { useLang } from '../../context/LanguageContext.jsx'
@@ -62,6 +64,25 @@ export default function EntityTable({
   onToggleAll,
   allSelected = false,
   someSelected = false,
+  // --- Agac modu (PBS / Urun Agaci, Issue #9) ------------------------------
+  //  treeMode acikken satirlar duz liste degil, HIYERARSIK gorunur:
+  //  - "BOLUM" sutunu DOORS tarzi anahat numarasini gosterir (1, 1.1, 3.3.2)
+  //  - baslik hucresi derinlige gore girintilenir
+  //  - alt kirilimi olan satirlarda ac/kapa oku cikar (lazy-load)
+  //  Satirlar `_depth`, `_outline`, `_hasChildren`, `_expanded`, `_loading`
+  //  alanlarini tasir (cagiran taraf hesaplar).
+  // Baslik altindaki aciklama onizlemesi. PBS agacinda kapatilir: orada
+  // aciklama yalnizca satirdaki "goruntule" (goz) ikonuyla acilan
+  // ViewModal'da gosterilir.
+  showDescription = true,
+  treeMode = false,
+  onToggleExpand,
+  // Surukle-birak ile tasima (yalnizca treeMode'da anlamli)
+  onRowDragStart,
+  onRowDragEnd,
+  onRowDrop,
+  rowDraggable,
+  rowDropAllowed,
 }) {
   const { t } = useLang()
   const { attributeDefs } = useApp()
@@ -113,6 +134,7 @@ export default function EntityTable({
                   />
                 </th>
               )}
+              {treeMode && <th className="px-4 py-3">{t('tbl.th.section')}</th>}
               <th className="px-4 py-3">{t('tbl.th.code')}</th>
               <th className="px-4 py-3">{t('tbl.th.title')}</th>
               {has('type') && <th className="px-4 py-3">{t('tbl.th.type')}</th>}
@@ -140,7 +162,27 @@ export default function EntityTable({
               return (
                 <tr
                   key={r.id}
-                  className={`group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${isSelected(r.id) ? 'bg-brand-50/60 dark:bg-brand-950/20' : ''} ${locked ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : ''} ${suspectCount > 0 ? 'bg-amber-50/50 dark:bg-amber-950/10' : ''}`}
+                  draggable={treeMode && rowDraggable ? rowDraggable(r) : undefined}
+                  onDragStart={treeMode ? () => onRowDragStart && onRowDragStart(r) : undefined}
+                  onDragEnd={treeMode ? () => onRowDragEnd && onRowDragEnd() : undefined}
+                  onDragOver={
+                    treeMode
+                      ? (e) => {
+                          // preventDefault YALNIZCA gecerli hedefte cagrilir;
+                          // aksi halde tarayici birakmaya izin vermez.
+                          if (rowDropAllowed && rowDropAllowed(r)) e.preventDefault()
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    treeMode
+                      ? (e) => {
+                          e.preventDefault()
+                          if (rowDropAllowed && rowDropAllowed(r)) onRowDrop && onRowDrop(r)
+                        }
+                      : undefined
+                  }
+                  className={`group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${isSelected(r.id) ? 'bg-brand-50/60 dark:bg-brand-950/20' : ''} ${locked ? 'bg-emerald-50/40 dark:bg-emerald-950/10' : ''} ${suspectCount > 0 ? 'bg-amber-50/50 dark:bg-amber-950/10' : ''} ${treeMode && rowDraggable && rowDraggable(r) ? 'cursor-grab' : ''}`}
                 >
                   {selectable && (
                     <td className="px-4 py-3 align-top">
@@ -153,10 +195,37 @@ export default function EntityTable({
                       />
                     </td>
                   )}
+                  {treeMode && (
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
+                      <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {r._outline}
+                      </span>
+                    </td>
+                  )}
                   <td
                     className={`whitespace-nowrap px-4 py-3 align-top ${suspectCount > 0 ? 'border-l-4 border-l-amber-400' : ''}`}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div
+                      className="flex items-center gap-1.5"
+                      style={treeMode ? { paddingLeft: (r._depth || 0) * 18 } : undefined}
+                    >
+                      {treeMode &&
+                        (r._hasChildren ? (
+                          <button
+                            onClick={() => onToggleExpand && onToggleExpand(r)}
+                            aria-label={r._expanded ? t('tree.collapse') : t('tree.expand')}
+                            aria-expanded={Boolean(r._expanded)}
+                            className="rounded p-0.5 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+                          >
+                            {r._loading ? (
+                              <IconLoader size={13} className="animate-spin" />
+                            ) : (
+                              <IconChevron size={13} className={r._expanded ? 'rotate-90' : ''} />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="w-[19px]" aria-hidden="true" />
+                        ))}
                       <span className="font-mono text-xs font-bold text-brand-600 dark:text-brand-400">
                         {r.text_id}
                       </span>
@@ -194,7 +263,7 @@ export default function EntityTable({
                     <div className="font-semibold text-slate-800 dark:text-slate-100">
                       {r[titleKey]}
                     </div>
-                    {r.description != null && (
+                    {showDescription && r.description != null && (
                       <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
                         {truncate(stripHtml(r.description), 110)}
                       </div>
