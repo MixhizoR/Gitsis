@@ -1,35 +1,19 @@
 // ============================================================================
 //  impact.test.js — Etki Analizi backend regresyon testleri (Issue #46).
 //  Recursive CTE ile etki agaci, dongu korumasi, IDOR korumasi.
-// ============================================================================
 import assert from 'node:assert/strict';
-import { execSync } from 'node:child_process';
 import { before, after, test } from 'node:test';
 import request from 'supertest';
-
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'ci-test-secret';
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ||
-  `postgresql://ehsim:${encodeURIComponent(process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026')}@localhost:5433/ehsim_rmt_test`;
-process.env.DATABASE_URL = TEST_DATABASE_URL;
-const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
+// Ortak env + DB reset (tek dogruluk kaynagi: tests/_setup.js).
+import './_setup.js';
+import { resetDb } from './_setup.js';
 
 const { default: app } = await import('../src/server.js');
 const { PrismaClient } = await import('@prisma/client');
 const prisma = new PrismaClient();
 
 before(async () => {
-  if (LOCAL_DOCKER_DB) {
-    try {
-      execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
-        stdio: 'pipe',
-      });
-    } catch {
-      /* already exists */
-    }
-  }
-  execSync('npx prisma db push --force-reset --skip-generate', { stdio: 'inherit', env: { ...process.env } });
+  resetDb();
 
   // Admin kullanici + proje (seed benzeri, yalnizca impact testi icin)
   const { hashPassword } = await import('../src/auth.js');
