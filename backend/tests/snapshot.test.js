@@ -6,20 +6,12 @@
 //
 //  Calistirma: npm test backend/tests/snapshot.test.js
 //  DB: npm test altında otomatik seed edilir (api.test.js shared before).
-// ============================================================================
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import request from 'supertest';
-
-// Import'lardan ONCE ortam ayarları (PrismaClient kurulumda env okur).
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'ehsim-snapshot-test-secret';
-
-const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ||
-  `postgresql://ehsim:${encodeURIComponent(process.env.POSTGRES_PASSWORD || 'ehsim_local_pass_2026')}@localhost:5433/ehsim_rmt_test`;
-process.env.DATABASE_URL = TEST_DATABASE_URL;
-const LOCAL_DOCKER_DB = !process.env.TEST_DATABASE_URL;
+// Ortak env + DB reset (tek dogruluk kaynagi: tests/_setup.js).
+import './_setup.js';
+import { resetDb } from './_setup.js';
 
 const { default: app } = await import('../src/server.js');
 const { PrismaClient } = await import('@prisma/client');
@@ -31,22 +23,7 @@ let pmToken = null;
 let proj = null;
 
 before(async () => {
-  if (LOCAL_DOCKER_DB) {
-    try {
-      const { execSync } = await import('node:child_process');
-      execSync('docker compose exec -T db psql -U ehsim -d ehsim_rmt -c "CREATE DATABASE ehsim_rmt_test"', {
-        stdio: 'pipe',
-      });
-    } catch {
-      // Zaten var — sorun değil.
-    }
-  }
-  const { execSync } = await import('node:child_process');
-  execSync('npx prisma db push --force-reset --skip-generate', {
-    stdio: 'inherit',
-    cwd: '.',
-    env: { ...process.env },
-  });
+  resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
 

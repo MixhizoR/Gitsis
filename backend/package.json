@@ -16,7 +16,9 @@
     "test": "node --test --test-concurrency=1",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "postinstall": "prisma generate",
+    "prepare": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",

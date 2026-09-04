@@ -85,11 +85,7 @@ describe('Smoke — modal ve component render', () => {
     expect(screen.getByText('REQ-001 — Test')).toBeInTheDocument()
   })
 
-  it.skip('LinkManager kapali ise hicbir sey render etmez (useApp + subject mock gerektirir)', () => {
-    // LinkManager karmaşık useApp + subject prop bağımlılığı nedeniyle
-    // ayrı bir mock helper gerektirir; bu smoke test setinde atlanır.
-    expect(true).toBe(true)
-  })
+  it.todo('LinkManager kapali ise hicbir sey render etmez (useApp + subject mock gerektirir)')
 
   it('ImpactAnalysisModal kapali ise null doner', () => {
     const { container } = render(
