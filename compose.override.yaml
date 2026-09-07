@@ -1,0 +1,24 @@
+services:
+  db:
+    ports:
+      # Lokalde veritabanına GUI araçlarıyla (DBeaver, DataGrip) bağlanabilmen için
+      - "127.0.0.1:5433:5432"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: builder
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      # Üretimdeki 80 portuna EK OLARAK lokalde alıştığın 5173 portunu açar
+      - "127.0.0.1:5173:8080"
