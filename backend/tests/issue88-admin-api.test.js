@@ -87,16 +87,13 @@ test('admin kullanicilari listeler (passwordHash donmez)', async () => {
 // --- AC #2: admin olusturur -> kullanici login olur --------------------------
 test('admin yeni kullanici olusturur ve o kullanici login olabilir', async () => {
   const NEWPASS = 'SuperSecret-PW-123';
-  const r = await request(app)
-    .post('/api/users')
-    .set('Authorization', `Bearer ${adminToken}`)
-    .send({
-      username: 'yeni-issue88',
-      password: NEWPASS,
-      name: 'Yeni Kullanici',
-      role: 'System Engineer',
-      clearanceLevel: 2,
-    });
+  const r = await request(app).post('/api/users').set('Authorization', `Bearer ${adminToken}`).send({
+    username: 'yeni-issue88',
+    password: NEWPASS,
+    name: 'Yeni Kullanici',
+    role: 'System Engineer',
+    clearanceLevel: 2,
+  });
   assert.equal(r.status, 201);
   assert.equal(r.body.username, 'yeni-issue88');
   assert.equal(r.body.clearanceLevel, 2);
