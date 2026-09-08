@@ -15,6 +15,7 @@ import { useProject } from '../context/ProjectContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { formatDateTime } from '../utils/format.js'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import {
   IconDoc,
   IconUpload,
@@ -77,6 +78,8 @@ export default function DocumentLibrary() {
   const [query, setQuery] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [busyId, setBusyId] = useState(null)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const canDelete = isPM || can('delete')
 
@@ -176,16 +179,18 @@ export default function DocumentLibrary() {
     }
   }
 
-  const handleDelete = async (doc) => {
-    if (!window.confirm(t('docs.confirmDelete', { name: doc.fileName }))) return
+  const handleDelete = (doc) => {
     setError(null)
+    setDeleteTarget(doc)
+  }
+  const confirmDelete = async (reason) => {
+    const doc = deleteTarget
     setBusyId(doc.id)
     try {
-      await deleteDocument(activeProjectId, doc.id)
+      await deleteDocument(activeProjectId, doc.id, reason)
       setDocs((prev) => prev.filter((d) => d.id !== doc.id))
       setNotice(t('docs.deleted', { name: doc.fileName }))
-    } catch (e) {
-      setError(e?.message || t('docs.deleteError'))
+      setDeleteTarget(null)
     } finally {
       setBusyId(null)
     }
@@ -380,6 +385,12 @@ export default function DocumentLibrary() {
           </div>
         )}
       </div>
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.fileName}
+      />
     </div>
   )
 }

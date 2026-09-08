@@ -22,6 +22,7 @@ import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
 import { cleanRichText } from './sanitize.js';
+import { requireReason } from './reason.js';
 import traceabilityRoutes from './traceability.js';
 import documentRoutes from './documents.js';
 import { getImpactTree } from './impact.js';
@@ -121,27 +122,6 @@ async function audit(projectId, entry) {
   }
 }
 
-// --- Silme gerekcesi (izlenebilirlik) ---------------------------------------
-//  DO-178C degisiklik yonetimi: veriyi GERCEKTEN silen her uc nokta, "neden
-//  silindi" gerekcesini DB degisikligiyle AYNI ISTEKTE zorunlu kilar; bu
-//  metin ilgili AuditLog kaydina (Degisiklik Tarihcesi) yazilir. Yalnizca
-//  UI/menu duzeni gibi veri SILMEYEN islemler (nav grubu/sayfasi kaldirma)
-//  buna dahil degildir — onlar zaten hicbir kaydi silmiyor.
-//  Sunucu tarafinda dogrulanir: istemci dogrulamasi guvenlik siniri DEGILDIR,
-//  API'ye dogrudan istek atilarak atlatilabilir.
-const REASON_MIN_LEN = 3;
-const REASON_MAX_LEN = 500;
-function requireReason(req) {
-  const raw = req.body?.reason;
-  const reason = typeof raw === 'string' ? raw.trim() : '';
-  if (reason.length < REASON_MIN_LEN) {
-    throw bad(`Silme gerekcesi zorunludur (en az ${REASON_MIN_LEN} karakter).`);
-  }
-  if (reason.length > REASON_MAX_LEN) {
-    throw bad(`Silme gerekcesi en fazla ${REASON_MAX_LEN} karakter olabilir.`);
-  }
-  return reason;
-}
 
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction

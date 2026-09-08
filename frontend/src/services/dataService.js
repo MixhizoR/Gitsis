@@ -182,4 +182,5 @@ export const uploadDocument = (pid, file, description = '', onProgress) => {
 export const downloadDocument = (pid, id) =>
   api.downloadBlob(`/projects/${pid}/documents/${id}/download`, { timeout: 120000 })
 
-export const deleteDocument = (pid, id) => api.del(`/projects/${pid}/documents/${id}`)
+export const deleteDocument = (pid, id, reason) =>
+  api.del(`/projects/${pid}/documents/${id}`, { reason })

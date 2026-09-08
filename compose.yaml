@@ -1,3 +1,14 @@
+# Proje adini SABITLER: compose.yaml'i icinde bulunduran klasorun adindan
+# turetilen varsayilan davranisa GUVENME. Sabit ad olmadan, ayni repo farkli
+# klasor adiyla (orn. "Gitsis-main" vs "Gitsis-main-ma-v3.1.1") indirilirse
+# HER BIRI kendi ayri (ve birbirinden habersiz) Postgres volume'una baglanir;
+# bu da eski/terk edilmis bir klasorden kalma volume'un yeni bir indirmede
+# sessizce yeniden kullanilip supheli "eksik sutun" hatalarina yol acmasina
+# neden olabilir (bkz. Issue: fresh clone migrate hatasi). Sabit isim, ayni
+# makinede bu repo hangi klasor adiyla calistirilirsa calistirilsin HEP AYNI
+# volume + container kumesine baglanmasini garanti eder.
+name: ehsim
+
 services:
   db:
     image: postgres:15
