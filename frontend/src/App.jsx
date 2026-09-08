@@ -54,8 +54,9 @@ export default function App() {
   }, [nav, page])
   const pageKey = navItem?.pageKey || page
 
-  // Personel oturumu: her zaman atandigi projeye kilitlenir (proje secim yok).
-  const forcedProjectId = currentUser?.kind === 'personnel' ? currentUser.projectId : null
+  // Issue #87: projeye atanmis oturum (personel veya regular user) her zaman
+  // atandigi projeye kilitlenir (proje secim yok). PM/projesiz kullanici secim yapar.
+  const forcedProjectId = currentUser?.projectId || null
   useEffect(() => {
     if (forcedProjectId && activeProjectId !== forcedProjectId) openProject(forcedProjectId)
   }, [forcedProjectId, activeProjectId, openProject])

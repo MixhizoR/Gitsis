@@ -92,3 +92,11 @@ export async function createUser({ username, password, name, role }) {
 export async function passcodeAuthenticate(passcode) {
   return api.post('/auth/passcode', { passcode })
 }
+
+/**
+ * Refresh token'i sunucuda revoke eder (logout). Basarisiz olsa da cagiran
+ * taraf oturumu temizlemeye devam eder (best-effort).
+ */
+export async function logoutRefresh(refreshToken) {
+  return api.post('/auth/logout', { refreshToken })
+}

@@ -5,12 +5,17 @@
 //    2) Personel: 5 karakterlik passcode. Rolüne tanımlı 12 kademeli izin.
 //  Yalnızca OTURUM bilgisi tarayıcıda (LocalStorage) tutulur.
 // ============================================================================
-import { createContext, useContext, useState, useCallback } from 'react'
-import { ROLES, authenticate, passcodeAuthenticate, toInitials } from '../services/authService.js'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import {
+  ROLES,
+  authenticate,
+  passcodeAuthenticate,
+  logoutRefresh,
+  toInitials,
+} from '../services/authService.js'
 import { hasPermission } from '../utils/permissions.js'
 
 const SESSION_KEY = 'ehsim_auth_session'
-const PM_ROLE_LABEL = 'Proje Yöneticisi'
 
 // Geriye donuk uyumluluk: ROLES bazi bilesenlerce buradan import ediliyor.
 export { ROLES }
@@ -33,20 +38,25 @@ export function AuthProvider({ children }) {
     return session
   }
 
-  // --- PM girişi (kullanıcı adı + şifre) ------------------------------------
+  // --- PM / normal kullanici girisi (kullanici adi + sifre) ----------------
   const login = useCallback(async (username, password) => {
     const res = await authenticate(username, password)
-    const { token, user } = res || {}
-    if (!user || !token) throw new Error('Kullanıcı adı veya şifre yanlış.')
+    const { accessToken, refreshToken, user } = res || {}
+    if (!user || !accessToken || !refreshToken) throw new Error('Kullanıcı adı veya şifre yanlış.')
+    const isPM = user.role === 'Proje Yöneticisi'
     return persist({
-      kind: 'pm',
-      isPM: true,
-      token,
+      kind: isPM ? 'pm' : 'user',
+      isPM,
+      accessToken,
+      refreshToken,
       id: user.id,
       username: user.username,
       name: user.name,
       initials: user.initials || toInitials(user.name),
-      role: PM_ROLE_LABEL,
+      systemRole: user.systemRole,
+      clearanceLevel: user.clearanceLevel,
+      role: user.role,
+      projectId: user.projectId || null,
     })
   }, [])
 
@@ -74,8 +84,28 @@ export function AuthProvider({ children }) {
 
   // --- Çıkış ----------------------------------------------------------------
   const logout = useCallback(() => {
+    // Sunucuda refresh token'i revoke et (best-effort); oturum her halde temizlenir.
+    try {
+      const stored = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')
+      if (stored?.refreshToken) {
+        logoutRefresh(stored.refreshToken).catch(() => {})
+      }
+    } catch {
+      /* yoksay */
+    }
     localStorage.removeItem(SESSION_KEY)
     setCurrentUser(null)
+  }, [])
+
+  // Oturum süresi dolunca (apiClient'in sessiz yenilemesi başarısız olunca)
+  // uygulamayı Login ekranına düşür — sayfa yenilemek gerekmez.
+  useEffect(() => {
+    const onExpired = () => {
+      localStorage.removeItem(SESSION_KEY)
+      setCurrentUser(null)
+    }
+    window.addEventListener('ehsim:auth-expired', onExpired)
+    return () => window.removeEventListener('ehsim:auth-expired', onExpired)
   }, [])
 
   // --- Yetki kontrolü -------------------------------------------------------
