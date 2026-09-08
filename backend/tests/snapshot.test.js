@@ -130,7 +130,8 @@ test("DELETE /api/projects/:pid/snapshots/:snapshotId — PM silebilir; AuditLog
 
   const res = await request(app)
     .delete(`/api/projects/${proj.id}/snapshots/${sid}`)
-    .set('Authorization', `Bearer ${pmToken}`);
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ reason: 'Test verisi temizligi.' });
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
 

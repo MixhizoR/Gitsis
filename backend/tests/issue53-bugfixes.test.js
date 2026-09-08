@@ -324,12 +324,14 @@ test('glossary DELETE: audit DELETE kaydi yazilir', async () => {
   });
   const r = await request(app)
     .delete(`/api/projects/${projA.id}/glossary/${created.id}`)
-    .set('Authorization', `Bearer ${pmToken}`);
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ reason: 'Test verisi temizligi.' });
   assert.equal(r.status, 200);
   const audit = await prisma.auditLog.findFirst({
     where: { projectId: projA.id, action: 'DELETE', entityType: 'glossary', entityId: created.id },
   });
   assert.ok(audit, 'DELETE audit kaydi olmali');
+  assert.equal(audit.reason, 'Test verisi temizligi.');
 });
 
 // ============================================================================

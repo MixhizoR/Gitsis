@@ -102,6 +102,22 @@ model Project {
   documents    ProjectDocument[]
 }
 
+// --- Proje SILME gerekcesi (izlenebilirlik) ---------------------------------
+//  Proje silinince o projeye ait AuditLog kayitlari da CASCADE ile silinir
+//  (Project.audit FK, onDelete: Cascade) — yani "neden silindi" gerekcesini
+//  normal AuditLog'a yazmak anlamsizdir, o kayit projeyle BIRLIKTE yok olur.
+//  Bu tablo projeye FK ILE BAGLI DEGILDIR (duz string id + ad kopyasi) —
+//  proje silindikten SONRA da izlenebilir kalir. Yalnizca PM gorebilir
+//  (GET /api/project-deletions).
+model ProjectDeletionLog {
+  id          String   @id @default(uuid())
+  projectId   String
+  projectName String
+  reason      String
+  actor       String?
+  deletedAt   DateTime @default(now())
+}
+
 // --- Snaphotlar (baseline / sürüm) ----------------------------------------
 //  Belirli bir andaki proje verisinin donmus kopyası. SnapshotItem,
 //  o andaki tüm Requirement/TestCase/GlossaryTerm + Link kayıtlarını
@@ -437,6 +453,13 @@ model AuditLog {
   oldValue   String?
   newValue   String?
   message    String?
+  // Silme (ve ileride baska "geri alinamaz" islemler) icin ZORUNLU gerekce
+  // metni — izlenebilirlik: "neden silindi" DB degisikligiyle BIRLIKTE
+  // saklanir. Yalnizca DELETE/UNLINK/*_DELETE turu action'larda doldurulur;
+  // digerlerinde (CREATE/UPDATE) null kalir. Sunucu tarafinda zorunlu
+  // kilinir (bkz. server.js requireReason) — burada nullable olmasinin tek
+  // sebebi eski action turlerinin bu alani hic kullanmamasidir.
+  reason     String?
   actor      String?
   createdAt  DateTime @default(now())
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

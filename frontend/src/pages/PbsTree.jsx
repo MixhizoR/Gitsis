@@ -30,6 +30,7 @@ import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import RequirementForm from '../components/requirements/RequirementForm.jsx'
 import AttributeManager from '../components/requirements/AttributeManager.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
@@ -82,6 +83,8 @@ export default function PbsTree() {
   const [dragNode, setDragNode] = useState(null)
   const [prefixOpen, setPrefixOpen] = useState(false)
   const [attrMgrOpen, setAttrMgrOpen] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
 
@@ -177,7 +180,11 @@ export default function PbsTree() {
     await refresh() // duz listeler + Dashboard sayilari
   }
 
-  const handleDelete = (r) => del.schedule([r.id])
+  const handleDelete = (r) => setDeleteTarget({ id: r.id, label: `${r.text_id} — ${r.title}` })
+  const confirmDelete = async (reason) => {
+    await del.schedule([deleteTarget.id], reason)
+    setDeleteTarget(null)
+  }
 
   // --- Bolme / birlestirme -------------------------------------------------
   const selectedList = useMemo(() => [...selected.values()], [selected])
@@ -443,6 +450,12 @@ export default function PbsTree() {
         count={del.pendingIds.length}
         secondsLeft={del.secondsLeft}
         onUndo={del.undo}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
       {/* requirements sadece arama/istatistik icin kullanilir; agac verisi
           lazy-load ile ayri gelir. */}

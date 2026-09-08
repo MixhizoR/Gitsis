@@ -39,16 +39,17 @@ export function useUndoableDelete(commitFn, { seconds = 5 } = {}) {
     setPending(null)
     if (p && p.ids.length) {
       try {
-        await commitRef.current(p.ids)
+        await commitRef.current(p.ids, p.reason)
       } catch {
         /* sessiz: refresh zaten calisir */
       }
     }
   }, [clearTimers])
 
-  // Yeni bir soft-delete zamanla.
+  // Yeni bir soft-delete zamanla. `reason`: izlenebilirlik icin zorunlu silme
+  // gerekcesi (ReasonModal'dan gelir); commitFn'e ids ile BIRLIKTE iletilir.
   const schedule = useCallback(
-    async (ids, meta = {}) => {
+    async (ids, reason) => {
       if (!ids || ids.length === 0) return
       // Onceki bekleyen varsa hemen isle.
       if (pendingRef.current) {
@@ -57,13 +58,13 @@ export function useUndoableDelete(commitFn, { seconds = 5 } = {}) {
         pendingRef.current = null
         if (prev.ids.length) {
           try {
-            await commitRef.current(prev.ids)
+            await commitRef.current(prev.ids, prev.reason)
           } catch {
             /* yut */
           }
         }
       }
-      const p = { ids: [...ids], ...meta }
+      const p = { ids: [...ids], reason }
       pendingRef.current = p
       setPending(p)
       setSecondsLeft(seconds)
@@ -92,7 +93,7 @@ export function useUndoableDelete(commitFn, { seconds = 5 } = {}) {
       if (intervalRef.current) clearInterval(intervalRef.current)
       if (p && p.ids.length) {
         try {
-          commitRef.current(p.ids)
+          commitRef.current(p.ids, p.reason)
         } catch {
           /* yut */
         }

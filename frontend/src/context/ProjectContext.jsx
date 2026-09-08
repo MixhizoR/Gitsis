@@ -84,8 +84,8 @@ export function ProjectProvider({ children }) {
   )
 
   const removeProject = useCallback(
-    async (pid) => {
-      await apiDeleteProject(pid)
+    async (pid, reason) => {
+      await apiDeleteProject(pid, reason)
       if (pid === activeProjectId) setActiveProjectId(null)
       await refreshProjects()
     },

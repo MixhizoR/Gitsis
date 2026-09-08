@@ -91,9 +91,9 @@ export async function patch(path, body) {
     throw toError(err)
   }
 }
-export async function del(path) {
+export async function del(path, body) {
   try {
-    const { data } = await http.delete(path)
+    const { data } = await http.delete(path, body === undefined ? undefined : { data: body })
     return data
   } catch (err) {
     throw toError(err)

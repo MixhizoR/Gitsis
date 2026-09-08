@@ -315,6 +315,7 @@ export const STRINGS = {
     'audit.th.action': 'İşlem',
     'audit.th.object': 'Nesne',
     'audit.th.detail': 'Detay',
+    'audit.reason': 'Gerekçe',
 
     // --- Snapshotlar (Issue #8) ---
     'snapshot.new': 'Yeni Snapshot',
@@ -547,6 +548,15 @@ export const STRINGS = {
       '"{name}" grubu silinecek. İçindeki sayfalar silinmez, grupsuz seviyeye taşınır.',
     'navmgr.pageCount': '{n} sayfa',
 
+    // --- Silme gerekçesi (izlenebilirlik) ---
+    'delreason.title': 'Silme gerekçesi',
+    'delreason.hint':
+      "Bu işlem veritabanından bir kaydı kalıcı olarak siler. İzlenebilirlik için nedenini kısaca açıklayın — bu metin Değişiklik Tarihçesi'nde saklanır.",
+    'delreason.placeholder':
+      'Örn. Yanlış girilmiş, kapsam dışı bırakıldı, ikinci bir kayıtla birleştirildi…',
+    'delreason.tooShort': 'Gerekçe en az {n} karakter olmalı.',
+    'delreason.confirm': 'Sil',
+
     // --- Ürün Ağacı (PBS) ---
     'page.pbsTree.title': 'Bağlantı Ağacı',
     'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
@@ -634,6 +644,10 @@ export const STRINGS = {
     'proj.open': 'Aç',
     'proj.loadError': 'Projeler yüklenemedi',
     'proj.deleteConfirm': '"{name}" projesi ve tüm verileri silinecek. Onaylıyor musunuz?',
+    'proj.deleteWarning':
+      'Bu proje içindeki TÜM gereksinimler, testler, bağlar ve geçmiş kalıcı olarak silinecek. Bu işlem geri alınamaz.',
+    'proj.deletedLog': 'Silinen Projeler',
+    'proj.deletedEmpty': 'Henüz silinen proje yok.',
     'proj.stat.reqs': 'gereksinim',
     'proj.stat.tests': 'test',
     'proj.stat.links': 'bağ',
@@ -1047,6 +1061,7 @@ export const STRINGS = {
     'audit.th.action': 'Action',
     'audit.th.object': 'Object',
     'audit.th.detail': 'Detail',
+    'audit.reason': 'Reason',
 
     // --- Traceability matrix ---
     'mtx.insufficient': 'Not enough requirements for this matrix.',
@@ -1238,6 +1253,14 @@ export const STRINGS = {
       'The group "{name}" will be deleted. Its pages are not deleted — they move to the ungrouped level.',
     'navmgr.pageCount': '{n} pages',
 
+    // --- Deletion reason (traceability) ---
+    'delreason.title': 'Reason for deletion',
+    'delreason.hint':
+      'This permanently deletes a record from the database. For traceability, briefly explain why — this text is stored in the Change History.',
+    'delreason.placeholder': 'e.g. Entered by mistake, out of scope, merged into another record…',
+    'delreason.tooShort': 'Reason must be at least {n} characters.',
+    'delreason.confirm': 'Delete',
+
     // --- Product Tree (PBS) ---
     'page.pbsTree.title': 'Link Tree',
     'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
@@ -1325,6 +1348,10 @@ export const STRINGS = {
     'proj.open': 'Open',
     'proj.loadError': 'Could not load projects',
     'proj.deleteConfirm': 'Project "{name}" and all its data will be deleted. Are you sure?',
+    'proj.deleteWarning':
+      'ALL requirements, tests, links and history inside this project will be permanently deleted. This cannot be undone.',
+    'proj.deletedLog': 'Deleted Projects',
+    'proj.deletedEmpty': 'No deleted projects yet.',
     'proj.stat.reqs': 'requirements',
     'proj.stat.tests': 'tests',
     'proj.stat.links': 'links',
