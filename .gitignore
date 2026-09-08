@@ -21,3 +21,6 @@ coverage/
 test-results/
 /.vs
 repomix-output.txt
+repomix-output.md
+ATTRIBUTES_MIGRATION.md
+VISURE_SPREADSHEET_UI.md
