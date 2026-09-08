@@ -21,6 +21,8 @@
 // PrismaClient import aninda DATABASE_URL'i okur; import'lardan ONCE kurulur.
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'ehsim-test-secret';
+// Issue #85: auth.js artik import aninda REFRESH_TOKEN_SECRET zorunlu tutar.
+process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'ehsim-test-refresh-secret';
 
 if (!process.env.DATABASE_URL) {
   // Yerel: docker compose "db" servisi 5433'u disariya acar.

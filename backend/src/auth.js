@@ -13,16 +13,26 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// Gizli anahtar yalnizca ortam degiskeninden gelir; fallback YOK.
+// Gizli anahtarlar yalnizca ortam degiskenlerinden gelir; fallback YOK.
 // Tanimsizsa process acilista durur (fail-fast, guvenli varsayilan).
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET is required');
 }
+// Issue #85: refresh-token altyapisi (#86) icin ikinci anahtar hazirlandi.
+if (!process.env.REFRESH_TOKEN_SECRET) {
+  throw new Error('REFRESH_TOKEN_SECRET is required');
+}
 const JWT_SECRET = process.env.JWT_SECRET;
 const TOKEN_TTL = '12h';
 
+// bcrypt maliyet faktoru (salt rounds). Varsayilan 12; ortamdan override.
+// Not: Issue #85 — istenen `bcrypt` yerine `bcryptjs` kullanilir (dogal
+// derleme gerektirmez, ayni $2 hashlerini uretir; node:24-slim build
+// araclari icermez). SECURITY: SALT_ROUNDS'ı uretimde dusurmeyin.
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10);
+
 export async function hashPassword(plain) {
-  return bcrypt.hash(plain, 10);
+  return bcrypt.hash(plain, SALT_ROUNDS);
 }
 
 // Sabit anahtar: yalnizca eski duz-metin kayitlarin timing-sal
