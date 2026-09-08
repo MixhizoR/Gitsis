@@ -183,6 +183,12 @@ model NavItem {
   // Ozel sayfanin Alan (disiplin) filtresi. null => filtre yok, tam liste.
   // Tipler sabit kaldigi icin ayrisma bu filtre uzerinden saglanir.
   fieldFilter String?
+  // Ozel sayfanin gereksinim TIPI filtresi (yalnizca birden fazla tipi
+  // birlikte gosteren pageKey'lerde anlamlidir, orn. req-subsystem'in
+  // Software/Hardware Requirement'i birlikte gosterdigi durum). null =>
+  // filtre yok, o pageKey'in tum tipleri birlikte gosterilir. Gecerli
+  // degerler navDefaults.js PAGE_TYPE_OPTIONS ile sinirlidir.
+  typeFilter String?
   order     Int       @default(0)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)

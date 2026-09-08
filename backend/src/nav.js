@@ -10,7 +10,13 @@
 //   - Grup silinince item'lari grupsuz seviyeye duser (schema'da SetNull);
 //     hicbir sayfa kaybolmaz, navigasyon her zaman calisir kalir.
 // ============================================================================
-import { DEFAULT_GROUPS, DEFAULT_UNGROUPED, builtInLayout, isValidPageKey } from './navDefaults.js';
+import {
+  DEFAULT_GROUPS,
+  DEFAULT_UNGROUPED,
+  builtInLayout,
+  isValidPageKey,
+  isValidTypeFilter,
+} from './navDefaults.js';
 
 function bad(msg, status = 400) {
   return Object.assign(new Error(msg), { status });
@@ -21,6 +27,7 @@ const toItem = (i) => ({
   pageKey: i.pageKey,
   label: i.label ?? null,
   fieldFilter: i.fieldFilter ?? null,
+  typeFilter: i.typeFilter ?? null,
   order: i.order,
 });
 
@@ -135,8 +142,10 @@ export async function deleteGroup(prisma, projectId, groupId) {
  * istege bagli ozel ad ve Alan filtresi. Ayni tipten birden fazla sayfa
  * eklenebilir; boylece kullanici gruba istedigi kadar sayfa koyabilir.
  */
-export async function createItem(prisma, projectId, { groupId, pageKey, label, fieldFilter }) {
+export async function createItem(prisma, projectId, { groupId, pageKey, label, fieldFilter, typeFilter }) {
   if (!isValidPageKey(pageKey)) throw bad('Gecersiz sayfa tipi.');
+  const cleanTypeFilter = typeFilter?.trim() || null;
+  if (!isValidTypeFilter(pageKey, cleanTypeFilter)) throw bad('Gecersiz tip filtresi.');
   return prisma.$transaction(async (tx) => {
     await materializeDefaults(tx, projectId);
     if (groupId) {
@@ -154,6 +163,7 @@ export async function createItem(prisma, projectId, { groupId, pageKey, label, f
         pageKey,
         label: label?.trim() || null,
         fieldFilter: fieldFilter?.trim() || null,
+        typeFilter: cleanTypeFilter,
         order: (maxOrder._max.order ?? -1) + 1,
       },
     });
@@ -176,6 +186,11 @@ export async function updateItem(prisma, projectId, itemId, data) {
     if (data.label !== undefined) patch.label = String(data.label ?? '').trim() || null;
     if (data.fieldFilter !== undefined) {
       patch.fieldFilter = String(data.fieldFilter ?? '').trim() || null;
+    }
+    if (data.typeFilter !== undefined) {
+      const cleanTypeFilter = String(data.typeFilter ?? '').trim() || null;
+      if (!isValidTypeFilter(item.pageKey, cleanTypeFilter)) throw bad('Gecersiz tip filtresi.');
+      patch.typeFilter = cleanTypeFilter;
     }
     return tx.navItem.update({ where: { id: itemId }, data: patch });
   });

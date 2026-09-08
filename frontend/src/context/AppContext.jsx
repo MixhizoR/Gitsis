@@ -213,8 +213,9 @@ export function AppProvider({ children }) {
     // PM "Menuyu duzenle"yi actiginda: varsayilan duzeni DB'ye yazar ki
     // varsayilan gruplar da id kazanip hedef olarak secilebilsin (idempotent).
     async materializeNav() {
-      await data.materializeNav(pid)
+      const layout = await data.materializeNav(pid)
       await refresh()
+      return layout
     },
     async addNavGroup(name) {
       const g = await data.createNavGroup(pid, name)
@@ -223,6 +224,12 @@ export function AppProvider({ children }) {
     },
     async renameNavGroup(id, name) {
       await data.updateNavGroup(pid, id, { name })
+      await refresh()
+    },
+    // Grup SIRASINI degistirir (yukari/asagi tasima). `updates`: [{ id, order }, ...]
+    // — genelde iki grubun order degerlerini takas eder, tek refresh ile biter.
+    async reorderNavGroups(updates) {
+      await Promise.all(updates.map((u) => data.updateNavGroup(pid, u.id, { order: u.order })))
       await refresh()
     },
     async removeNavGroup(id) {
@@ -242,6 +249,13 @@ export function AppProvider({ children }) {
     },
     async removeNavItem(id) {
       await data.deleteNavItem(pid, id)
+      await refresh()
+    },
+    // Bir grup icindeki sayfalarin SIRASINI degistirir (yukari/asagi tasima).
+    // `updates`: [{ id, order }, ...] — genelde iki sayfanin order degerlerini
+    // takas eder, tek refresh ile biter.
+    async reorderNavItems(updates) {
+      await Promise.all(updates.map((u) => data.updateNavItem(pid, u.id, { order: u.order })))
       await refresh()
     },
 

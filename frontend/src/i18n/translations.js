@@ -477,7 +477,7 @@ export const STRINGS = {
     'nav.testSubsystem': 'Alt Sistem Testleri',
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
-    'nav.pbsTree': 'Gereksinimler',
+    'nav.pbsTree': 'Bağlantı Ağacı',
     'nav.groupRequirements': 'Gereksinimler',
     'nav.groupTests': 'Testler',
     'nav.manageMenu': 'Menüyü düzenle',
@@ -493,6 +493,8 @@ export const STRINGS = {
     'navmgr.pages': 'Sayfalar',
     'navmgr.ungrouped': '— Grupsuz —',
     'navmgr.rename': 'Yeniden adlandır',
+    'navmgr.moveUp': 'Yukarı taşı',
+    'navmgr.moveDown': 'Aşağı taşı',
     'navmgr.delete': 'Sil',
     'navmgr.save': 'Kaydet',
     'navmgr.addPage': 'Sayfa Ekle',
@@ -500,6 +502,8 @@ export const STRINGS = {
     'navmgr.addPageHint':
       'Yeni sayfa, mevcut bir gereksinim/test tipini temel alır (tipler sabittir). İstersen bir Alan (disiplin) filtresi seçerek sayfanın yalnızca o alana ait kayıtları göstermesini sağlayabilirsin.',
     'navmgr.pageType': 'Temel tip',
+    'navmgr.typeFilter': 'Tip filtresi (isteğe bağlı)',
+    'navmgr.noTypeFilter': '— Filtre yok (Yazılım + Donanım) —',
     'navmgr.pageName': 'Sayfa adı',
     'navmgr.pageNamePlaceholder': 'Örn. Haberleşme Gereksinimleri',
     'navmgr.pageFilter': 'Alan filtresi (isteğe bağlı)',
@@ -509,7 +513,7 @@ export const STRINGS = {
     'navmgr.pageCount': '{n} sayfa',
 
     // --- Ürün Ağacı (PBS) ---
-    'page.pbsTree.title': 'Gereksinimler',
+    'page.pbsTree.title': 'Bağlantı Ağacı',
     'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
     'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
     'tree.expand': 'Alt kırılımları aç',
@@ -1130,7 +1134,7 @@ export const STRINGS = {
     'nav.testSubsystem': 'Sub-system Tests',
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
-    'nav.pbsTree': 'Requirements',
+    'nav.pbsTree': 'Link Tree',
     'nav.groupRequirements': 'Requirements',
     'nav.groupTests': 'Tests',
     'nav.manageMenu': 'Edit menu',
@@ -1146,6 +1150,8 @@ export const STRINGS = {
     'navmgr.pages': 'Pages',
     'navmgr.ungrouped': '— Ungrouped —',
     'navmgr.rename': 'Rename',
+    'navmgr.moveUp': 'Move up',
+    'navmgr.moveDown': 'Move down',
     'navmgr.delete': 'Delete',
     'navmgr.save': 'Save',
     'navmgr.addPage': 'Add Page',
@@ -1153,6 +1159,8 @@ export const STRINGS = {
     'navmgr.addPageHint':
       'A new page is based on an existing requirement/test type (types are fixed). Optionally pick a Field (discipline) filter so the page shows only records in that field.',
     'navmgr.pageType': 'Base type',
+    'navmgr.typeFilter': 'Type filter (optional)',
+    'navmgr.noTypeFilter': '— No filter (Software + Hardware) —',
     'navmgr.pageName': 'Page name',
     'navmgr.pageNamePlaceholder': 'e.g. Communication Requirements',
     'navmgr.pageFilter': 'Field filter (optional)',
@@ -1162,7 +1170,7 @@ export const STRINGS = {
     'navmgr.pageCount': '{n} pages',
 
     // --- Product Tree (PBS) ---
-    'page.pbsTree.title': 'Requirements',
+    'page.pbsTree.title': 'Link Tree',
     'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
     'tree.search': 'Search requirements (id or title) — click a result to reveal it',
     'tree.expand': 'Expand children',

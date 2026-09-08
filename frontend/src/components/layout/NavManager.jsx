@@ -14,8 +14,9 @@ import { useEffect, useState } from 'react'
 import Modal from '../common/Modal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import { IconPlus, IconTrash, IconEdit } from '../common/Icons.jsx'
+import { IconPlus, IconTrash, IconEdit, IconChevron } from '../common/Icons.jsx'
 import { PAGE_LABEL_KEYS } from './Sidebar.jsx'
+import { REQ_PAGES } from '../../utils/constants.js'
 
 export default function NavManager({ open, onClose }) {
   const {
@@ -24,9 +25,11 @@ export default function NavManager({ open, onClose }) {
     materializeNav,
     addNavGroup,
     renameNavGroup,
+    reorderNavGroups,
     removeNavGroup,
     addNavItem,
     updateNavItem,
+    reorderNavItems,
     removeNavItem,
   } = useApp()
   const { t } = useLang()
@@ -38,7 +41,12 @@ export default function NavManager({ open, onClose }) {
   const [editName, setEditName] = useState('')
   // "+" ile acilan sayfa ekleme formu (hangi grup icin acildigi tutulur)
   const [addingToGroup, setAddingToGroup] = useState(null)
-  const [newPage, setNewPage] = useState({ pageKey: 'req-user', label: '', fieldFilter: '' })
+  const [newPage, setNewPage] = useState({
+    pageKey: 'req-user',
+    label: '',
+    fieldFilter: '',
+    typeFilter: '',
+  })
   const [itemEditId, setItemEditId] = useState(null)
   const [itemEditLabel, setItemEditLabel] = useState('')
 
@@ -107,11 +115,41 @@ export default function NavManager({ open, onClose }) {
     })
   }
 
+  // Grubu bir yukari/asagi tasir: komsu grupla `order` degerlerini takas eder.
+  const moveGroup = async (gi, dir) => {
+    const swapIdx = gi + dir
+    if (swapIdx < 0 || swapIdx >= groups.length) return
+    const g = groups[gi]
+    const other = groups[swapIdx]
+    if (!g.id || !other.id) return
+    await run(async () => {
+      await reorderNavGroups([
+        { id: g.id, order: other.order },
+        { id: other.id, order: g.order },
+      ])
+    })
+  }
+
+  // Bir grup icindeki sayfayi bir yukari/asagi tasir: komsu sayfayla `order`
+  // degerlerini takas eder. `items` = o grubun (order'a gore siralanmis) listesi.
+  const moveItem = async (items, ii, dir) => {
+    const swapIdx = ii + dir
+    if (swapIdx < 0 || swapIdx >= items.length) return
+    const item = items[ii]
+    const other = items[swapIdx]
+    await run(async () => {
+      await reorderNavItems([
+        { id: item.id, order: other.order },
+        { id: other.id, order: item.order },
+      ])
+    })
+  }
+
   const openAddPage = (g) => {
     setEditingId(null)
     setConfirmDeleteId(null)
     setAddingToGroup(g.id)
-    setNewPage({ pageKey: 'req-user', label: '', fieldFilter: '' })
+    setNewPage({ pageKey: 'req-user', label: '', fieldFilter: '', typeFilter: '' })
   }
 
   const submitAddPage = async (g) => {
@@ -121,6 +159,7 @@ export default function NavManager({ open, onClose }) {
         pageKey: newPage.pageKey,
         label: newPage.label.trim() || null,
         fieldFilter: newPage.fieldFilter || null,
+        typeFilter: newPage.typeFilter || null,
       })
       setAddingToGroup(null)
     })
@@ -192,6 +231,30 @@ export default function NavManager({ open, onClose }) {
                 className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700"
               >
                 <div className="flex items-center gap-2">
+                  {!isEditing && (
+                    <div className="flex shrink-0 flex-col">
+                      <button
+                        onClick={() => moveGroup(gi, -1)}
+                        disabled={busy || !g.id || gi === 0}
+                        title={t('navmgr.moveUp')}
+                        aria-label={`${groupLabel(g)} ${t('navmgr.moveUp')}`}
+                        data-testid={`nav-group-moveup-${groupLabel(g)}`}
+                        className="btn-ghost !p-0.5 disabled:opacity-30"
+                      >
+                        <IconChevron size={13} className="-rotate-90" />
+                      </button>
+                      <button
+                        onClick={() => moveGroup(gi, 1)}
+                        disabled={busy || !g.id || gi === groups.length - 1}
+                        title={t('navmgr.moveDown')}
+                        aria-label={`${groupLabel(g)} ${t('navmgr.moveDown')}`}
+                        data-testid={`nav-group-movedown-${groupLabel(g)}`}
+                        className="btn-ghost !p-0.5 disabled:opacity-30"
+                      >
+                        <IconChevron size={13} className="rotate-90" />
+                      </button>
+                    </div>
+                  )}
                   {isEditing ? (
                     <input
                       value={editName}
@@ -286,7 +349,9 @@ export default function NavManager({ open, onClose }) {
                       {t('navmgr.pageType')}
                       <select
                         value={newPage.pageKey}
-                        onChange={(e) => setNewPage((v) => ({ ...v, pageKey: e.target.value }))}
+                        onChange={(e) =>
+                          setNewPage((v) => ({ ...v, pageKey: e.target.value, typeFilter: '' }))
+                        }
                         disabled={busy}
                         data-testid="nav-add-page-type"
                         className="input mt-1 w-full !py-1 text-sm"
@@ -298,6 +363,27 @@ export default function NavManager({ open, onClose }) {
                         ))}
                       </select>
                     </label>
+                    {(REQ_PAGES[newPage.pageKey]?.typeOptions?.length || 0) > 1 && (
+                      <label className="block text-xs font-semibold text-slate-500">
+                        {t('navmgr.typeFilter')}
+                        <select
+                          value={newPage.typeFilter}
+                          onChange={(e) =>
+                            setNewPage((v) => ({ ...v, typeFilter: e.target.value }))
+                          }
+                          disabled={busy}
+                          data-testid="nav-add-page-typefilter"
+                          className="input mt-1 w-full !py-1 text-sm"
+                        >
+                          <option value="">{t('navmgr.noTypeFilter')}</option>
+                          {REQ_PAGES[newPage.pageKey].typeOptions.map((tp) => (
+                            <option key={tp} value={tp}>
+                              {tp}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <label className="block text-xs font-semibold text-slate-500">
                       {t('navmgr.pageName')}
                       <input
@@ -349,7 +435,7 @@ export default function NavManager({ open, onClose }) {
                 {/* Gruptaki sayfalar: ozel ad duzenleme + menuden kaldirma */}
                 {g.items.length > 0 && (
                   <div className="mt-2 space-y-1">
-                    {g.items.map((item) => (
+                    {g.items.map((item, ii) => (
                       <div
                         key={item.id}
                         data-testid={`nav-item-${item.id}`}
@@ -386,8 +472,33 @@ export default function NavManager({ open, onClose }) {
                           </>
                         ) : (
                           <>
+                            <button
+                              onClick={() => moveItem(g.items, ii, -1)}
+                              disabled={busy || ii === 0}
+                              title={t('navmgr.moveUp')}
+                              aria-label={`${navItemLabel(item)} ${t('navmgr.moveUp')}`}
+                              data-testid={`nav-item-moveup-${item.id}`}
+                              className="btn-ghost !p-0.5 disabled:opacity-30"
+                            >
+                              <IconChevron size={11} className="-rotate-90" />
+                            </button>
+                            <button
+                              onClick={() => moveItem(g.items, ii, 1)}
+                              disabled={busy || ii === g.items.length - 1}
+                              title={t('navmgr.moveDown')}
+                              aria-label={`${navItemLabel(item)} ${t('navmgr.moveDown')}`}
+                              data-testid={`nav-item-movedown-${item.id}`}
+                              className="btn-ghost !p-0.5 disabled:opacity-30"
+                            >
+                              <IconChevron size={11} className="rotate-90" />
+                            </button>
                             <span className="flex-1 truncate text-xs text-slate-600 dark:text-slate-300">
                               {navItemLabel(item)}
+                              {item.typeFilter && (
+                                <span className="ml-1 text-[11px] text-slate-400">
+                                  · {item.typeFilter}
+                                </span>
+                              )}
                               {item.fieldFilter && (
                                 <span className="ml-1 text-[11px] text-slate-400">
                                   · {item.fieldFilter}
@@ -466,6 +577,9 @@ export default function NavManager({ open, onClose }) {
             >
               <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
                 {navItemLabel(p)}
+                {p.typeFilter && (
+                  <span className="ml-1 text-xs text-slate-400">· {p.typeFilter}</span>
+                )}
                 {p.fieldFilter && (
                   <span className="ml-1 text-xs text-slate-400">· {p.fieldFilter}</span>
                 )}
