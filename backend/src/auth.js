@@ -170,6 +170,14 @@ export function requirePM(req, res, next) {
   next();
 }
 
+// Issue #88: admin uclari yalnizca systemRole='ADMIN' JWT ile erisilebilir.
+export function requireAdmin(req, res, next) {
+  if (req.auth?.systemRole !== 'ADMIN') {
+    return res.status(403).json({ error: 'Bu islem yalnizca Admin tarafindan yapilabilir.' });
+  }
+  next();
+}
+
 /** app.param('pid', projectAccessGuard) — proje sinirini asma (IDOR) korumasi. */
 export function projectAccessGuard(req, res, next, pid) {
   if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });

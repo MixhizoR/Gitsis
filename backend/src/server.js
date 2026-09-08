@@ -22,6 +22,7 @@ import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import {
   requireAuth,
   requirePM,
+  requireAdmin,
   projectAccessGuard,
   hashPassword,
   signToken,
@@ -493,12 +494,149 @@ app.post(
   }),
 );
 
+// --- Issue #88: Admin kullanici yonetimi (yalnizca systemRole='ADMIN') ------
+//  Signup kapali; kullanicilari yalnizca admin olusturur/yonetir. Admin
+//  islemleri de SystemAuditLog'a yazilir (sifre/token ASLA loglanmaz).
 app.get(
   '/api/users',
-  requirePM,
+  requireAdmin,
   wrap(async (_req, res) => {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-    res.json(users.map(safeUser));
+    res.json(users.map(adminUser));
+  }),
+);
+
+app.post(
+  '/api/users',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const username = String(b.username || '').trim();
+    const password = String(b.password || '');
+    const name = String(b.name || '').trim();
+    if (!username || !password || !name) throw bad('username, password, name zorunlu.');
+    const role = b.role ? String(b.role) : 'System Engineer';
+    const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
+    if (!Number.isInteger(clearanceLevel) || clearanceLevel < 1) throw bad('clearanceLevel gecersiz.');
+    let projectId = b.projectId ? String(b.projectId) : null;
+    if (projectId) {
+      const proj = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!proj) throw bad('Proje bulunamadi.', 404);
+    }
+    const initials = name
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+    const user = await prisma.user.create({
+      data: {
+        username,
+        passwordHash: await hashPassword(password),
+        name,
+        initials,
+        role,
+        systemRole,
+        clearanceLevel,
+        projectId,
+      },
+    });
+    await auditSystem('admin.user.create', {
+      userId: req.auth.userId,
+      targetUserId: user.id,
+      targetUsername: user.username,
+    });
+    res.status(201).json(adminUser(user));
+  }),
+);
+
+app.patch(
+  '/api/users/:id',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw bad('Kullanici bulunamadi.', 404);
+    const data = {};
+    if (b.role != null) data.role = String(b.role);
+    if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    if (b.clearanceLevel != null) {
+      const cl = Number(b.clearanceLevel);
+      if (!Number.isInteger(cl) || cl < 1) throw bad('clearanceLevel gecersiz.');
+      data.clearanceLevel = cl;
+    }
+    if (b.isActive != null) {
+      // Admin kendi hesabini devre disi birakamaz (kilitlenme korumasi).
+      if (req.params.id === req.auth.userId && b.isActive === false) {
+        throw bad('Kendi hesabinizi devre disi birakamazsiniz.');
+      }
+      data.isActive = Boolean(b.isActive);
+    }
+    if (b.projectId !== undefined) {
+      if (b.projectId === null) data.projectId = null;
+      else {
+        const proj = await prisma.project.findUnique({ where: { id: String(b.projectId) } });
+        if (!proj) throw bad('Proje bulunamadi.', 404);
+        data.projectId = String(b.projectId);
+      }
+    }
+    if (b.password != null) {
+      const pw = String(b.password);
+      if (pw.length < 1) throw bad('Sifre bos olamaz.');
+      data.passwordHash = await hashPassword(pw);
+    }
+    if (Object.keys(data).length === 0) throw bad('Guncellenecek alan yok.');
+    const user = await prisma.user.update({ where: { id: req.params.id }, data });
+    await auditSystem('admin.user.update', {
+      userId: req.auth.userId,
+      targetUserId: user.id,
+      fields: Object.keys(data),
+    });
+    res.json(adminUser(user));
+  }),
+);
+
+app.post(
+  '/api/users/:id/unlock',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw bad('Kullanici bulunamadi.', 404);
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+    await auditSystem('admin.user.unlock', { userId: req.auth.userId, targetUserId: user.id });
+    res.json(adminUser(user));
+  }),
+);
+
+// --- Issue #88: auth/admin denetim kayitlari (yalnizca ADMIN) ---------------
+//  Sifre/token ASLA loglanmaz; metadata yalnizca username/ip gibi guvenli alanlar.
+app.get(
+  '/api/audit-logs',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const where = {};
+    if (req.query.action) where.action = String(req.query.action);
+    if (req.query.userId) where.userId = String(req.query.userId);
+    const rows = await prisma.systemAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        action: r.action,
+        metadata: r.metadata,
+        createdAt: r.createdAt,
+      })),
+    );
   }),
 );
 
@@ -540,6 +678,22 @@ const safeUser = (u) => ({
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
   systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
+});
+
+// Issue #88: admin panelinde gosterilen genis kullanici gorunumu (passwordHash ASLA).
+const adminUser = (u) => ({
+  id: u.id,
+  username: u.username,
+  name: u.name,
+  initials: u.initials,
+  role: u.role,
+  systemRole: u.systemRole,
+  clearanceLevel: u.clearanceLevel,
+  isActive: u.isActive,
+  failedAttempts: u.failedAttempts,
+  lockedUntil: u.lockedUntil,
+  projectId: u.projectId,
+  createdAt: u.createdAt,
 });
 
 // ===========================================================================
