@@ -24,7 +24,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: "postgresql://ehsim:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt?schema=public"
-      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur}
+      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz .env.example)}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?Kok dizinde .env olustur (bkz .env.example)}
+      BCRYPT_SALT_ROUNDS: "12"
     command: sh -c "cd /app/backend && npx prisma db push --skip-generate --accept-data-loss && node src/seed.js"
 
   backend:
@@ -40,7 +42,9 @@ services:
     environment:
       DATABASE_URL: "postgresql://ehsim:${POSTGRES_PASSWORD}@db:5432/ehsim_rmt?schema=public"
       PORT: "4001"
-      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur}
+      JWT_SECRET: ${JWT_SECRET:?Kok dizinde .env olustur (bkz. .env.example)}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?Kok dizinde .env olustur (bkz. .env.example)}
+      BCRYPT_SALT_ROUNDS: "12"
       PM_REGISTRATION_KEY: "${PM_REGISTRATION_KEY:-}"
       CORS_ORIGIN: "${CORS_ORIGIN:-}"
     healthcheck:

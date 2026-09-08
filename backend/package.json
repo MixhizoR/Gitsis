@@ -8,6 +8,7 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed.js",
+    "seed:admin": "node scripts/seed-admin.mjs",
     "db:push": "prisma db push",
     "migrate:attrs:dump": "node scripts/migrate-attributes-1-dump.mjs",
     "migrate:attrs:restore": "node scripts/migrate-attributes-2-restore.mjs",
@@ -28,10 +29,15 @@
     "express": "^4.19.2",
     "express-rate-limit": "^8.6.1",
     "fast-xml-parser": "4.3.6",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
     "prisma": "^5.22.0",
-    "sanitize-html": "^2.17.6"
+    "sanitize-html": "^2.17.6",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

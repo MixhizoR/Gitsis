@@ -32,12 +32,20 @@ export default function Hierarchy({
   pageKey,
   titleOverride = null,
   fieldFilter = null,
+  typeFilter = null,
   onOpenSuspect,
 }) {
-  // titleOverride / fieldFilter: kullanicinin menuye ekledigi OZEL sayfalar
-  // icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa ayni tipin
-  // Alan (disiplin) filtresiyle daraltilmis gorunumudur.
+  // titleOverride / fieldFilter / typeFilter: kullanicinin menuye ekledigi
+  // OZEL sayfalar icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa
+  // ayni tipin Alan (disiplin) ve/veya Tip (yalnizca req-subsystem: Software/
+  // Hardware) filtresiyle daraltilmis gorunumudur.
   const cfg = REQ_PAGES[pageKey]
+  // typeFilter yalnizca sayfanin zaten sundugu tiplerden biriyse gecerlidir
+  // (orn. req-subsystem'de 'Software Requirement'); aksi halde yoksayilir.
+  const effectiveCfg = useMemo(() => {
+    if (!cfg || !typeFilter || !cfg.typeOptions?.includes(typeFilter)) return cfg
+    return { ...cfg, typeOptions: [typeFilter], lockedType: typeFilter }
+  }, [cfg, typeFilter])
   const {
     requirements,
     links,
@@ -62,7 +70,7 @@ export default function Hierarchy({
   const [impactRow, setImpactRow] = useState(null)
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
-  const types = useMemo(() => cfg?.typeOptions || [], [cfg])
+  const types = useMemo(() => effectiveCfg?.typeOptions || [], [effectiveCfg])
 
   // --- Izin cozumleyiciler ---------------------------------------------------
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
@@ -149,7 +157,7 @@ export default function Hierarchy({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || cfg.navLabel}
+            {titleOverride || effectiveCfg.navLabel}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
@@ -171,7 +179,7 @@ export default function Hierarchy({
           )}
           {canAdd && (
             <button onClick={openCreate} className="btn-primary">
-              <IconPlus size={18} /> {cfg.addLabel}
+              <IconPlus size={18} /> {effectiveCfg.addLabel}
             </button>
           )}
         </div>
@@ -225,7 +233,7 @@ export default function Hierarchy({
         open={formOpen}
         onClose={() => setFormOpen(false)}
         editing={editing}
-        pageConfig={cfg}
+        pageConfig={effectiveCfg}
       />
       <FieldManager open={fieldMgr} onClose={() => setFieldMgr(false)} />
       <AttributeManager open={attrMgr} onClose={() => setAttrMgr(false)} />

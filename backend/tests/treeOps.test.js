@@ -76,7 +76,7 @@ before(async () => {
   const user = await prisma.user.create({
     data: {
       username: 'pm-treeops',
-      password: await hashPassword('pm-pass'),
+      passwordHash: await hashPassword('pm-pass'),
       name: 'TreeOps PM',
       role: 'Proje Yoneticisi',
     },

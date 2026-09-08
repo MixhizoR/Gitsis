@@ -25,6 +25,7 @@ import { useProject } from '../../context/ProjectContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { REQ_PAGES, TYPE_SUFFIX } from '../../utils/constants.js'
 
 // Sayfa anahtari -> i18n etiket anahtari. Bu liste SABITTIR (backend
 // navDefaults.js NAV_PAGE_KEYS ile birebir ayni); kullanici yalnizca bu
@@ -77,12 +78,21 @@ function NavButton({ active, onClick, Icon, label, indent = false }) {
 
 export default function Sidebar({ active, onNavigate }) {
   const { activeProject, closeProject } = useProject()
-  const { nav } = useApp()
+  const { nav, addNavItem, materializeNav } = useApp()
   const { t } = useLang()
   const { isPM, can } = useAuth()
   // Kapali gruplarin id'leri (varsayilan: hepsi acik).
   const [closedGroups, setClosedGroups] = useState(() => new Set())
   const [navMgrOpen, setNavMgrOpen] = useState(false)
+  // Grubun yanindaki "+" ile hizli sayfa ekleme (Menuyu duzenle'yi acmadan).
+  const [quickAddGroupId, setQuickAddGroupId] = useState(null)
+  const [quickAddPage, setQuickAddPage] = useState({
+    pageKey: 'req-user',
+    label: '',
+    typeFilter: '',
+  })
+  const [quickAddBusy, setQuickAddBusy] = useState(false)
+  const [quickAddError, setQuickAddError] = useState('')
 
   const canSeeRoles = isPM || can('manage_roles')
   const groups = nav?.groups || []
@@ -91,7 +101,13 @@ export default function Sidebar({ active, onNavigate }) {
   // kullanici ozellestirdikten sonra kendi verdigi duz isim kullanilir.
   const groupLabel = (g) => (g.nameKey ? t(g.nameKey) : g.name)
   // Ozel ad verilmisse onu, yoksa sayfanin varsayilan i18n etiketini kullan.
-  const navItemLabel = (item) => item.label || t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)
+  // Tip filtresi varsa kisa bir sonek eklenir (orn. "· SW") — ayni pageKey'den
+  // Software/Hardware icin ayri sayfalar eklendiginde ayirt edilebilsinler.
+  const navItemLabel = (item) => {
+    const base = item.label || t(PAGE_LABEL_KEYS[item.pageKey] || item.pageKey)
+    if (!item.typeFilter) return base
+    return `${base} · ${TYPE_SUFFIX[item.typeFilter] || item.typeFilter}`
+  }
   const toggleGroup = (id) =>
     setClosedGroups((prev) => {
       const next = new Set(prev)
@@ -99,6 +115,51 @@ export default function Sidebar({ active, onNavigate }) {
       else next.add(id)
       return next
     })
+
+  // "+" ile grubun yanindan dogrudan sayfa ekleme — "Menuyu duzenle" acmaya
+  // gerek kalmadan. Varsayilan (heniz DB'ye yazilmamis) gruplarin id'si
+  // olmadigi icin once materialize edilir, sonra ayni ada sahip materialize
+  // edilmis grup bulunur.
+  const openQuickAdd = (g, gid) => {
+    setQuickAddError('')
+    setQuickAddPage({ pageKey: 'req-user', label: '', typeFilter: '' })
+    setQuickAddGroupId(gid)
+    setClosedGroups((prev) => {
+      if (!prev.has(gid)) return prev
+      const next = new Set(prev)
+      next.delete(gid)
+      return next
+    })
+  }
+
+  const closeQuickAdd = () => {
+    setQuickAddGroupId(null)
+    setQuickAddError('')
+  }
+
+  const submitQuickAdd = async (g) => {
+    setQuickAddBusy(true)
+    setQuickAddError('')
+    try {
+      let groupId = g.id
+      if (!groupId) {
+        const layout = await materializeNav()
+        groupId = layout?.groups?.find((mg) => mg.name === g.name)?.id
+      }
+      if (!groupId) throw new Error(t('form.saveError'))
+      await addNavItem({
+        groupId,
+        pageKey: quickAddPage.pageKey,
+        label: quickAddPage.label.trim() || null,
+        typeFilter: quickAddPage.typeFilter || null,
+      })
+      setQuickAddGroupId(null)
+    } catch (err) {
+      setQuickAddError(err?.message || t('form.saveError'))
+    } finally {
+      setQuickAddBusy(false)
+    }
+  }
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -153,23 +214,36 @@ export default function Sidebar({ active, onNavigate }) {
           const groupActive = g.items.some((i) => (i.id || i.pageKey) === active)
           return (
             <div key={gid}>
-              <button
-                onClick={() => toggleGroup(gid)}
-                data-testid={`nav-group-btn-${groupLabel(g)}`}
-                className={
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ' +
-                  (groupActive
-                    ? 'text-brand-700 dark:text-brand-300'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100')
-                }
-              >
-                <IconList size={19} />
-                <span className="flex-1 truncate text-left">{groupLabel(g)}</span>
-                <IconChevron
-                  size={15}
-                  className={isOpen ? 'rotate-90 transition-transform' : 'transition-transform'}
-                />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => toggleGroup(gid)}
+                  data-testid={`nav-group-btn-${groupLabel(g)}`}
+                  className={
+                    'flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ' +
+                    (groupActive
+                      ? 'text-brand-700 dark:text-brand-300'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100')
+                  }
+                >
+                  <IconList size={19} />
+                  <span className="flex-1 truncate text-left">{groupLabel(g)}</span>
+                  <IconChevron
+                    size={15}
+                    className={isOpen ? 'rotate-90 transition-transform' : 'transition-transform'}
+                  />
+                </button>
+                {isPM && (
+                  <button
+                    onClick={() => openQuickAdd(g, gid)}
+                    title={t('navmgr.addPage')}
+                    aria-label={`${groupLabel(g)} ${t('navmgr.addPage')}`}
+                    data-testid={`nav-group-quickadd-${groupLabel(g)}`}
+                    className="btn-ghost shrink-0 !px-2 text-brand-600"
+                  >
+                    <IconPlus size={14} />
+                  </button>
+                )}
+              </div>
               {isOpen && (
                 <div className="space-y-0.5">
                   {g.items.map((item) => (
@@ -182,6 +256,76 @@ export default function Sidebar({ active, onNavigate }) {
                       indent
                     />
                   ))}
+                </div>
+              )}
+              {quickAddGroupId === gid && (
+                <div
+                  data-testid="nav-quickadd-form"
+                  className="mx-1 mt-1 space-y-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60"
+                >
+                  {quickAddError && (
+                    <div className="rounded bg-rose-50 px-2 py-1 text-[11px] text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                      {quickAddError}
+                    </div>
+                  )}
+                  <select
+                    value={quickAddPage.pageKey}
+                    onChange={(e) =>
+                      setQuickAddPage((v) => ({ ...v, pageKey: e.target.value, typeFilter: '' }))
+                    }
+                    disabled={quickAddBusy}
+                    data-testid="nav-quickadd-type"
+                    className="input w-full !py-1 text-xs"
+                  >
+                    {Object.keys(PAGE_LABEL_KEYS).map((k) => (
+                      <option key={k} value={k}>
+                        {t(PAGE_LABEL_KEYS[k])}
+                      </option>
+                    ))}
+                  </select>
+                  {(REQ_PAGES[quickAddPage.pageKey]?.typeOptions?.length || 0) > 1 && (
+                    <select
+                      value={quickAddPage.typeFilter}
+                      onChange={(e) =>
+                        setQuickAddPage((v) => ({ ...v, typeFilter: e.target.value }))
+                      }
+                      disabled={quickAddBusy}
+                      data-testid="nav-quickadd-typefilter"
+                      className="input w-full !py-1 text-xs"
+                    >
+                      <option value="">{t('navmgr.noTypeFilter')}</option>
+                      {REQ_PAGES[quickAddPage.pageKey].typeOptions.map((tp) => (
+                        <option key={tp} value={tp}>
+                          {tp}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <input
+                    value={quickAddPage.label}
+                    onChange={(e) => setQuickAddPage((v) => ({ ...v, label: e.target.value }))}
+                    placeholder={t('navmgr.pageNamePlaceholder')}
+                    disabled={quickAddBusy}
+                    data-testid="nav-quickadd-name"
+                    className="input w-full !py-1 text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => submitQuickAdd(g)}
+                      disabled={quickAddBusy}
+                      data-testid="nav-quickadd-submit"
+                      className="btn-primary !px-3 !py-1 text-xs"
+                    >
+                      {t('navmgr.addPage')}
+                    </button>
+                    <button
+                      onClick={closeQuickAdd}
+                      disabled={quickAddBusy}
+                      className="btn-secondary !px-3 !py-1 text-xs"
+                    >
+                      {t('form.cancel')}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -182,10 +182,16 @@ export async function runSeed() {
     await prisma.user.create({
       data: {
         username: 'admin',
-        password: await hashPassword('admin'),
+        // Issue #85: password -> passwordHash. `db push` eski password
+        // kolonunu dustugu icin bu seed admin'i yeniden yaratir (sifre
+        // kaybi bilinclidir; ADMIN_DEFAULT_PASSWORD env ile degistirilebilir).
+        passwordHash: await hashPassword(process.env.ADMIN_DEFAULT_PASSWORD || 'admin'),
         name: 'Eren Mutaf',
         initials: 'EM',
         role: 'System Engineer',
+        systemRole: 'ADMIN',
+        clearanceLevel: 5,
+        isActive: true,
       },
     });
     console.log("[seed] Varsayilan kullanici olusturuldu: admin / admin (parola hash'lenerek saklandi)");

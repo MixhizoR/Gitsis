@@ -113,6 +113,7 @@ export default function App() {
               pageKey={pageKey}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
+              typeFilter={navItem?.typeFilter || null}
               onOpenSuspect={openSuspect}
             />
           )}

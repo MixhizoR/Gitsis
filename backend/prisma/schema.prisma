@@ -3,7 +3,10 @@
 //  Tum veri PROJE bazli izole edilir (project-isolated). Bir proje silinince
 //  ona ait tum kayitlar cascade ile temizlenir.
 //  Tablolar: Users, Projects, ProjectFields, Requirements, TestCases,
-//            TraceabilityLinks, GlossaryTerms, AuditLogs.
+//            TraceabilityLinks, GlossaryTerms, AuditLogs, RefreshTokens,
+//            SystemAuditLogs.
+//  Issue #85: User password -> passwordHash; sistem geneli auth olaylari
+//            SystemAuditLog'a, refresh token ozetleri RefreshToken'a yazilir.
 // ============================================================================
 
 generator client {
@@ -18,14 +21,57 @@ datasource db {
 }
 
 // --- Kullanicilar (kimlik dogrulama) ---------------------------------------
+//  Issue #85: Auth epik altyapisi — password -> passwordHash, systemRole
+//  (ADMIN/USER), clearanceLevel (ABAC, #87'de tuketilir), isActive /
+//  failedAttempts / lockedUntil kolonlari (kilitleme mantigi #86'da).
+//  `role` KORUNUR: free-text PM tespiti (cascade.js/server.js 'Proje
+//  Yoneticisi' okur) ve frontend permissionsFor(role) anahtaridir.
 model User {
+  id             String    @id @default(uuid())
+  username       String    @unique
+  passwordHash   String
+  name           String
+  initials       String?
+  role           String    @default("System Engineer")
+  systemRole     String    @default("USER") // 'ADMIN' | 'USER'
+  clearanceLevel Int       @default(1)
+  isActive       Boolean   @default(true)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  refreshTokens  RefreshToken[]
+}
+
+// --- Refresh tokenlari (Issue #85) -----------------------------------------
+//  #86'da kullanilacak: ham token ASLA saklanmaz, yalnizca SHA-256 ozeti
+//  (tokenHash) tutulur. Kullanici silinince tokenlari da cascade ile silinir.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// --- Sistem geneli denetim kayitlari (Issue #85) ---------------------------
+//  Proje-ceperli AuditLog'dan AYRI: auth/system olaylari (login, lock,
+//  admin islemleri) global olarak buraya yazilir. userId null olabilir
+//  (ornegin basarisiz login — kimlik dogrulanamamis).
+model SystemAuditLog {
   id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  name      String
-  initials  String?
-  role      String   @default("System Engineer")
+  userId    String?
+  action    String
+  metadata  Json     @default("{}")
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // --- Projeler ---------------------------------------------------------------
@@ -206,6 +252,12 @@ model NavItem {
   // Ozel sayfanin Alan (disiplin) filtresi. null => filtre yok, tam liste.
   // Tipler sabit kaldigi icin ayrisma bu filtre uzerinden saglanir.
   fieldFilter String?
+  // Ozel sayfanin gereksinim TIPI filtresi (yalnizca birden fazla tipi
+  // birlikte gosteren pageKey'lerde anlamlidir, orn. req-subsystem'in
+  // Software/Hardware Requirement'i birlikte gosterdigi durum). null =>
+  // filtre yok, o pageKey'in tum tipleri birlikte gosterilir. Gecerli
+  // degerler navDefaults.js PAGE_TYPE_OPTIONS ile sinirlidir.
+  typeFilter String?
   order     Int       @default(0)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -234,6 +286,7 @@ model Requirement {
   author      String?
   approvalStatus String @default("Pending") // 'Pending' | 'Approved'
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  clearanceLevel Int    @default(1)         // Issue #85: ABAC (#87) icin — varsayilan 1
   relatedDocuments String[] @default([])    // Etki analizinde gosterilen ilgili dokuman/etiket listesi
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

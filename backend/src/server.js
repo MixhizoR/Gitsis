@@ -70,6 +70,21 @@ const authLimiter = rateLimit({
   message: { error: 'Cok fazla deneme yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
 app.use('/api/auth', authLimiter);
+
+// --- Issue #85: istek loglayici (XFF duzeltmesi AC'si) ----------------------
+//  Backend nginx arkasinda calistigi icin tum istemciler tek IP gibi gorunur.
+//  `trust proxy=1` + X-Forwarded-For sayesinde req.ip gercek istemci IP'sini
+//  verir; bu log, "iki farkli tarayici -> loglarda iki farkli IP" kabul
+//  kriterini gosterir. Not: trust proxy=1 tam olarak bir proxy siniri
+//  guvenir; backend dogrudan acilsa XFF taklidi mumkun olur (kapsam disi).
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(`[req] ${req.ip} ${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - start}ms)`);
+  });
+  next();
+});
+
 app.use(requireAuth);
 // :pid iceren HER route icin otomatik calisir — personel yalnizca kendi
 // atandigi projeye erisebilir, PM her projeye erisebilir (IDOR korumasi).
@@ -269,7 +284,7 @@ app.post(
     const user = await prisma.user.create({
       data: {
         username: username.trim(),
-        password: await hashPassword(password),
+        passwordHash: await hashPassword(password),
         name: name.trim(),
         initials,
         role: role || 'System Engineer',
@@ -285,11 +300,11 @@ app.post(
     const { username, password } = req.body || {};
     const user = await prisma.user.findUnique({ where: { username: (username || '').trim() } });
     if (!user) throw bad('Kullanici adi veya sifre yanlis.', 401);
-    const { ok, migrated } = await verifyPassword(password, user.password);
+    const { ok, migrated } = await verifyPassword(password, user.passwordHash);
     if (!ok) throw bad('Kullanici adi veya sifre yanlis.', 401);
     // Eski duz-metin kayit basariyla dogrulandi -> sessizce hash'e tasi.
     if (migrated)
-      await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(password) } });
+      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
     const token = signToken({ kind: 'pm', isPM: true, userId: user.id });
     res.json({ token, user: safeUser(user) });
   }),
@@ -332,7 +347,16 @@ app.post(
   }),
 );
 
-const safeUser = (u) => ({ id: u.id, username: u.username, name: u.name, initials: u.initials, role: u.role });
+const safeUser = (u) => ({
+  id: u.id,
+  username: u.username,
+  name: u.name,
+  initials: u.initials,
+  role: u.role,
+  // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
+  systemRole: u.systemRole,
+  clearanceLevel: u.clearanceLevel,
+});
 
 // ===========================================================================
 //  PROJECTS
@@ -593,6 +617,7 @@ app.post(
       pageKey: b.pageKey,
       label: b.label,
       fieldFilter: b.fieldFilter,
+      typeFilter: b.typeFilter,
     });
     await audit(pid, {
       action: 'CREATE',
