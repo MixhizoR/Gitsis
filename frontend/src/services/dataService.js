@@ -158,3 +158,28 @@ export const createSnapshot = (pid, name) => api.post(`/projects/${pid}/snapshot
 export const getSnapshot = (pid, snapshotId) => api.get(`/projects/${pid}/snapshots/${snapshotId}`)
 export const deleteSnapshot = (pid, snapshotId, reason) =>
   api.del(`/projects/${pid}/snapshots/${snapshotId}`, { reason })
+
+// --- Dokuman Kutuphanesi (PDF / Excel) --------------------------------------
+//  Belgeler backend'de (PostgreSQL) saklanir; bir kez yuklenen belge silinene
+//  kadar listede kalir, yeni yuklemeler kutuphaneye eklenir.
+export const listDocuments = (pid) => api.get(`/projects/${pid}/documents`)
+
+/** Bilgisayardan secilen bir dosyayi (File) projenin kutuphanesine yukler. */
+export const uploadDocument = (pid, file, description = '', onProgress) => {
+  const form = new FormData()
+  form.append('file', file)
+  if (description) form.append('description', description)
+  return api.upload(`/projects/${pid}/documents`, form, {
+    // Buyuk PDF/Excel yuklemeleri varsayilan 20sn'yi asabilir.
+    timeout: 120000,
+    onUploadProgress: onProgress
+      ? (e) => onProgress(e.total ? Math.round((e.loaded / e.total) * 100) : 0)
+      : undefined,
+  })
+}
+
+/** Belgeyi Blob olarak indirir (Authorization basligi gerektigi icin fetch degil). */
+export const downloadDocument = (pid, id) =>
+  api.downloadBlob(`/projects/${pid}/documents/${id}/download`, { timeout: 120000 })
+
+export const deleteDocument = (pid, id) => api.del(`/projects/${pid}/documents/${id}`)

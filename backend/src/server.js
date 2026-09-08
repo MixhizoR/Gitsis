@@ -9,6 +9,7 @@
 //        testcases      (GET/POST/GET:id/PUT:id/DELETE:id)
 //        glossary       (GET/POST/PUT:id/DELETE:id)
 //        links          (GET/POST/DELETE:id)
+//        documents      (GET/POST/GET:id/download/DELETE:id)
 //        audit          (GET/POST)
 //        recompute      (POST)  -> tum durumlari yeniden hesaplar (cascade)
 // ============================================================================
@@ -22,6 +23,7 @@ import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
+import documentRoutes from './documents.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
 import { nextTextId as nextTextIdShared } from './idGen.js';
@@ -90,6 +92,8 @@ app.param('pid', projectAccessGuard);
 
 // Traceability router — mounted under :pid so app.param('pid', projectAccessGuard)
 app.use('/api/projects/:pid/traceability', traceabilityRoutes);
+// Dokuman kutuphanesi (PDF/Excel yukleme) — ayni sekilde :pid altinda.
+app.use('/api/projects/:pid/documents', documentRoutes);
 
 const PORT = process.env.PORT || 4001;
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => fail(res, e));

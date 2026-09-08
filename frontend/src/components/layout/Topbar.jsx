@@ -23,7 +23,9 @@ const TITLE_KEY = {
   'traceability-import': 'traceabilityImport',
   suspect: 'suspect',
   documents: 'documents',
+  'document-library': 'documentLibrary',
   audit: 'audit',
+  snapshots: 'snapshots',
 }
 
 export default function Topbar({ active, titleOverride = null }) {
