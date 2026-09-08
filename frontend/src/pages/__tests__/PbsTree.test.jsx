@@ -13,16 +13,20 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
-const { listTreeChildrenMock, getAncestorsMock, canMock } = vi.hoisted(() => ({
-  listTreeChildrenMock: vi.fn(),
-  getAncestorsMock: vi.fn(),
-  canMock: vi.fn(() => true),
-}))
+const { listTreeChildrenMock, getAncestorsMock, canMock, attrDefsMock, requirementsMock } =
+  vi.hoisted(() => ({
+    listTreeChildrenMock: vi.fn(),
+    getAncestorsMock: vi.fn(),
+    canMock: vi.fn(() => true),
+    // Testler arasinda degistirilebilsin diye kutu icinde tutulur.
+    attrDefsMock: { value: [] },
+    requirementsMock: { value: [] },
+  }))
 
 vi.mock('../../context/AppContext.jsx', () => ({
   useApp: () => ({
     projectId: 'p-1',
-    requirements: [],
+    requirements: requirementsMock.value,
     testCases: [],
     glossary: [],
     links: [],
@@ -31,16 +35,7 @@ vi.mock('../../context/AppContext.jsx', () => ({
     roles: [],
     fields: [],
     // Modular oznitelikler (main): EntityTable sutunlari bundan turetilir.
-    attributeDefs: [
-      {
-        id: 'a1',
-        entityType: 'requirement',
-        key: 'priority',
-        label: 'Priority',
-        dataType: 'select',
-        order: 0,
-      },
-    ],
+    attributeDefs: attrDefsMock.value,
     createLink: vi.fn(),
     deleteLink: vi.fn(),
     addRequirement: vi.fn(),
@@ -76,6 +71,11 @@ vi.mock('../../services/dataService.js', () => ({
   setCodePrefix: vi.fn(),
 }))
 
+// AttributeManager'in kendi testi ayri; burada yalnizca ACILIP acilmadigi onemli.
+vi.mock('../../components/requirements/AttributeManager.jsx', () => ({
+  default: ({ open }) => (open ? <div data-testid="attr-manager-modal" /> : null),
+}))
+
 import PbsTree from '../PbsTree.jsx'
 
 const node = (over = {}) => ({
@@ -106,6 +106,17 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     canMock.mockReturnValue(true)
+    attrDefsMock.value = [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        order: 0,
+      },
+    ]
+    requirementsMock.value = []
   })
 
   afterEach(() => {
@@ -261,5 +272,74 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
     await screen.findByText('EH-KAHVE-TİD-USR-001')
 
     expect(screen.queryByTestId('pbs-add-btn')).not.toBeInTheDocument()
+  })
+
+  it('sag ustte "Öznitelik Yönet" dugmesi bulunur ve modali acar', async () => {
+    listTreeChildrenMock.mockResolvedValue({ items: [node()] })
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+
+    const btn = screen.getByTestId('pbs-attr-btn')
+    expect(btn).toBeInTheDocument()
+    expect(screen.queryByTestId('attr-manager-modal')).not.toBeInTheDocument()
+
+    fireEvent.click(btn)
+    expect(await screen.findByTestId('attr-manager-modal')).toBeInTheDocument()
+  })
+
+  it("'manage_fields' izni olmayan kullanicida Öznitelik Yönet gorunmez", async () => {
+    canMock.mockImplementation((perm) => perm !== 'manage_fields')
+    listTreeChildrenMock.mockResolvedValue({ items: [node({ hasChildren: false })] })
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+
+    expect(screen.queryByTestId('pbs-attr-btn')).not.toBeInTheDocument()
+  })
+
+  it('tanimli her oznitelik icin tabloda sutun cikar (deger yoksa tire)', async () => {
+    attrDefsMock.value = [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        order: 0,
+      },
+      {
+        id: 'a2',
+        entityType: 'requirement',
+        key: 'risk',
+        label: 'Risk Skoru',
+        dataType: 'number',
+        order: 1,
+      },
+    ]
+    listTreeChildrenMock.mockResolvedValue({
+      items: [node({ attributes: { priority: 'High' } })], // risk degeri YOK
+    })
+    renderPage()
+    const row = (await screen.findByText('EH-KAHVE-TİD-USR-001')).closest('tr')
+
+    expect(screen.getByRole('columnheader', { name: /Risk Skoru/i })).toBeInTheDocument()
+    expect(within(row).getByText('High')).toBeInTheDocument()
+    expect(within(row).getByText('—')).toBeInTheDocument() // deger yok -> tire
+  })
+
+  it('gereksinimler degisince agac satirlari YENIDEN cekilir (bayat deger kalmaz)', async () => {
+    listTreeChildrenMock.mockResolvedValue({ items: [node({ hasChildren: false })] })
+    const { rerender } = renderPage()
+    await waitFor(() => expect(listTreeChildrenMock).toHaveBeenCalledTimes(1))
+
+    // Baska bir yerden (form/onay) bir gereksinim guncellendi:
+    // AppContext listesinin imzasi degisir -> agac tazelenmeli.
+    requirementsMock.value = [{ id: 'r1', updatedAt: '2026-01-02T00:00:00Z' }]
+    rerender(
+      <LanguageProvider>
+        <PbsTree />
+      </LanguageProvider>,
+    )
+
+    await waitFor(() => expect(listTreeChildrenMock).toHaveBeenCalledTimes(2))
   })
 })
