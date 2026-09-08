@@ -8,6 +8,7 @@
 // ============================================================================
 import { useState } from 'react'
 import Modal from '../common/Modal.jsx'
+import ReasonModal from '../common/ReasonModal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { IconPlus, IconTrash } from '../common/Icons.jsx'
@@ -25,6 +26,8 @@ export default function AttributeManager({ open, onClose }) {
   const [required, setRequired] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const resetForm = () => {
     setLabel('')
@@ -56,21 +59,17 @@ export default function AttributeManager({ open, onClose }) {
     }
   }
 
-  const handleRemove = async (a) => {
+  const handleRemove = (a) => {
     if (a.system) {
       setError(t('attr.deleteSystemBlocked'))
       return
     }
-    if (!window.confirm(t('attr.deleteConfirm', { name: a.label }))) return
-    setBusy(true)
-    setError('')
-    try {
-      await removeAttribute(a.id)
-    } catch (err) {
-      setError(err.message || t('form.saveError'))
-    } finally {
-      setBusy(false)
-    }
+    setDeleteTarget(a)
+  }
+
+  const confirmDelete = async (reason) => {
+    await removeAttribute(deleteTarget.id, reason)
+    setDeleteTarget(null)
   }
 
   return (
@@ -215,6 +214,12 @@ export default function AttributeManager({ open, onClose }) {
           </ul>
         )}
       </div>
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
+      />
     </Modal>
   )
 }

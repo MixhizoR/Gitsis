@@ -90,9 +90,9 @@ describe('dataService CRUD helperlari', () => {
     expect(api.put).toHaveBeenCalledWith('/projects/p-1/requirements/r-1', { title: 'Y' })
   })
 
-  it('deleteRequirement DELETE /projects/:pid/requirements/:id', async () => {
-    await deleteRequirement('p-1', 'r-1')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/requirements/r-1')
+  it('deleteRequirement DELETE /projects/:pid/requirements/:id (reason govdede)', async () => {
+    await deleteRequirement('p-1', 'r-1', 'yanlis girildi')
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/requirements/r-1', { reason: 'yanlis girildi' })
   })
 
   it('listTestCases GET /projects/:pid/testcases', async () => {
@@ -110,9 +110,9 @@ describe('dataService CRUD helperlari', () => {
     expect(api.put).toHaveBeenCalledWith('/projects/p-1/testcases/t-1', { title: 'T2' })
   })
 
-  it('deleteTestCase DELETE /projects/:pid/testcases/:id', async () => {
-    await deleteTestCase('p-1', 't-1')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/testcases/t-1')
+  it('deleteTestCase DELETE /projects/:pid/testcases/:id (reason govdede)', async () => {
+    await deleteTestCase('p-1', 't-1', 'yanlis girildi')
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/testcases/t-1', { reason: 'yanlis girildi' })
   })
 
   it('listGlossary GET /projects/:pid/glossary', async () => {
@@ -130,9 +130,9 @@ describe('dataService CRUD helperlari', () => {
     expect(api.put).toHaveBeenCalledWith('/projects/p-1/glossary/g-1', { term: 'T2' })
   })
 
-  it('deleteGlossary DELETE /projects/:pid/glossary/:id', async () => {
-    await deleteGlossary('p-1', 'g-1')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/glossary/g-1')
+  it('deleteGlossary DELETE /projects/:pid/glossary/:id (reason govdede)', async () => {
+    await deleteGlossary('p-1', 'g-1', 'yanlis girildi')
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/glossary/g-1', { reason: 'yanlis girildi' })
   })
 
   it('listRoles GET /projects/:pid/roles', async () => {
@@ -186,8 +186,8 @@ describe('dataService CRUD helperlari', () => {
     expect(api.post).toHaveBeenCalledWith('/projects/p-1/snapshots', { name: 'v1' })
   })
 
-  it('deleteSnapshot DELETE /projects/:pid/snapshots/:sid', async () => {
-    await deleteSnapshot('p-1', 's-1')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/snapshots/s-1')
+  it('deleteSnapshot DELETE /projects/:pid/snapshots/:sid (reason govdede)', async () => {
+    await deleteSnapshot('p-1', 's-1', 'yanlis girildi')
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/snapshots/s-1', { reason: 'yanlis girildi' })
   })
 })

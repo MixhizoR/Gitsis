@@ -51,8 +51,21 @@ describe('useUndoableDelete', () => {
     await act(async () => {
       vi.advanceTimersByTime(5000)
     })
-    expect(commit).toHaveBeenCalledWith(['id-1'])
+    expect(commit).toHaveBeenCalledWith(['id-1'], undefined)
     expect(result.current.isPending).toBe(false)
+  })
+
+  it('reason parametresi commitFn e ids ile birlikte iletilir', async () => {
+    const commit = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useUndoableDelete(commit))
+
+    await act(async () => {
+      await result.current.schedule(['id-1'], 'gecerli bir gerekce')
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(5000)
+    })
+    expect(commit).toHaveBeenCalledWith(['id-1'], 'gecerli bir gerekce')
   })
 
   it("undo pending'i iptal eder, commitFn cagrilmaz", async () => {
@@ -84,7 +97,7 @@ describe('useUndoableDelete', () => {
     await act(async () => {
       await result.current.schedule(['second'])
     })
-    expect(commit).toHaveBeenCalledWith(['first'])
+    expect(commit).toHaveBeenCalledWith(['first'], undefined)
     expect(result.current.pendingIds).toEqual(['second'])
   })
 
@@ -98,7 +111,7 @@ describe('useUndoableDelete', () => {
     await act(async () => {
       await result.current.commitNow()
     })
-    expect(commit).toHaveBeenCalledWith(['id-1'])
+    expect(commit).toHaveBeenCalledWith(['id-1'], undefined)
     expect(result.current.isPending).toBe(false)
   })
 
@@ -123,7 +136,7 @@ describe('useUndoableDelete', () => {
     await act(async () => {
       await result.current.commitNow()
     })
-    expect(commit).toHaveBeenCalledWith(['id-1'])
+    expect(commit).toHaveBeenCalledWith(['id-1'], undefined)
     expect(result.current.isPending).toBe(false)
   })
 })

@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import PermissionEditor from '../components/roles/PermissionEditor.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import { IconPlus, IconTrash, IconUsers, IconKey, IconCheck } from '../components/common/Icons.jsx'
 import { PERMISSION_DEFS } from '../utils/permissions.js'
 
@@ -27,6 +28,8 @@ export default function Roles() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState('')
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { kind, id, label } | null
 
   const canManage = isPM || can('manage_roles')
 
@@ -88,6 +91,13 @@ export default function Roles() {
     } finally {
       setBusy(false)
     }
+  }
+
+  const confirmDelete = async (reason) => {
+    const { kind, id } = deleteTarget
+    if (kind === 'role') await removeRole(id, reason)
+    else await removePersonnel(id, reason)
+    setDeleteTarget(null)
   }
 
   const copyCode = async (code) => {
@@ -157,7 +167,7 @@ export default function Roles() {
                     </div>
                   </div>
                   <button
-                    onClick={() => removeRole(r.id)}
+                    onClick={() => setDeleteTarget({ kind: 'role', id: r.id, label: r.name })}
                     className="btn-ghost !px-2 !py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                     title="Rolü sil"
                   >
@@ -252,7 +262,13 @@ export default function Roles() {
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
-                        onClick={() => removePersonnel(p.id)}
+                        onClick={() =>
+                          setDeleteTarget({
+                            kind: 'personnel',
+                            id: p.id,
+                            label: `${p.firstName} ${p.lastName}`,
+                          })
+                        }
                         className="btn-ghost !px-2 !py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                         title="Personeli sil"
                       >
@@ -272,6 +288,12 @@ export default function Roles() {
         role={editing}
         onClose={() => setEditing(null)}
         onSave={(permissions) => editRole(editing.id, { permissions })}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
     </div>
   )

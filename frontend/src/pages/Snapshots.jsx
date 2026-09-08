@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { formatDateTime } from '../utils/format.js'
 import { IconHistory, IconPlus, IconTrash, IconEye } from '../components/common/Icons.jsx'
 import Modal from '../components/common/Modal.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import Pill from '../components/common/Badge.jsx'
 import { getSnapshot } from '../services/dataService.js'
 
@@ -266,7 +267,8 @@ export default function SnapshotsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [newSnapshotName, setNewSnapshotName] = useState('')
   const [selectedSnapshot, setSelectedSnapshot] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const canManageSnapshots = isPM || can('manage_snapshots')
 
@@ -281,16 +283,10 @@ export default function SnapshotsPage() {
     }
   }
 
-  const handleDelete = async (snap) => {
-    if (!confirm(t('snapshot.confirmDelete', { name: snap.name }))) return
-    try {
-      setDeleting(true)
-      await deleteSnapshot(snap.id)
-    } catch (e) {
-      alert(e?.message || 'Snapshot silinemedi')
-    } finally {
-      setDeleting(false)
-    }
+  const handleDelete = (snap) => setDeleteTarget(snap)
+  const confirmDelete = async (reason) => {
+    await deleteSnapshot(deleteTarget.id, reason)
+    setDeleteTarget(null)
   }
 
   const handleView = async (snap) => {
@@ -388,7 +384,6 @@ export default function SnapshotsPage() {
                         {canManageSnapshots && (
                           <button
                             onClick={() => handleDelete(snap)}
-                            disabled={deleting}
                             className="btn-ghost btn-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                             title={t('snapshot.delete')}
                           >
@@ -461,6 +456,12 @@ export default function SnapshotsPage() {
         open={!!selectedSnapshot}
         snapshot={selectedSnapshot}
         onClose={() => setSelectedSnapshot(null)}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.name}
       />
     </div>
   )

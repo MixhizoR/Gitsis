@@ -145,13 +145,13 @@ export function AppProvider({ children }) {
       await refresh()
       return r
     },
-    async removeRequirement(id) {
-      await data.deleteRequirement(pid, id)
+    async removeRequirement(id, reason) {
+      await data.deleteRequirement(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveRequirements(ids) {
+    async bulkRemoveRequirements(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteRequirements(pid, ids)
+      await data.bulkDeleteRequirements(pid, ids, reason)
       await refresh()
     },
 
@@ -166,13 +166,13 @@ export function AppProvider({ children }) {
       await refresh()
       return t
     },
-    async removeTestCase(id) {
-      await data.deleteTestCase(pid, id)
+    async removeTestCase(id, reason) {
+      await data.deleteTestCase(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveTestCases(ids) {
+    async bulkRemoveTestCases(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteTestCases(pid, ids)
+      await data.bulkDeleteTestCases(pid, ids, reason)
       await refresh()
     },
 
@@ -187,13 +187,13 @@ export function AppProvider({ children }) {
       await refresh()
       return g
     },
-    async removeGlossary(id) {
-      await data.deleteGlossary(pid, id)
+    async removeGlossary(id, reason) {
+      await data.deleteGlossary(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveGlossary(ids) {
+    async bulkRemoveGlossary(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteGlossary(pid, ids)
+      await data.bulkDeleteGlossary(pid, ids, reason)
       await refresh()
     },
 
@@ -203,8 +203,8 @@ export function AppProvider({ children }) {
       await refresh()
       return f
     },
-    async removeField(id) {
-      await data.deleteField(pid, id)
+    async removeField(id, reason) {
+      await data.deleteField(pid, id, reason)
       await refresh()
     },
 
@@ -270,8 +270,8 @@ export function AppProvider({ children }) {
       await refresh()
       return a
     },
-    async removeAttribute(id) {
-      await data.deleteAttribute(pid, id)
+    async removeAttribute(id, reason) {
+      await data.deleteAttribute(pid, id, reason)
       await refresh()
     },
 
@@ -282,8 +282,8 @@ export function AppProvider({ children }) {
       await refresh()
       return l
     },
-    async unlink(linkId) {
-      await data.deleteLink(pid, linkId)
+    async unlink(linkId, reason) {
+      await data.deleteLink(pid, linkId, reason)
       await refresh()
     },
     // Toplu bag: { type, targetId, sourceIds, testStatus? }
@@ -304,8 +304,8 @@ export function AppProvider({ children }) {
       await refresh()
       return r
     },
-    async removeRole(id) {
-      await data.deleteRole(pid, id)
+    async removeRole(id, reason) {
+      await data.deleteRole(pid, id, reason)
       await refresh()
     },
 
@@ -315,8 +315,8 @@ export function AppProvider({ children }) {
       await refresh()
       return p
     },
-    async removePersonnel(id) {
-      await data.deletePersonnel(pid, id)
+    async removePersonnel(id, reason) {
+      await data.deletePersonnel(pid, id, reason)
       await refresh()
     },
 
@@ -371,9 +371,9 @@ export function AppProvider({ children }) {
       await refresh()
       return s
     },
-    async deleteSnapshot(snapshotId) {
+    async deleteSnapshot(snapshotId, reason) {
       if (!pid) throw new Error('Aktif proje yok')
-      await data.deleteSnapshot(pid, snapshotId)
+      await data.deleteSnapshot(pid, snapshotId, reason)
       await refresh()
     },
 
