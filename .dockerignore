@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------------------
+#  .dockerignore — Docker build baglamini kucuk ve deterministik tutar.
+#  KRITIK: node_modules KOPILENMEZ. Host'taki (Windows junction'lu) klasor
+#  image'deki taze `pnpm install` ciktisini ezer ve prisma gibi paketlerin
+#  ic dosyalari yarim kalinir (MODULE_NOT_FOUND: prisma/build/index.js).
+# ---------------------------------------------------------------------------
+.git
+.gitignore
+**/node_modules
+**/dist
+**/coverage
+**/.env
+.env
+*.log
+.dockerignore
+Dockerfile
+compose.yaml
+compose.dev.yaml
+ISSUE85_AUTH_INFRA_PLAN.md
