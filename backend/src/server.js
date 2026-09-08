@@ -155,6 +155,25 @@ async function auditSystem(action, { userId = null, ...metadata } = {}) {
   }
 }
 
+// --- ABAC (Issue #87): clearance seviyesi erisim yardimcilari ---------------
+//  Kullanici yalnizca kendi clearanceLevel'ina esit veya ondan dusuk
+//  gereksinimleri gorur. Filtreleme Express array'i uzerinde DEGIL, Prisma
+//  WHERE kosuluna enjekte edilir (performans, AC). Filtre role'den bagimsizdir:
+//  PM (en yuksek clearance) dogal olarak hepsini gorur; ADMIN ayri bir
+//  kullanici-yonetimi roludur (#88) ve gereksinim erisimini etkilemez.
+//  Token'da clearanceLevel yoksa (personel/passcode) guvenli varsayilan = 1.
+function clearanceFilter(req) {
+  const level = req.auth?.clearanceLevel ?? 1;
+  return { clearanceLevel: { lte: level } };
+}
+
+function assertRequirementVisible(req, row) {
+  const level = req.auth?.clearanceLevel ?? 1;
+  if (row && row.clearanceLevel != null && row.clearanceLevel > level) {
+    throw bad('Bu gereksinime erisim yetkiniz yok.', 403);
+  }
+}
+
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
 //  icinden uretebilmesi icin paylasilabilir hale getirildi.
@@ -392,12 +411,14 @@ async function handleLogin(req, res, user, info) {
   if (user.failedAttempts) {
     await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
   }
+  const isPM = user.role === 'Proje Yoneticisi';
   const accessToken = signToken({
-    kind: 'pm',
-    isPM: user.role === 'Proje Yoneticisi',
+    kind: isPM ? 'pm' : 'user',
+    isPM,
     userId: user.id,
     systemRole: user.systemRole,
     clearanceLevel: user.clearanceLevel,
+    ...(user.projectId ? { projectId: user.projectId } : {}),
   });
   const refreshToken = generateRefreshToken();
   await prisma.refreshToken.create({
@@ -432,12 +453,14 @@ app.post(
     }
     // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
     await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    const isPM = stored.user.role === 'Proje Yoneticisi';
     const accessToken = signToken({
-      kind: 'pm',
-      isPM: stored.user.role === 'Proje Yoneticisi',
+      kind: isPM ? 'pm' : 'user',
+      isPM,
       userId: stored.user.id,
       systemRole: stored.user.systemRole,
       clearanceLevel: stored.user.clearanceLevel,
+      ...(stored.user.projectId ? { projectId: stored.user.projectId } : {}),
     });
     const newRefresh = generateRefreshToken();
     await prisma.refreshToken.create({
@@ -883,7 +906,7 @@ app.delete(
 app.get(
   '/api/projects/:pid/requirements',
   wrap(async (req, res) => {
-    const where = { projectId: req.params.pid };
+    const where = { projectId: req.params.pid, ...clearanceFilter(req) };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.requirement.findMany({ where, orderBy: { text_id: 'asc' } });
     res.json(flattenAll(rows));
@@ -900,6 +923,19 @@ app.post(
     const defs = await listDefs(prisma, pid, 'requirement');
     const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
+    // ABAC (#87): ust (parentId) belirtilmisse seviye ustten miras alinir;
+    // kullanici kendi seviyesinden yuksek bir seviyeye gereksinim olusturamaz.
+    const userLevel = req.auth?.clearanceLevel ?? 1;
+    const parentId = b.parentId ? String(b.parentId).trim() : null;
+    let clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : null;
+    if (parentId) {
+      const parent = await prisma.requirement.findUnique({ where: { id: parentId } });
+      if (!parent || parent.projectId !== pid) throw bad('Ust gereksinim bulunamadi.', 404);
+      assertRequirementVisible(req, parent);
+      clearanceLevel = parent.clearanceLevel; // miras
+    }
+    if (clearanceLevel == null) clearanceLevel = 1;
+    if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
     const row = await prisma.requirement.create({
       data: {
         projectId: pid,
@@ -912,6 +948,8 @@ app.post(
         attributes,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
+        parentId,
+        clearanceLevel,
       },
     });
     await audit(pid, {
@@ -932,7 +970,7 @@ app.get(
   '/api/projects/:pid/requirements/tree',
   wrap(async (req, res) => {
     const parentId = req.query.parentId ? String(req.query.parentId).trim() : null;
-    const items = await getTreeChildren(req.params.pid, parentId);
+    const items = await getTreeChildren(req.params.pid, parentId, req.auth?.clearanceLevel);
     res.json({ items });
   }),
 );
@@ -940,7 +978,11 @@ app.get(
 app.get(
   '/api/projects/:pid/requirements/:id/ancestors',
   wrap(async (req, res) => {
-    const path = await getTreeAncestorPath(req.params.pid, req.params.id);
+    const pid = req.params.pid;
+    const target = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!target || target.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, target);
+    const path = await getTreeAncestorPath(pid, req.params.id, req.auth?.clearanceLevel);
     if (!path) throw bad('Gereksinim bulunamadi.', 404);
     res.json({ path });
   }),
@@ -952,6 +994,7 @@ app.get(
     const pid = req.params.pid;
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, row);
     res.json(flatten(row));
   }),
 );
@@ -963,6 +1006,7 @@ app.put(
     const b = req.body || {};
     const before = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, before);
     if (before.locked) throw bad('Bu gereksinim onaylandi ve kilitli. Duzenlemek icin once PM kilidi acmalidir.', 403);
     const data = {};
     for (const k of ['text_id', 'title', 'description', 'field']) {
@@ -1123,7 +1167,23 @@ app.patch(
     const pid = req.params.pid;
     const newParentId = req.body?.parentId ?? null;
     const actor = req.auth?.userId || 'ehsim.user';
+    // ABAC (#87): tasinan gereksinim + yeni ust, kullanicinin gorebildigi
+    // bir seviyede olmali; tasima sonrasi yeni usten seviye miras alinir.
+    const source = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!source || source.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, source);
+    let newLevel = null;
+    if (newParentId) {
+      const parent = await prisma.requirement.findUnique({ where: { id: newParentId } });
+      if (!parent || parent.projectId !== pid) throw bad('Ust gereksinim bulunamadi.', 404);
+      assertRequirementVisible(req, parent);
+      newLevel = parent.clearanceLevel;
+    }
     const row = await moveRequirement(prisma, pid, req.params.id, newParentId, actor);
+    if (newLevel != null) {
+      await prisma.requirement.update({ where: { id: row.id }, data: { clearanceLevel: newLevel } });
+      row.clearanceLevel = newLevel;
+    }
     res.json(row);
   }),
 );

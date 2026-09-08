@@ -174,7 +174,9 @@ export function requirePM(req, res, next) {
 export function projectAccessGuard(req, res, next, pid) {
   if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
   if (req.auth.isPM) return next();
-  if (req.auth.kind === 'personnel' && req.auth.projectId === pid) return next();
+  // PM degilse yalnizca atanmis projeye erisilebilir. Regular User (kind='user')
+  // ve passcode personeli (kind='personnel') icin ayni kural: projectId === pid.
+  if ((req.auth.kind === 'personnel' || req.auth.kind === 'user') && req.auth.projectId === pid) return next();
   return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.' });
 }
 
