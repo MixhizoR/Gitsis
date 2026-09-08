@@ -48,7 +48,7 @@ before(async () => {
   });
 
   const res = await request(app).post('/api/auth/login').send(PM_CREDS);
-  pmToken = res.body.token;
+  pmToken = res.body.accessToken;
   assert.ok(pmToken);
 });
 

@@ -19,7 +19,20 @@ import { PrismaClient } from '@prisma/client';
 import { STATUS } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
-import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
+import {
+  requireAuth,
+  requirePM,
+  projectAccessGuard,
+  hashPassword,
+  signToken,
+  generateRefreshToken,
+  hashRefreshToken,
+  configurePassport,
+  passport,
+  MAX_LOGIN_ATTEMPTS,
+  LOCK_DURATION_MS,
+  REFRESH_TOKEN_TTL_MS,
+} from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
@@ -56,18 +69,31 @@ const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
+// --- Passport.js kurulumu (Issue #86) --------------------------------------
+//  Stratejiler tek paylasilan PrismaClient'i kullanir (server.js'teki prisma).
+configurePassport(prisma);
+app.use(passport.initialize());
+
 // --- Guvenlik: kimlik dogrulama + proje sinirlama --------------------------
-//  Girisin kendisi (login/passcode/register) haric TUM /api yollari gecerli
-//  bir JWT ister (bkz. auth.js). Deneme-yanilma saldirilarina karsi auth
-//  yollarina ayrica hiz siniri uygulanir.
-const authLimiter = rateLimit({
+//  Girisin kendisi (login/passcode/refresh/logout/register) haric TUM /api
+//  yollari gecerli bir JWT ister (bkz. auth.js). Deneme-yanilma saldirilarina
+//  karsi auth uclarina ayrica hiz siniri uygulanir. Login/register/passcode
+//  (bilgi dogrulama) 20 istek/15dk; refresh/logout (legit frontend refresh'i
+//  etkilenmesin) ayri ve daha yuksek bir limit kullanir.
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Cok fazla deneme yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
-app.use('/api/auth', authLimiter);
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Cok fazla istek yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
+});
 
 // --- Issue #85: istek loglayici (XFF duzeltmesi AC'si) ----------------------
 //  Backend nginx arkasinda calistigi icin tum istemciler tek IP gibi gorunur.
@@ -114,6 +140,18 @@ async function audit(projectId, entry) {
     await prisma.auditLog.create({ data: { projectId, ...entry } });
   } catch (e) {
     console.error('[audit] yazilamadi:', e?.message || e);
+  }
+}
+
+// --- Sistem geneli (proje-bagimsiz) denetim (Issue #86) --------------------
+//  Auth olaylari (login/refresh/logout/lock) proje-ceperli AuditLog'dan AYRI,
+//  global SystemAuditLog tablosuna yazilir. Kimlik dogrulanamadiginda userId
+//  null olabilir (orn. basarisiz login — kullanici henuz bilinmiyor).
+async function auditSystem(action, { userId = null, ...metadata } = {}) {
+  try {
+    await prisma.systemAuditLog.create({ data: { userId, action, metadata } });
+  } catch (e) {
+    console.error('[audit-system] yazilamadi:', e?.message || e);
   }
 }
 
@@ -262,6 +300,7 @@ app.get(
 // degeri 'x-registration-key' basligiyla gondermek gerekir.
 app.post(
   '/api/auth/register',
+  loginLimiter,
   requirePM,
   wrap(async (req, res) => {
     const expected = process.env.PM_REGISTRATION_KEY;
@@ -290,19 +329,144 @@ app.post(
   }),
 );
 
+app.post('/api/auth/login', loginLimiter, (req, res) => {
+  passport.authenticate('local', { session: false }, (err, user, info) => {
+    if (err) return fail(res, err);
+    handleLogin(req, res, user, info).catch((e) => fail(res, e));
+  })(req, res);
+});
+
+// --- Basarili/basarisiz login sonucunu isle (Issue #86) ---------------------
+//  Passport local stratejisi SADECE dogrulama yapar (bkz. auth.js). Basarisiz
+//  deneme sayaci, hesap kilidi, refresh token uretimi ve audit burada yapilir.
+async function handleLogin(req, res, user, info) {
+  if (!user) {
+    const reason = info?.message;
+    if (reason === 'locked') {
+      await auditSystem('login.rejected_locked', {
+        userId: info.user?.id ?? null,
+        username: info.username,
+        ip: info.ip,
+      });
+      return res
+        .status(423)
+        .json({ error: 'Hesap gecici olarak kilitlendi. 15 dakika sonra tekrar deneyin.', code: 'account_locked' });
+    }
+    if (reason === 'inactive') {
+      await auditSystem('login.rejected_inactive', {
+        userId: info.user?.id ?? null,
+        username: info.username,
+        ip: info.ip,
+      });
+      return res.status(403).json({ error: 'Bu hesap devre disi birakilmis.' });
+    }
+    // Basarisiz deneme (yanlis sifre veya bilinmeyen kullanici).
+    const target =
+      info?.user || (info?.username ? await prisma.user.findUnique({ where: { username: info.username } }) : null);
+    const metadata = { username: info?.username, ip: info.ip };
+    if (target) {
+      metadata.userId = target.id;
+      const failed = (target.failedAttempts || 0) + 1;
+      if (failed >= MAX_LOGIN_ATTEMPTS) {
+        await prisma.user.update({
+          where: { id: target.id },
+          data: { failedAttempts: failed, lockedUntil: new Date(Date.now() + LOCK_DURATION_MS) },
+        });
+        await auditSystem('login.locked', metadata);
+      } else {
+        await prisma.user.update({ where: { id: target.id }, data: { failedAttempts: failed } });
+        await auditSystem('login.failed', metadata);
+      }
+    } else {
+      await auditSystem('login.failed', metadata);
+    }
+    return res.status(401).json({ error: 'Kullanici adi veya sifre yanlis.' });
+  }
+
+  // Basarili giris.
+  if (info?.migrated) {
+    const newHash = await hashPassword(req.body.password);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+    user.passwordHash = newHash;
+  }
+  if (user.failedAttempts) {
+    await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
+  }
+  const accessToken = signToken({
+    kind: 'pm',
+    isPM: user.role === 'Proje Yoneticisi',
+    userId: user.id,
+    systemRole: user.systemRole,
+    clearanceLevel: user.clearanceLevel,
+  });
+  const refreshToken = generateRefreshToken();
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashRefreshToken(refreshToken),
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+    },
+  });
+  await auditSystem('login.success', { userId: user.id, username: user.username, ip: req.ip });
+  res.json({ accessToken, refreshToken, user: safeUser(user) });
+}
+
+// --- Refresh (rotasyon) + Logout (Issue #86) -------------------------------
+//  Refresh token, body'deki opak belirtec uzerinden dogrulanir (Bearer degil);
+//  bu yuzden bu uclar requireAuth'un PUBLIC_PATHS listesindedir (bkz. auth.js).
 app.post(
-  '/api/auth/login',
+  '/api/auth/refresh',
+  refreshLimiter,
   wrap(async (req, res) => {
-    const { username, password } = req.body || {};
-    const user = await prisma.user.findUnique({ where: { username: (username || '').trim() } });
-    if (!user) throw bad('Kullanici adi veya sifre yanlis.', 401);
-    const { ok, migrated } = await verifyPassword(password, user.passwordHash);
-    if (!ok) throw bad('Kullanici adi veya sifre yanlis.', 401);
-    // Eski duz-metin kayit basariyla dogrulandi -> sessizce hash'e tasi.
-    if (migrated)
-      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
-    const token = signToken({ kind: 'pm', isPM: true, userId: user.id });
-    res.json({ token, user: safeUser(user) });
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) throw bad('refreshToken zorunlu.', 400);
+    const tokenHash = hashRefreshToken(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
+    if (!stored || stored.revokedAt || stored.expiresAt <= new Date()) {
+      await auditSystem('refresh.failed', { userId: stored?.userId ?? null, ip: req.ip });
+      throw bad('Gecersiz veya suresi dolmus refresh token.', 401);
+    }
+    if (!stored.user || !stored.user.isActive) {
+      await auditSystem('refresh.failed', { userId: stored.userId, ip: req.ip });
+      throw bad('Hesap devre disi.', 403);
+    }
+    // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
+    await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    const accessToken = signToken({
+      kind: 'pm',
+      isPM: stored.user.role === 'Proje Yoneticisi',
+      userId: stored.user.id,
+      systemRole: stored.user.systemRole,
+      clearanceLevel: stored.user.clearanceLevel,
+    });
+    const newRefresh = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: {
+        userId: stored.user.id,
+        tokenHash: hashRefreshToken(newRefresh),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    });
+    await auditSystem('refresh.success', { userId: stored.user.id, ip: req.ip });
+    res.json({ accessToken, refreshToken: newRefresh, user: safeUser(stored.user) });
+  }),
+);
+
+app.post(
+  '/api/auth/logout',
+  refreshLimiter,
+  wrap(async (req, res) => {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) throw bad('refreshToken zorunlu.', 400);
+    const tokenHash = hashRefreshToken(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+    if (stored) {
+      await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      await auditSystem('logout', { userId: stored.userId, ip: req.ip });
+    } else {
+      await auditSystem('logout', { userId: null, ip: req.ip });
+    }
+    res.status(204).end();
   }),
 );
 
@@ -319,6 +483,7 @@ app.get(
 //  Personel passcode'unu girer -> dogrudan atandigi projeye + rolune duser.
 app.post(
   '/api/auth/passcode',
+  loginLimiter,
   wrap(async (req, res) => {
     const raw = (req.body?.passcode || '').trim().toUpperCase();
     if (!raw) throw bad('Passcode zorunlu.');

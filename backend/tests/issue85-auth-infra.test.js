@@ -68,7 +68,7 @@ test('POST /api/auth/register -> login — bcrypt hash ile roundtrip calisir', a
   process.env.PM_REGISTRATION_KEY = 'test-registration-key';
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  const pmToken = login.body.token;
+  const pmToken = login.body.accessToken;
 
   const reg = await request(app)
     .post('/api/auth/register')
@@ -84,7 +84,7 @@ test('POST /api/auth/register -> login — bcrypt hash ile roundtrip calisir', a
     .post('/api/auth/login')
     .send({ username: NEW_USER.username, password: NEW_USER.password });
   assert.equal(login2.status, 200);
-  assert.ok(login2.body.token);
+  assert.ok(login2.body.accessToken);
 });
 
 // --- 3) Rate limiter XFF'e gore anahtarlanir -----------------------------------
@@ -143,8 +143,10 @@ test('SystemAuditLog — olusturulur ve okunur (userId null dahil)', async () =>
   assert.equal(created.action, 'login.failed');
 
   const found = await prisma.systemAuditLog.findMany({ where: { action: 'login.failed' } });
-  assert.equal(found.length, 1);
-  assert.equal(found[0].metadata.username, 'bilinmeyen');
+  // Issue #86: basarisiz girisler artik her denemede login.failed yazar; bu
+  // yuzden global sayi 1 olmak zorunda degil — olusturdugumuz kayit mevcut olsun.
+  assert.ok(found.length >= 1);
+  assert.ok(found.some((r) => r.metadata?.username === 'bilinmeyen'));
 });
 
 // --- 6) RefreshToken create + user silinince cascade --------------------------

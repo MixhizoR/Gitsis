@@ -81,7 +81,7 @@ before(async () => {
   // PM token al
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');
-  pmToken = t0.body.token;
+  pmToken = t0.body.accessToken;
 
   // Personel token al
   const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
