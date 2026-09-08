@@ -53,6 +53,7 @@ model Project {
   navGroups    NavGroup[]
   navItems     NavItem[]
   history      RequirementHistory[]
+  documents    ProjectDocument[]
 }
 
 // --- Snaphotlar (baseline / sürüm) ----------------------------------------
@@ -84,6 +85,28 @@ model SnapshotItem {
 
   @@index([snapshotId])
   @@index([snapshotId, entityType])
+}
+
+// --- Proje Dokumanlari (Dokuman Kutuphanesi) -------------------------------
+//  Kullanicinin bilgisayarindan yukledigi PDF / Excel belgeleri. Dosya icerigi
+//  (bytea) veritabaninda saklanir; boylece backend konteyneri yeniden
+//  olusturulsa bile kutuphane kalici kalir (DB Docker volume uzerindedir).
+//  Listeleme sorgulari `content` alanini ASLA secmez (bkz. src/documents.js).
+model ProjectDocument {
+  id         String   @id @default(uuid())
+  projectId  String
+  fileName   String
+  ext        String   // '.pdf' | '.xlsx' | '.xls'
+  mimeType   String
+  size       Int      // bayt
+  description String  @default("")
+  uploadedBy String?
+  content    Bytes
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, createdAt])
 }
 
 // --- Roller (proje bazli, dinamik) -----------------------------------------

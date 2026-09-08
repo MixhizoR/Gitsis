@@ -5,7 +5,7 @@
 //    3) Aksi halde             -> Sidebar + Topbar + sayfa yonlendirmesi.
 //  Sayfa anahtarlari: dashboard, req-user, req-system, req-subsystem,
 //  test-acceptance, test-system, test-subsystem, glossary, coverage,
-//  traceability, documents, audit.
+//  traceability, documents (AI analizi), document-library (Dökümanlar), audit.
 // ============================================================================
 import { useState, useEffect, useMemo } from 'react'
 import { useApp } from './context/AppContext.jsx'
@@ -23,6 +23,7 @@ import Roles from './pages/Roles.jsx'
 import Traceability from './pages/Traceability.jsx'
 import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
+import DocumentLibrary from './pages/DocumentLibrary.jsx'
 import AuditLogPage from './pages/AuditLog.jsx'
 import SnapshotsPage from './pages/Snapshots.jsx'
 import SuspectPage from './pages/SuspectPage.jsx'
@@ -130,6 +131,7 @@ export default function App() {
           {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}
           {page === 'coverage' && <CoverageReport onNavigate={setPage} />}
           {page === 'documents' && <DocumentAnalysis />}
+          {page === 'document-library' && <DocumentLibrary />}
           {page === 'audit' && <AuditLogPage />}
           {page === 'snapshots' && <SnapshotsPage />}
           {page === 'suspect' && <SuspectPage focusId={suspectFocusId} />}

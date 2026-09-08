@@ -51,6 +51,8 @@ const BOTTOM = [
   { key: 'traceability-import', labelKey: 'nav.traceabilityImport', icon: IconMatrix },
   { key: 'suspect', labelKey: 'nav.suspect', icon: IconAlert },
   { key: 'documents', labelKey: 'nav.documents', icon: IconSparkle },
+  // Dokuman kutuphanesi: bilgisayardan yuklenen PDF/Excel belgeleri kalici tutar.
+  { key: 'document-library', labelKey: 'nav.documentLibrary', icon: IconDoc },
   { key: 'audit', labelKey: 'nav.audit', icon: IconHistory },
   { key: 'snapshots', labelKey: 'nav.snapshots', icon: IconDoc },
 ]
