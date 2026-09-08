@@ -20,6 +20,7 @@ import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
 import { suspectLinksForTestCase } from '../utils/suspect.js'
@@ -54,6 +55,8 @@ export default function TestCases({
   const [viewRow, setViewRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
   const [attrMgr, setAttrMgr] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
@@ -119,13 +122,17 @@ export default function TestCases({
   const saveDescription = (r, html) => editTestCase(r.id, { description: html })
 
   const handleDelete = (tc) => {
-    del.schedule([tc.id])
+    setDeleteTarget({ ids: [tc.id], label: `${tc.text_id} — ${tc.title}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
-    const ids = sel.selectedIds
+    setDeleteTarget({ ids: sel.selectedIds, label: `${sel.count} ${t('test.records')}` })
+  }
+  const confirmDelete = async (reason) => {
+    const { ids } = deleteTarget
     sel.clear()
-    del.schedule(ids)
+    await del.schedule(ids, reason)
+    setDeleteTarget(null)
   }
 
   const selectedRows = useMemo(
@@ -248,6 +255,12 @@ export default function TestCases({
         count={del.pendingIds.length}
         secondsLeft={del.secondsLeft}
         onUndo={del.undo}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
     </div>
   )

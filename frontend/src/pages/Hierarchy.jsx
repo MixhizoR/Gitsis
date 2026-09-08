@@ -22,6 +22,7 @@ import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
@@ -68,6 +69,8 @@ export default function Hierarchy({
   const [viewRow, setViewRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   const types = useMemo(() => effectiveCfg?.typeOptions || [], [effectiveCfg])
@@ -136,13 +139,17 @@ export default function Hierarchy({
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
   const handleDelete = (r) => {
-    del.schedule([r.id])
+    setDeleteTarget({ ids: [r.id], label: `${r.text_id} — ${r.title}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
-    const ids = sel.selectedIds
+    setDeleteTarget({ ids: sel.selectedIds, label: `${sel.count} ${t('req.records')}` })
+  }
+  const confirmDelete = async (reason) => {
+    const { ids } = deleteTarget
     sel.clear()
-    del.schedule(ids)
+    await del.schedule(ids, reason)
+    setDeleteTarget(null)
   }
 
   const selectedRows = useMemo(
@@ -277,6 +284,12 @@ export default function Hierarchy({
         count={del.pendingIds.length}
         secondsLeft={del.secondsLeft}
         onUndo={del.undo}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
     </div>
   )

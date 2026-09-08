@@ -117,6 +117,28 @@ async function audit(projectId, entry) {
   }
 }
 
+// --- Silme gerekcesi (izlenebilirlik) ---------------------------------------
+//  DO-178C degisiklik yonetimi: veriyi GERCEKTEN silen her uc nokta, "neden
+//  silindi" gerekcesini DB degisikligiyle AYNI ISTEKTE zorunlu kilar; bu
+//  metin ilgili AuditLog kaydina (Degisiklik Tarihcesi) yazilir. Yalnizca
+//  UI/menu duzeni gibi veri SILMEYEN islemler (nav grubu/sayfasi kaldirma)
+//  buna dahil degildir — onlar zaten hicbir kaydi silmiyor.
+//  Sunucu tarafinda dogrulanir: istemci dogrulamasi guvenlik siniri DEGILDIR,
+//  API'ye dogrudan istek atilarak atlatilabilir.
+const REASON_MIN_LEN = 3;
+const REASON_MAX_LEN = 500;
+function requireReason(req) {
+  const raw = req.body?.reason;
+  const reason = typeof raw === 'string' ? raw.trim() : '';
+  if (reason.length < REASON_MIN_LEN) {
+    throw bad(`Silme gerekcesi zorunludur (en az ${REASON_MIN_LEN} karakter).`);
+  }
+  if (reason.length > REASON_MAX_LEN) {
+    throw bad(`Silme gerekcesi en fazla ${REASON_MAX_LEN} karakter olabilir.`);
+  }
+  return reason;
+}
+
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
 //  icinden uretebilmesi icin paylasilabilir hale getirildi.
@@ -133,7 +155,7 @@ async function cascade(projectId) {
 //  Secilen id'leri (proje kapsaminda) tek islemde siler: once iliskili tum
 //  izlenebilirlik baglarini temizler, sonra kayitlari siler, her biri icin
 //  DELETE audit kaydi yazar (silinen text_id kara listede kalir).
-async function batchDelete(pid, model, ids, entityType) {
+async function batchDelete(pid, model, ids, entityType, reason, actor) {
   if (!Array.isArray(ids) || ids.length === 0) throw bad('En az bir id zorunlu.');
   const allRows = await prisma[model].findMany({ where: { id: { in: ids }, projectId: pid } });
   if (allRows.length === 0) throw bad('Silinecek kayit bulunamadi.', 404);
@@ -152,6 +174,8 @@ async function batchDelete(pid, model, ids, entityType) {
       entityId: r.id,
       textId: r.text_id,
       message: `Toplu silme: "${r.title || r.term}" (${r.text_id}).`,
+      reason,
+      actor,
     });
   }
   return foundIds.length;
@@ -455,8 +479,28 @@ app.delete(
   '/api/projects/:pid',
   requirePM,
   wrap(async (req, res) => {
+    const project = await prisma.project.findUnique({ where: { id: req.params.pid } });
+    if (!project) throw bad('Proje bulunamadi.', 404);
+    const reason = requireReason(req);
+    // Once (FK'siz, kalici) silme kaydini yaz: proje silinince AuditLog'u da
+    // CASCADE ile gider, bu tablo gitmez. Sonra projeyi sil.
+    await prisma.projectDeletionLog.create({
+      data: { projectId: project.id, projectName: project.name, reason, actor: actorOf(req) },
+    });
     await prisma.project.delete({ where: { id: req.params.pid } });
     res.json({ ok: true });
+  }),
+);
+
+// Silinen projelerin gerekce gecmisi — proje kapsaminda DEGIL (proje zaten
+// yok), o yuzden :pid parametresi ve projectAccessGuard'in disinda; requirePM
+// burada da gecerli (isPM disinda hicbir sey req.params.pid'e bakmiyor).
+app.get(
+  '/api/project-deletions',
+  requirePM,
+  wrap(async (req, res) => {
+    const rows = await prisma.projectDeletionLog.findMany({ orderBy: { deletedAt: 'desc' } });
+    res.json(rows);
   }),
 );
 
@@ -490,7 +534,16 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.projectField.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Alan bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.projectField.delete({ where: { id: req.params.id } });
+    await audit(pid, {
+      action: 'FIELD_DELETE',
+      entityType: 'field',
+      entityId: req.params.id,
+      message: `Alan silindi: "${before.name}".`,
+      reason,
+      actor: actorOf(req),
+    });
     res.json({ ok: true });
   }),
 );
@@ -702,12 +755,15 @@ app.delete(
     const before = await prisma.attributeDefinition.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Oznitelik bulunamadi.', 404);
     if (before.system) throw bad('Gomulu oznitelikler (Priority, DAL Level) silinemez.', 403);
+    const reason = requireReason(req);
     await prisma.attributeDefinition.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'ATTRIBUTE_DELETE',
       entityType: 'attribute',
       entityId: req.params.id,
       message: `Oznitelik silindi: "${before.label}".`,
+      reason,
+      actor: actorOf(req),
     });
     res.json({ ok: true });
   }),
@@ -922,6 +978,7 @@ app.delete(
     const before = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     if (before.locked) throw bad('Bu gereksinim onaylandi ve kilitli; silinemez.', 403);
+    const reason = requireReason(req);
     // Iliskili baglari temizle
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
@@ -933,6 +990,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Gereksinim silindi: "${before.title}".`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -943,7 +1002,8 @@ app.post(
   '/api/projects/:pid/requirements/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'requirement', req.body?.ids, 'requirement');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'requirement', req.body?.ids, 'requirement', reason, actorOf(req));
     await cascade(pid);
     res.json({ ok: true, deleted: n });
   }),
@@ -1090,6 +1150,7 @@ app.delete(
     const before = await prisma.testCase.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Test bulunamadi.', 404);
     if (before.locked) throw bad('Bu test onaylandi ve kilitli; silinemez.', 403);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
@@ -1100,6 +1161,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Test silindi: "${before.title}".`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -1110,7 +1173,8 @@ app.post(
   '/api/projects/:pid/testcases/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'testCase', req.body?.ids, 'testcase');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'testCase', req.body?.ids, 'testcase', reason, actorOf(req));
     await cascade(pid);
     res.json({ ok: true, deleted: n });
   }),
@@ -1182,6 +1246,7 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.glossaryTerm.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Terim bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
@@ -1192,6 +1257,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Sozluk terimi silindi: "${before.term}".`,
+      reason,
+      actor: actorOf(req),
     });
     res.json({ ok: true });
   }),
@@ -1201,7 +1268,8 @@ app.post(
   '/api/projects/:pid/glossary/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'glossaryTerm', req.body?.ids, 'glossary');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'glossaryTerm', req.body?.ids, 'glossary', reason, actorOf(req));
     res.json({ ok: true, deleted: n });
   }),
 );
@@ -1315,12 +1383,15 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.traceabilityLink.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Bag bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'UNLINK',
       entityType: 'link',
       entityId: req.params.id,
       message: `Bag koparildi (${before.type}).`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -1493,6 +1564,7 @@ app.delete(
 
     const snapshot = await prisma.projectSnapshot.findUnique({ where: { id: snapshotId } });
     if (!snapshot || snapshot.projectId !== pid) throw bad('Snapshot bulunamadi.', 404);
+    const reason = requireReason(req);
 
     await prisma.snapshotItem.deleteMany({ where: { snapshotId } });
     await prisma.projectSnapshot.delete({ where: { id: snapshotId } });
@@ -1502,7 +1574,8 @@ app.delete(
       entityType: 'snapshot',
       entityId: snapshotId,
       textId: snapshot.name,
-      actor: req.auth?.userId || 'pm',
+      actor: actorOf(req),
+      reason,
       message: `Snapshot silindi: "${snapshot.name}".`,
     });
 
@@ -1596,12 +1669,15 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.role.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Rol bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.role.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'ROLE_DELETE',
       entityType: 'role',
       entityId: req.params.id,
       message: `Rol silindi: "${before?.name || ''}".`,
+      reason,
+      actor: actorOf(req),
     });
     await recomputeAllApprovals(pid);
     res.json({ ok: true });
@@ -1655,12 +1731,15 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.personnel.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Personel bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.personnel.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'PERSONNEL_DELETE',
       entityType: 'personnel',
       entityId: req.params.id,
       message: `Personel silindi: "${before?.firstName || ''} ${before?.lastName || ''}".`,
+      reason,
+      actor: actorOf(req),
     });
     await recomputeAllApprovals(pid);
     res.json({ ok: true });

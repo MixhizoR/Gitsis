@@ -22,6 +22,7 @@
 // ============================================================================
 import { useMemo, useState, useEffect } from 'react'
 import Modal from '../common/Modal.jsx'
+import ReasonModal from '../common/ReasonModal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES } from '../../utils/constants.js'
@@ -34,11 +35,14 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
   const [targetId, setTargetId] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Bag koparma oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [unlinkTarget, setUnlinkTarget] = useState(null)
 
   useEffect(() => {
     if (open) {
       setTargetId('')
       setError('')
+      setUnlinkTarget(null)
     }
   }, [open, subject])
 
@@ -176,15 +180,9 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
     }
   }
 
-  const handleUnlink = async (l) => {
-    setBusy(true)
-    try {
-      await unlink(l.id)
-    } catch (err) {
-      setError(err.message || t('form.saveError'))
-    } finally {
-      setBusy(false)
-    }
+  const confirmUnlink = async (reason) => {
+    await unlink(unlinkTarget.id, reason)
+    setUnlinkTarget(null)
   }
 
   return (
@@ -278,8 +276,7 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
                         {sec.showStatus && node.status && <StatusBadge value={node.status} />}
                       </div>
                       <button
-                        onClick={() => handleUnlink(l)}
-                        disabled={busy}
+                        onClick={() => setUnlinkTarget(l)}
                         className="btn-ghost shrink-0 !px-2 !py-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                         title={t('link.unlinkTitle')}
                       >
@@ -293,6 +290,12 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
           ))}
         </div>
       </div>
+      <ReasonModal
+        open={Boolean(unlinkTarget)}
+        onClose={() => setUnlinkTarget(null)}
+        onConfirm={confirmUnlink}
+        title={t('link.unlinkTitle')}
+      />
     </Modal>
   )
 }
