@@ -58,15 +58,20 @@ test('GET /nav — ozellestirme yoksa yerlesik varsayilan duzen doner', async ()
   const res = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
   assert.equal(res.status, 200);
   assert.equal(res.body.materialized, false);
-  // "Gereksinimler" grubu varsayilandan cikarildi: gereksinim sayfalari artik
-  // ust menudeki birlesik "Gereksinimler" (PBS agaci) sayfasinda.
-  assert.equal(res.body.groups.length, 1);
+  // "Gereksinimler" grubu varsayilan olarak yalnizca Kullanici Gereksinimleri
+  // (req-user) sayfasiyla gelir; ust menudeki PBS agaci ise artik
+  // "Baglanti Agaci" olarak ayri bir sayfadir.
+  assert.equal(res.body.groups.length, 2);
   assert.deepEqual(
     res.body.groups.map((g) => g.nameKey),
-    ['nav.groupTests'],
+    ['nav.groupRequirements', 'nav.groupTests'],
   );
   assert.deepEqual(
     res.body.groups[0].items.map((i) => i.pageKey),
+    ['req-user'],
+  );
+  assert.deepEqual(
+    res.body.groups[1].items.map((i) => i.pageKey),
     ['test-acceptance', 'test-system', 'test-subsystem'],
   );
   // Sozluk bagimsiz (grupsuz).
@@ -90,12 +95,12 @@ test('POST /nav/groups — ilk ozellestirmede varsayilan duzen materialize edili
 
   const layout = await asPM(request(app).get(`/api/projects/${proj.id}/nav`));
   assert.equal(layout.body.materialized, true);
-  // 1 varsayilan (Testler) + 1 yeni grup
-  assert.equal(layout.body.groups.length, 2);
+  // 2 varsayilan (Gereksinimler + Testler) + 1 yeni grup
+  assert.equal(layout.body.groups.length, 3);
   const names = layout.body.groups.map((g) => g.name);
-  assert.ok(names.includes('Testler') && names.includes('Ozel Grup'));
-  // Sayfalar korunmus olmali (3 gruplu + 1 grupsuz = 4)
-  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 4);
+  assert.ok(names.includes('Gereksinimler') && names.includes('Testler') && names.includes('Ozel Grup'));
+  // Sayfalar korunmus olmali (1 + 3 gruplu + 1 grupsuz = 5)
+  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 5);
 });
 
 test('POST /nav/groups — ayni adda ikinci grup 409 doner', async () => {
@@ -192,6 +197,63 @@ test('POST /nav/items — UYDURMA sayfa tipi 400 doner (tipler sabit)', async ()
   assert.equal(res.status, 400);
 });
 
+// --- Tip filtresi (req-subsystem: Software / Hardware) --------------------------
+
+test('POST /nav/items — req-subsystem icin gecerli tip filtresi (Software) kaydedilir', async () => {
+  const g = (await layout()).groups.find((x) => x.name === 'Testler');
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/items`)).send({
+    groupId: g.id,
+    pageKey: 'req-subsystem',
+    label: 'Yazilim Alt Sistem Gereksinimleri',
+    typeFilter: 'Software Requirement',
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.typeFilter, 'Software Requirement');
+});
+
+test('POST /nav/items — tip filtresini DESTEKLEMEYEN pageKey icin 400 doner', async () => {
+  const g = (await layout()).groups.find((x) => x.name === 'Testler');
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/items`)).send({
+    groupId: g.id,
+    pageKey: 'req-user',
+    label: 'Olmaz',
+    typeFilter: 'User Requirement',
+  });
+  assert.equal(res.status, 400);
+});
+
+test('POST /nav/items — req-subsystem icin GECERSIZ tip filtresi 400 doner', async () => {
+  const g = (await layout()).groups.find((x) => x.name === 'Testler');
+  const res = await asPM(request(app).post(`/api/projects/${proj.id}/nav/items`)).send({
+    groupId: g.id,
+    pageKey: 'req-subsystem',
+    label: 'Olmaz',
+    typeFilter: 'Test Case',
+  });
+  assert.equal(res.status, 400);
+});
+
+test('PATCH /nav/items/:id — tip filtresi sonradan eklenip kaldirilabilir', async () => {
+  const g = (await layout()).groups.find((x) => x.name === 'Testler');
+  const created = await asPM(request(app).post(`/api/projects/${proj.id}/nav/items`)).send({
+    groupId: g.id,
+    pageKey: 'req-subsystem',
+    label: 'Donanim Alt Sistem Gereksinimleri',
+  });
+  assert.equal(created.body.typeFilter, null);
+
+  const patched = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`)).send({
+    typeFilter: 'Hardware Requirement',
+  });
+  assert.equal(patched.status, 200);
+  assert.equal(patched.body.typeFilter, 'Hardware Requirement');
+
+  const cleared = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`)).send({
+    typeFilter: null,
+  });
+  assert.equal(cleared.body.typeFilter, null);
+});
+
 test('DELETE /nav/items/:id — sayfa menuden kaldirilir, VERILER silinmez', async () => {
   const g = (await layout()).groups.find((x) => x.name === 'Testler');
   const created = await asPM(request(app).post(`/api/projects/${proj.id}/nav/items`)).send({
@@ -234,8 +296,8 @@ test('DELETE /nav/groups/:id — grup silinince sayfalar KAYBOLMAZ, grupsuza dus
   for (const key of ['test-acceptance', 'test-system', 'test-subsystem']) {
     assert.ok(ungroupedKeys.includes(key), `${key} kaybolmamali`);
   }
-  // Hicbir sayfa kaybolmadi: toplam hala 4
-  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 4);
+  // Hicbir sayfa kaybolmadi: toplam hala 5 (1 req-user + 3 test + 1 glossary)
+  assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 5);
 });
 
 // --- Yetki + IDOR ---------------------------------------------------------------

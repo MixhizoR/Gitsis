@@ -589,6 +589,7 @@ app.post(
       pageKey: b.pageKey,
       label: b.label,
       fieldFilter: b.fieldFilter,
+      typeFilter: b.typeFilter,
     });
     await audit(pid, {
       action: 'CREATE',
