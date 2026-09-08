@@ -516,8 +516,9 @@ export const STRINGS = {
     // --- Silme gerekçesi (izlenebilirlik) ---
     'delreason.title': 'Silme gerekçesi',
     'delreason.hint':
-      'Bu işlem veritabanından bir kaydı kalıcı olarak siler. İzlenebilirlik için nedenini kısaca açıklayın — bu metin Değişiklik Tarihçesi\'nde saklanır.',
-    'delreason.placeholder': 'Örn. Yanlış girilmiş, kapsam dışı bırakıldı, ikinci bir kayıtla birleştirildi…',
+      "Bu işlem veritabanından bir kaydı kalıcı olarak siler. İzlenebilirlik için nedenini kısaca açıklayın — bu metin Değişiklik Tarihçesi'nde saklanır.",
+    'delreason.placeholder':
+      'Örn. Yanlış girilmiş, kapsam dışı bırakıldı, ikinci bir kayıtla birleştirildi…',
     'delreason.tooShort': 'Gerekçe en az {n} karakter olmalı.',
     'delreason.confirm': 'Sil',
 

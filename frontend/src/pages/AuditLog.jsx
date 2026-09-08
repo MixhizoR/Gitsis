@@ -44,7 +44,8 @@ export default function AuditLogPage() {
     return auditLog.filter((e) => {
       if (action && e.action !== action) return false
       if (needle) {
-        const hay = `${e.textId} ${e.message} ${e.actor} ${e.reason || ''} ${e.field || ''}`.toLowerCase()
+        const hay =
+          `${e.textId} ${e.message} ${e.actor} ${e.reason || ''} ${e.field || ''}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true

@@ -92,7 +92,9 @@ describe('dataService CRUD helperlari', () => {
 
   it('deleteRequirement DELETE /projects/:pid/requirements/:id (reason govdede)', async () => {
     await deleteRequirement('p-1', 'r-1', 'yanlis girildi')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/requirements/r-1', { reason: 'yanlis girildi' })
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/requirements/r-1', {
+      reason: 'yanlis girildi',
+    })
   })
 
   it('listTestCases GET /projects/:pid/testcases', async () => {
@@ -112,7 +114,9 @@ describe('dataService CRUD helperlari', () => {
 
   it('deleteTestCase DELETE /projects/:pid/testcases/:id (reason govdede)', async () => {
     await deleteTestCase('p-1', 't-1', 'yanlis girildi')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/testcases/t-1', { reason: 'yanlis girildi' })
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/testcases/t-1', {
+      reason: 'yanlis girildi',
+    })
   })
 
   it('listGlossary GET /projects/:pid/glossary', async () => {
@@ -188,6 +192,8 @@ describe('dataService CRUD helperlari', () => {
 
   it('deleteSnapshot DELETE /projects/:pid/snapshots/:sid (reason govdede)', async () => {
     await deleteSnapshot('p-1', 's-1', 'yanlis girildi')
-    expect(api.del).toHaveBeenCalledWith('/projects/p-1/snapshots/s-1', { reason: 'yanlis girildi' })
+    expect(api.del).toHaveBeenCalledWith('/projects/p-1/snapshots/s-1', {
+      reason: 'yanlis girildi',
+    })
   })
 })

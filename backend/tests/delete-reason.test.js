@@ -53,9 +53,7 @@ test('DELETE /fields/:id — reason olmadan 400 doner, kayit SILINMEZ', async ()
 
 test('DELETE /fields/:id — 2 karakterlik reason 400 doner (min 3)', async () => {
   const field = await prisma.projectField.create({ data: { projectId: proj.id, name: 'Alan-2' } });
-  const res = await asPM(
-    request(app).delete(`/api/projects/${proj.id}/fields/${field.id}`).send({ reason: 'ab' }),
-  );
+  const res = await asPM(request(app).delete(`/api/projects/${proj.id}/fields/${field.id}`).send({ reason: 'ab' }));
   assert.equal(res.status, 400);
 });
 
@@ -96,7 +94,9 @@ test('POST /requirements/batch-delete — reason olmadan 400 doner, hicbir kayit
     data: { projectId: proj.id, text_id: 'REQ-USR-DR3', title: 'T3', type: 'User Requirement' },
   });
   const res = await asPM(
-    request(app).post(`/api/projects/${proj.id}/requirements/batch-delete`).send({ ids: [r1.id, r2.id] }),
+    request(app)
+      .post(`/api/projects/${proj.id}/requirements/batch-delete`)
+      .send({ ids: [r1.id, r2.id] }),
   );
   assert.equal(res.status, 400);
   assert.equal(await prisma.requirement.count({ where: { id: { in: [r1.id, r2.id] } } }), 2);
@@ -147,9 +147,7 @@ test('DELETE /projects/:pid — reason olmadan 400 doner, proje silinmez', async
 
 test('DELETE /projects/:pid — gecerli reason ile silinir; ProjectDeletionLog KALICI kalir (AuditLog gibi cascade gitmez)', async () => {
   const p = await prisma.project.create({ data: { name: 'Silinecek Proje 2' } });
-  const res = await asPM(
-    request(app).delete(`/api/projects/${p.id}`).send({ reason: 'Proje iptal edildi.' }),
-  );
+  const res = await asPM(request(app).delete(`/api/projects/${p.id}`).send({ reason: 'Proje iptal edildi.' }));
   assert.equal(res.status, 200);
   assert.equal(await prisma.project.findUnique({ where: { id: p.id } }), null);
 
@@ -160,9 +158,7 @@ test('DELETE /projects/:pid — gecerli reason ile silinir; ProjectDeletionLog K
 });
 
 test('GET /api/project-deletions — yalnizca PM erisebilir', async () => {
-  const asPersonnel = await request(app)
-    .get('/api/project-deletions')
-    .set('Authorization', `Bearer ${personnelToken}`);
+  const asPersonnel = await request(app).get('/api/project-deletions').set('Authorization', `Bearer ${personnelToken}`);
   assert.equal(asPersonnel.status, 403);
 
   const asPmRes = await asPM(request(app).get('/api/project-deletions'));
