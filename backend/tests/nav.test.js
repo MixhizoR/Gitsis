@@ -98,9 +98,7 @@ test('POST /nav/groups — ilk ozellestirmede varsayilan duzen materialize edili
   // 2 varsayilan (Gereksinimler + Testler) + 1 yeni grup
   assert.equal(layout.body.groups.length, 3);
   const names = layout.body.groups.map((g) => g.name);
-  assert.ok(
-    names.includes('Gereksinimler') && names.includes('Testler') && names.includes('Ozel Grup'),
-  );
+  assert.ok(names.includes('Gereksinimler') && names.includes('Testler') && names.includes('Ozel Grup'));
   // Sayfalar korunmus olmali (1 + 3 gruplu + 1 grupsuz = 5)
   assert.equal(await prisma.navItem.count({ where: { projectId: proj.id } }), 5);
 });
@@ -244,15 +242,15 @@ test('PATCH /nav/items/:id — tip filtresi sonradan eklenip kaldirilabilir', as
   });
   assert.equal(created.body.typeFilter, null);
 
-  const patched = await asPM(
-    request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`),
-  ).send({ typeFilter: 'Hardware Requirement' });
+  const patched = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`)).send({
+    typeFilter: 'Hardware Requirement',
+  });
   assert.equal(patched.status, 200);
   assert.equal(patched.body.typeFilter, 'Hardware Requirement');
 
-  const cleared = await asPM(
-    request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`),
-  ).send({ typeFilter: null });
+  const cleared = await asPM(request(app).patch(`/api/projects/${proj.id}/nav/items/${created.body.id}`)).send({
+    typeFilter: null,
+  });
   assert.equal(cleared.body.typeFilter, null);
 });
 

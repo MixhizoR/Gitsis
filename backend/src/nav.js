@@ -10,13 +10,7 @@
 //   - Grup silinince item'lari grupsuz seviyeye duser (schema'da SetNull);
 //     hicbir sayfa kaybolmaz, navigasyon her zaman calisir kalir.
 // ============================================================================
-import {
-  DEFAULT_GROUPS,
-  DEFAULT_UNGROUPED,
-  builtInLayout,
-  isValidPageKey,
-  isValidTypeFilter,
-} from './navDefaults.js';
+import { DEFAULT_GROUPS, DEFAULT_UNGROUPED, builtInLayout, isValidPageKey, isValidTypeFilter } from './navDefaults.js';
 
 function bad(msg, status = 400) {
   return Object.assign(new Error(msg), { status });

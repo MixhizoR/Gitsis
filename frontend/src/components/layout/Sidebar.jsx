@@ -84,7 +84,11 @@ export default function Sidebar({ active, onNavigate }) {
   const [navMgrOpen, setNavMgrOpen] = useState(false)
   // Grubun yanindaki "+" ile hizli sayfa ekleme (Menuyu duzenle'yi acmadan).
   const [quickAddGroupId, setQuickAddGroupId] = useState(null)
-  const [quickAddPage, setQuickAddPage] = useState({ pageKey: 'req-user', label: '', typeFilter: '' })
+  const [quickAddPage, setQuickAddPage] = useState({
+    pageKey: 'req-user',
+    label: '',
+    typeFilter: '',
+  })
   const [quickAddBusy, setQuickAddBusy] = useState(false)
   const [quickAddError, setQuickAddError] = useState('')
 

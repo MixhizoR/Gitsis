@@ -195,9 +195,7 @@ describe('Sidebar — menu gruplari', () => {
   it('hizli eklemede "req-subsystem" secilince Tip filtresi (Software/Hardware) cikar', async () => {
     navMock.value = {
       materialized: true,
-      groups: [
-        { id: 'g-test', name: 'Testler', nameKey: null, order: 0, items: [] },
-      ],
+      groups: [{ id: 'g-test', name: 'Testler', nameKey: null, order: 0, items: [] }],
       ungrouped: [],
     }
     renderSidebar()
