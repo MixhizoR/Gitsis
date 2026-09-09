@@ -367,7 +367,10 @@ export default function EntityTable({
                                 : 'text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400'
                             } ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                           >
-                            <IconXCircle size={20} className={r.status === 'Rejected' ? 'fill-current/10' : ''} />
+                            <IconXCircle
+                              size={20}
+                              className={r.status === 'Rejected' ? 'fill-current/10' : ''}
+                            />
                           </button>
                         )}
                       </div>

@@ -129,7 +129,7 @@ test('PUT /testcases/:id: gonderilen status yoksayilir, diger alanlar guncelleni
     .send({ title: 'Sonra', status: 'Approved' });
   assert.equal(r.status, 200);
   assert.equal(r.body.title, 'Sonra', 'baska alanlar hala duzenlenebilir olmali');
-  assert.equal(r.body.status, 'In Review', "status PUT ile degistirilememeli");
+  assert.equal(r.body.status, 'In Review', 'status PUT ile degistirilememeli');
 });
 
 // --- 2) tam konsensus -> Approved + cascade ---------------------------------
@@ -156,7 +156,7 @@ test('vote: approve izinli personel + PM oy verince test Approved olur, bagli ge
 
 // --- 3) oy geri cekilince / kilit acilinca In Review'e doner ---------------
 
-test('unlock: PM kilidi acinca test In Review\'e doner, bagli gereksinim de geri doner', async () => {
+test("unlock: PM kilidi acinca test In Review'e doner, bagli gereksinim de geri doner", async () => {
   const r = await request(app)
     .post(`/api/projects/${proj.id}/approvals/unlock`)
     .set('Authorization', `Bearer ${pmToken}`)
@@ -174,7 +174,10 @@ test('unlock: PM kilidi acinca test In Review\'e doner, bagli gereksinim de geri
 test('reject: approve izinli TEK personel (PM beklemeden) testi derhal Failed yapar', async () => {
   // Onceki testten kalan oylar temizlensin ki bu test izole olsun.
   await prisma.approval.deleteMany({ where: { projectId: proj.id, entityId: testCaseRow.id } });
-  await prisma.testCase.update({ where: { id: testCaseRow.id }, data: { status: 'In Review', locked: false, approvalStatus: 'Pending' } });
+  await prisma.testCase.update({
+    where: { id: testCaseRow.id },
+    data: { status: 'In Review', locked: false, approvalStatus: 'Pending' },
+  });
 
   const r = await request(app)
     .post(`/api/projects/${proj.id}/approvals/reject`)
@@ -213,7 +216,15 @@ test('reject: approve izni olmayan personel 403 alir', async () => {
 
 test('reject: onaylanmis (kilitli) kayitta personel 403 alir, PM reddedebilir', async () => {
   const tc = await prisma.testCase.create({
-    data: { projectId: proj.id, text_id: 'TC-SYS-503', title: 'Kilitli red denemesi', type: 'System Test', status: 'Approved', approvalStatus: 'Approved', locked: true },
+    data: {
+      projectId: proj.id,
+      text_id: 'TC-SYS-503',
+      title: 'Kilitli red denemesi',
+      type: 'System Test',
+      status: 'Approved',
+      approvalStatus: 'Approved',
+      locked: true,
+    },
   });
 
   const personnelAttempt = await request(app)
