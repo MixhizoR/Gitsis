@@ -145,9 +145,7 @@ test('POST /snapshots — modular öznitelik tanımlarını ve menü düzenini d
     .set('Authorization', `Bearer ${pmToken}`);
   assert.equal(detail.status, 200);
 
-  const attrDefItem = detail.body.items.find(
-    (i) => i.entityType === 'attributeDef' && i.data.label === 'Risk Skoru',
-  );
+  const attrDefItem = detail.body.items.find((i) => i.entityType === 'attributeDef' && i.data.label === 'Risk Skoru');
   assert.ok(attrDefItem, 'snapshot items icinde yakalanan attributeDef olmali');
   assert.equal(attrDefItem.data.entityType, 'requirement');
   assert.equal(attrDefItem.data.dataType, 'number');

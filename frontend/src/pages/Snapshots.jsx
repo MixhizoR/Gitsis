@@ -76,13 +76,16 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
     if (reqCfg) {
       const types = item.typeFilter ? [item.typeFilter] : reqCfg.typeOptions
       return pool.filter(
-        (r) => types.includes(r.data.type) && (!item.fieldFilter || r.data.field === item.fieldFilter),
+        (r) =>
+          types.includes(r.data.type) && (!item.fieldFilter || r.data.field === item.fieldFilter),
       )
     }
     const testCfg = TEST_PAGES[item.pageKey]
     if (testCfg) {
       return pool.filter(
-        (tc) => tc.data.type === testCfg.lockedType && (!item.fieldFilter || tc.data.field === item.fieldFilter),
+        (tc) =>
+          tc.data.type === testCfg.lockedType &&
+          (!item.fieldFilter || tc.data.field === item.fieldFilter),
       )
     }
     return []
@@ -98,7 +101,9 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
     const nav = itemsByType.navLayout
     if (!nav) return { sections: [], unassigned: pool }
     const flatNavItems = [
-      ...(nav.groups || []).flatMap((g) => g.items.map((it) => ({ gLabel: groupLabel(g), item: it }))),
+      ...(nav.groups || []).flatMap((g) =>
+        g.items.map((it) => ({ gLabel: groupLabel(g), item: it })),
+      ),
       ...(nav.ungrouped || []).map((it) => ({ gLabel: null, item: it })),
     ]
     const sections = []
@@ -107,7 +112,12 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
       if (!matchesPageKey(item.pageKey)) continue
       const items = pageItemsFor(item, pool)
       for (const it of items) matchedIds.add(it.entityId)
-      sections.push({ key: item.id || item.pageKey, groupLabel: gLabel, pageTitle: pageLabel(item), items })
+      sections.push({
+        key: item.id || item.pageKey,
+        groupLabel: gLabel,
+        pageTitle: pageLabel(item),
+        items,
+      })
     }
     const unassigned = pool.filter((p) => !matchedIds.has(p.entityId))
     return { sections, unassigned }
@@ -275,7 +285,9 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
           <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
             <tr>{headCells}</tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">{items.map(renderItem)}</tbody>
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+            {items.map(renderItem)}
+          </tbody>
         </table>
       </div>
     )
@@ -303,7 +315,9 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
                     {sec.groupLabel} ·
                   </span>
                 )}
-                <span className="font-bold text-slate-800 dark:text-slate-100">{sec.pageTitle}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">
+                  {sec.pageTitle}
+                </span>
               </div>
               <Pill>{sec.items.length}</Pill>
             </div>
@@ -367,14 +381,26 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
             kullanıcı talebi: "tek büyük havuz değil, o an hangi sayfada
             neyin olduğunu da görebilmeliyim". */}
         {activeTab === 'requirements' && (
-          <SectionedView sectionData={reqSectionData} headCells={reqHeadCells} pool={itemsByType.requirements} />
+          <SectionedView
+            sectionData={reqSectionData}
+            headCells={reqHeadCells}
+            pool={itemsByType.requirements}
+          />
         )}
         {activeTab === 'testcases' && (
-          <SectionedView sectionData={tcSectionData} headCells={tcHeadCells} pool={itemsByType.testcases} />
+          <SectionedView
+            sectionData={tcSectionData}
+            headCells={tcHeadCells}
+            pool={itemsByType.testcases}
+          />
         )}
         {activeTab === 'glossary' && (
           <div className="card overflow-hidden">
-            <DataTable headCells={glossaryHeadCells} items={itemsByType.glossary} emptyVariant="full" />
+            <DataTable
+              headCells={glossaryHeadCells}
+              items={itemsByType.glossary}
+              emptyVariant="full"
+            />
           </div>
         )}
         {activeTab === 'links' && (

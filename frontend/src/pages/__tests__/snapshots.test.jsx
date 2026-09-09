@@ -133,7 +133,14 @@ describe('SnapshotDetailModal — modular öznitelikler + menü yapısı', () =>
               nameKey: null,
               order: 0,
               items: [
-                { id: 'ni-1', pageKey: 'req-user', label: null, fieldFilter: null, typeFilter: null, order: 0 },
+                {
+                  id: 'ni-1',
+                  pageKey: 'req-user',
+                  label: null,
+                  fieldFilter: null,
+                  typeFilter: null,
+                  order: 0,
+                },
               ],
             },
           ],
@@ -146,7 +153,13 @@ describe('SnapshotDetailModal — modular öznitelikler + menü yapısı', () =>
 
   const openDetail = async () => {
     snapshotsMock.value = [
-      { id: 'snap-1', name: 'Sprint 5 sonu', createdBy: 'pm-1', createdAt: '2026-01-10T10:00:00.000Z', items: [] },
+      {
+        id: 'snap-1',
+        name: 'Sprint 5 sonu',
+        createdBy: 'pm-1',
+        createdAt: '2026-01-10T10:00:00.000Z',
+        items: [],
+      },
     ]
     getSnapshot.mockResolvedValue(SNAPSHOT_DETAIL)
     const SnapshotsPage = (await import('../Snapshots.jsx')).default
@@ -204,7 +217,13 @@ describe('SnapshotDetailModal — modular öznitelikler + menü yapısı', () =>
       ],
     }
     snapshotsMock.value = [
-      { id: 'snap-1', name: 'Sprint 5 sonu', createdBy: 'pm-1', createdAt: '2026-01-10T10:00:00.000Z', items: [] },
+      {
+        id: 'snap-1',
+        name: 'Sprint 5 sonu',
+        createdBy: 'pm-1',
+        createdAt: '2026-01-10T10:00:00.000Z',
+        items: [],
+      },
     ]
     getSnapshot.mockResolvedValue(detail)
     const SnapshotsPage = (await import('../Snapshots.jsx')).default
