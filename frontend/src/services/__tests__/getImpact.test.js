@@ -37,6 +37,7 @@ import {
   listPersonnel,
   voteApproval,
   unlockApproval,
+  rejectApproval,
   listAudit,
   recompute,
   getImpact,
@@ -167,6 +168,13 @@ describe('dataService CRUD helperlari', () => {
     expect(api.post).toHaveBeenCalledWith('/projects/p-1/approvals/unlock', {
       entityType: 'requirement',
       entityId: 'r-1',
+    })
+  })
+
+  it('rejectApproval POST /projects/:pid/approvals/reject', async () => {
+    await rejectApproval('p-1', { entityId: 'tc-1' })
+    expect(api.post).toHaveBeenCalledWith('/projects/p-1/approvals/reject', {
+      entityId: 'tc-1',
     })
   })
 

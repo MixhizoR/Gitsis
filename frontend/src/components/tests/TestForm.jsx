@@ -5,6 +5,11 @@
 //    - Alan ARTIK ELLE girilir. Bir gereksinime Verifies bagi kurmak bu
 //      degeri OTOMATIK doldurmaz (bir test birden fazla gereksinimi
 //      dogrulayabilir; otomatik kopyalama anlamsizdir).
+//    - Test SONUCU (Passed/Failed/In Review) burada ELLE girilmez: her yeni
+//      test 'In Review' baslar, sonucunu SADECE tablodaki Onay/Reddet
+//      aksiyonlari belirler (bkz. TestCases.jsx) — tek editorun formdan
+//      sessizce "Passed" yazip bagli gereksinimi dogrulanmis saymasi
+//      onlenir; sonuc daima onay yetkisi olan biri(leri) uzerinden gecer.
 //    - Oncelik, DAL ve projeye ozel her turlu ek oznitelik artik sabit
 //      degil: Oznitelik Yoneticisi'nde tanimlanan semaya gore
 //      DynamicAttributeFields tarafindan otomatik olarak gosterilir.
@@ -19,7 +24,6 @@ import { IconPlus } from '../common/Icons.jsx'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
-import { STATUS, TEST_STATUS_OPTIONS, TEST_STATUS_LABELS } from '../../utils/constants.js'
 
 export default function TestForm({ open, onClose, editing, pageConfig }) {
   const { addTestCase, editTestCase, fields, addField, attributeDefs } = useApp()
@@ -30,7 +34,6 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
     title: '',
     description: '',
     field: '',
-    status: STATUS.IN_REVIEW,
   }
 
   const [form, setForm] = useState(EMPTY)
@@ -47,7 +50,6 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: editing.title || '',
         description: editing.description || '',
         field: editing.field || '',
-        status: editing.status || STATUS.IN_REVIEW,
       })
       setCustomAttrs(editing.attributes || {})
     } else {
@@ -81,7 +83,6 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: form.title,
         description: form.description,
         field: form.field || null,
-        status: form.status,
         attributes: customAttrs,
       }
       if (isEdit) await editTestCase(editing.id, payload)
@@ -151,39 +152,28 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
           />
         </div>
 
-        {/* Alan (dinamik) + Test Sonucu (elle) */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <label className="label flex items-center justify-between">
-              <span>{t('form.field')}</span>
-              <button
-                type="button"
-                onClick={handleAddField}
-                className="inline-flex items-center gap-0.5 text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400"
-                title={t('field.add')}
-              >
-                <IconPlus size={12} /> {t('field.add')}
-              </button>
-            </label>
-            <select className="input" value={form.field} onChange={set('field')}>
-              <option value="">{t('form.fieldNone')}</option>
-              {fields.map((f) => (
-                <option key={f.id} value={f.name}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">{t('tbl.th.testResult')}</label>
-            <select className="input" value={form.status} onChange={set('status')}>
-              {TEST_STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {TEST_STATUS_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Alan (dinamik). Test Sonucu artik burada degil — bkz. TestCases.jsx
+            tablosundaki Onay/Reddet aksiyonlari. */}
+        <div>
+          <label className="label flex items-center justify-between">
+            <span>{t('form.field')}</span>
+            <button
+              type="button"
+              onClick={handleAddField}
+              className="inline-flex items-center gap-0.5 text-[11px] font-bold text-brand-600 hover:underline dark:text-brand-400"
+              title={t('field.add')}
+            >
+              <IconPlus size={12} /> {t('field.add')}
+            </button>
+          </label>
+          <select className="input" value={form.field} onChange={set('field')}>
+            <option value="">{t('form.fieldNone')}</option>
+            {fields.map((f) => (
+              <option key={f.id} value={f.name}>
+                {f.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye

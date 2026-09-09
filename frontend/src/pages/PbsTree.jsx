@@ -3,9 +3,11 @@
 //
 //  Gereksinim sayfalari (Kullanici/Sistem/Alt Sistem) ile AYNI tablo
 //  arayuzunu kullanir — EntityTable `treeMode` ile: KOD, BASLIK/TANIM, TIP,
-//  ALAN, ONCELIK, DAL, BAG, ONAY, ONAY DURUMU, ISLEMLER sutunlari ve satir
-//  islemleri (goruntule / bag yonet / etki analizi / duzenle / sil) birebir
-//  ayni. Ustune iki sey ekler:
+//  ALAN, ONCELIK, DAL, BAG, ISLEMLER sutunlari ve satir islemleri (goruntule /
+//  bag yonet / etki analizi / duzenle / sil) birebir ayni. Gereksinimler
+//  KENDI baslarina onaylanmaz; DURUM sutunu bu gereksinimi DOGRULAYAN
+//  (Verifies) test senaryolarindan turetilir (bkz. verifiedFor / Hierarchy.jsx).
+//  Ustune iki sey ekler:
 //    1) HIYERARSI: satirlar agac olarak girintilenir, alt kirilimlar
 //       expand edildikce API'den lazy yuklenir (tum agac tek seferde CEKILMEZ)
 //    2) BOLUM numarasi: DOORS tarzi anahat (1, 1.1, 3.3.2 ...)
@@ -28,7 +30,6 @@ import { componentKeyOf } from '../utils/permissions.js'
 import { SATISFIES_PARENT_OF } from '../utils/constants.js'
 import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
-import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import RequirementForm from '../components/requirements/RequirementForm.jsx'
@@ -47,23 +48,13 @@ import {
   IconEdit,
   IconList,
 } from '../components/common/Icons.jsx'
-import { REQ_PAGES, REQ_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
+import { REQ_PAGES, REQ_TYPE, LINK_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 
 export default function PbsTree() {
-  const {
-    projectId,
-    requirements,
-    links,
-    approvals,
-    editRequirement,
-    bulkRemoveRequirements,
-    voteApproval,
-    unlockApproval,
-    getApprovalMatrix,
-    refresh,
-  } = useApp()
+  const { projectId, requirements, links, editRequirement, bulkRemoveRequirements, refresh } =
+    useApp()
   const { t } = useLang()
-  const { can, isPM, currentUser } = useAuth()
+  const { can, isPM } = useAuth()
   const { activeProject, refreshProjects } = useProject()
 
   const tree = useTreeNodes(projectId)
@@ -76,7 +67,6 @@ export default function PbsTree() {
   const [formOpen, setFormOpen] = useState(false)
   const [linkTarget, setLinkTarget] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
-  const [matrixRow, setMatrixRow] = useState(null)
   const [splitNode, setSplitNode] = useState(null)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [selected, setSelected] = useState(() => new Map()) // id -> row
@@ -86,14 +76,11 @@ export default function PbsTree() {
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
-
   // --- Izin cozumleyiciler (gereksinim tipine gore bilesen anahtari) --------
   const compOf = (r) => componentKeyOf('requirement', r.type)
   const canEditRow = (r) => can('write', compOf(r))
   const canDeleteRow = (r) => can('delete', compOf(r))
   const canLinksRow = (r) => can('link_satisfies', compOf(r))
-  const canApproveRow = (r) => can('approve', compOf(r))
   const canReadAny = REQ_PAGES ? Object.keys(REQ_PAGES).some((k) => can('read', k)) : false
   // Ekleme yetkisi: gereksinim bilesenlerinden HERHANGI birine ekleyebiliyorsa.
   const canAddAny = Object.keys(REQ_PAGES || {}).some((k) => can('add_requirement', k))
@@ -125,20 +112,9 @@ export default function PbsTree() {
 
   // --- Tablo yardimcilari (Hierarchy ile ayni sozlesme) --------------------
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
-  const approvalInfoFor = (r) => ({
-    approved: r.approvalStatus === 'Approved',
-    voted: approvals.some(
-      (a) => a.entityType === 'requirement' && a.entityId === r.id && a.voterId === myVoterId,
-    ),
-  })
-  const toggleApprove = (r) =>
-    voteApproval({
-      entityType: 'requirement',
-      entityId: r.id,
-      voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
-    })
+  // Gereksinimler KENDI baslarina onaylanmaz (bkz. Hierarchy.jsx) — Durum
+  // sutunu bu gereksinimi DOGRULAYAN (Verifies) test senaryolarindan turetilir.
+  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
   // --- Gorunur satirlar: arama filtresi + bekleyen silmeler haric ----------
@@ -346,7 +322,7 @@ export default function PbsTree() {
       ) : (
         <EntityTable
           rows={rows}
-          columns={['type', 'field', 'links']}
+          columns={['type', 'field', 'status', 'links']}
           // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
           // gereksinim sayfalariyla AYNI sekilde dinamik sutun olarak gelir.
           attributeEntityType="requirement"
@@ -365,12 +341,8 @@ export default function PbsTree() {
           canEditRow={canEditRow}
           canDeleteRow={canDeleteRow}
           canManageLinksRow={canLinksRow}
-          showApproval
-          canApproveRow={canApproveRow}
-          approvalInfoFor={approvalInfoFor}
-          onToggleApprove={toggleApprove}
-          showApprovalDetail={isPM}
-          onApprovalDetail={setMatrixRow}
+          statusLabel={t('tbl.th.verification')}
+          verifiedFor={verifiedFor}
           selectable
           selectedIds={new Set(selected.keys())}
           onToggleRow={(id) => {
@@ -416,14 +388,6 @@ export default function PbsTree() {
         open={Boolean(impactRow)}
         onClose={() => setImpactRow(null)}
         requirement={impactRow}
-      />
-      <ApprovalMatrixModal
-        open={Boolean(matrixRow)}
-        entityType="requirement"
-        row={matrixRow}
-        onClose={() => setMatrixRow(null)}
-        onFetch={getApprovalMatrix}
-        onUnlock={(et, id) => unlockApproval({ entityType: et, entityId: id })}
       />
       <SplitModal
         open={Boolean(splitNode)}
