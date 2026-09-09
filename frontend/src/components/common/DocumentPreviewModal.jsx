@@ -146,7 +146,7 @@ export default function DocumentPreviewModal({ open, doc, projectId, onClose, on
       onClose={onClose}
       title={doc.fileName}
       subtitle={t('docs.previewSub')}
-      maxWidth="max-w-6xl"
+      fullScreen
       footer={
         <div className="flex items-center justify-end gap-3">
           <button onClick={() => onDownload?.(doc)} className="btn-secondary">
@@ -176,12 +176,15 @@ export default function DocumentPreviewModal({ open, doc, projectId, onClose, on
       )}
 
       {!loading && !error && isPdf && pdfUrl && (
-        <iframe
-          src={pdfUrl}
-          title={doc.fileName}
-          data-testid="pdf-preview-frame"
-          className="h-[65vh] w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
-        />
+        // Sarmalayici h-full: Modal'in flex-1 icerik alanini tam doldursun.
+        <div className="h-full min-h-[70vh]">
+          <iframe
+            src={pdfUrl}
+            title={doc.fileName}
+            data-testid="pdf-preview-frame"
+            className="h-full w-full rounded-lg border border-slate-200 bg-white dark:border-slate-700"
+          />
+        </div>
       )}
 
       {!loading && !error && !isPdf && sheetData && <SheetView data={sheetData} />}
