@@ -76,3 +76,18 @@ export const ASSIGNABLE_REQ_TYPES = [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SO
 
 // Kapsam (coverage) analizine dahil edilen gereksinim tipleri.
 export const COVERABLE_TYPES = [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE];
+
+// --- Izin bileseni (permission component) eslemesi --------------------------
+//  Her gereksinim/test, izin panellerindeki 6 bilesenden birine dusurulur.
+//  Anahtarlar frontend REQ_PAGES / TEST_PAGES sayfa anahtarlariyla ayni.
+//  TEK KAYNAK: server.js ve comments.js ayni esleme uzerinden yetki denetler.
+export function componentKeyOf(entityType, type) {
+  if (entityType === 'requirement') {
+    if (type === 'User Requirement') return 'req-user';
+    if (type === 'System Requirement') return 'req-system';
+    return 'req-subsystem'; // Software / Hardware
+  }
+  if (type === 'Acceptance Test') return 'test-acceptance';
+  if (type === 'System Test') return 'test-system';
+  return 'test-subsystem';
+}
