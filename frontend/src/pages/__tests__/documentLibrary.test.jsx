@@ -25,6 +25,13 @@ vi.mock('../../context/ProjectContext.jsx', () => ({
   ProjectProvider: ({ children }) => children,
 }))
 
+const refresh = vi.fn()
+
+vi.mock('../../context/AppContext.jsx', () => ({
+  useApp: () => ({ refresh: (...a) => refresh(...a) }),
+  AppProvider: ({ children }) => children,
+}))
+
 vi.mock('../../context/AuthContext.jsx', () => ({
   useAuth: () => ({ isPM: true, can: vi.fn(() => true) }),
   AuthProvider: ({ children }) => children,
@@ -105,5 +112,22 @@ describe('DocumentLibrary — belge kütüphanesi', () => {
 
     expect(await screen.findByText(/Yalnızca PDF ve Excel/i)).toBeInTheDocument()
     expect(uploadDocument).not.toHaveBeenCalled()
+  })
+
+  it('silme gerekçe formunu açar, gerekçeyle siler ve AppContext refresh tetiklenir', async () => {
+    listDocuments.mockResolvedValue([DOC])
+    deleteDocument.mockResolvedValue({ ok: true })
+    await renderPage()
+    await screen.findByText(DOC.fileName)
+
+    fireEvent.click(screen.getByTitle('Sil'))
+    const textarea = await screen.findByTestId('reason-modal-textarea')
+    fireEvent.change(textarea, { target: { value: 'Yanlis belge yuklenmisti.' } })
+    fireEvent.click(screen.getByTestId('reason-modal-confirm'))
+
+    await waitFor(() => expect(deleteDocument).toHaveBeenCalledTimes(1))
+    expect(deleteDocument).toHaveBeenCalledWith('proj-1', DOC.id, 'Yanlis belge yuklenmisti.')
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByText(DOC.fileName)).not.toBeInTheDocument())
   })
 })

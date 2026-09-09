@@ -17,6 +17,7 @@ import express from 'express';
 import path from 'path';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
+import { requireReason } from './reason.js';
 
 const prisma = new PrismaClient();
 const router = express.Router({ mergeParams: true });
@@ -201,6 +202,7 @@ router.delete(
     if (!(await canDelete(req))) {
       return res.status(403).json({ error: 'Dokuman silme yetkiniz yok.' });
     }
+    const reason = requireReason(req);
     await prisma.projectDocument.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'DOCUMENT_DELETE',
@@ -208,6 +210,7 @@ router.delete(
       entityId: row.id,
       actor: await uploaderName(req),
       message: `Dokuman silindi: "${row.fileName}".`,
+      reason,
     });
     res.json({ ok: true });
   }),

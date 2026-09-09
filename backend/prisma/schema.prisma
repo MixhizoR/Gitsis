@@ -39,7 +39,7 @@ model User {
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime  @default(now()) @updatedAt
 
   refreshTokens  RefreshToken[]
 }
@@ -83,7 +83,7 @@ model Project {
   // Proje bazlidir; bos birakilirsa DEFAULT_CODE_PREFIX kullanilir.
   codePrefix   String             @default("EH-KAHVE-TİD")
   createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  updatedAt    DateTime           @default(now()) @updatedAt
 
   fields       ProjectField[]
   attributeDefs AttributeDefinition[]
@@ -180,7 +180,7 @@ model Role {
   name        String
   permissions Json        @default("{}")
   createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  updatedAt   DateTime    @default(now()) @updatedAt
   project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   personnel   Personnel[]
 
@@ -305,7 +305,7 @@ model Requirement {
   clearanceLevel Int    @default(1)         // Issue #85: ABAC (#87) icin — varsayilan 1
   relatedDocuments String[] @default([])    // Etki analizinde gosterilen ilgili dokuman/etiket listesi
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   parent      Requirement?  @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
   children    Requirement[] @relation("RequirementTree")
@@ -369,7 +369,7 @@ model TestCase {
   approvalStatus String @default("Pending") // 'Pending' | 'Approved'
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, text_id])
@@ -394,7 +394,7 @@ model AttributeDefinition {
   order        Int      @default(0)
   system       Boolean  @default(false) // gomulu (Priority/DAL Level) ise true; silinemez
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, entityType, key])
@@ -434,7 +434,7 @@ model GlossaryTerm {
   definition String   @default("")
   author     String?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, text_id])
