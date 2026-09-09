@@ -110,8 +110,12 @@ export const PERMISSION_DEFS = [
     key: 'approve',
     num: 12,
     label: 'Onaylama',
-    desc: 'Onay (Check Circle) butonunu etkinleştirir; consensus oyuna katılır.',
-    scope: 'all',
+    // Gereksinimler artik KENDI baslarina onaylanmaz (durumlari, dogrulayan
+    // test senaryosundan turetilir) — bu izin yalnizca TEST bilesenleri icin
+    // anlamlidir; scope 'all' iken Rol editorunde bos req-* secenekleri
+    // sunuluyordu.
+    desc: 'Test sonucu onayı: Onay (Check Circle, tam konsensus) ve Reddet (X Circle, tek yetkili) butonlarını etkinleştirir.',
+    scope: 'test',
   },
 ]
 

@@ -4,7 +4,9 @@
 //  belirler (REQ_PAGES yapilandirmasi). Tip kilitli, Alan dinamik, durum
 //  otomatik. Satisfies baglari LinkManager ile yonetilir.
 //  Toplu islem: coklu secim + 5 sn geri alinabilir toplu silme + toplu linkle.
-//  Izin/onay: 12 kademeli RBAC (can) + consensus onay + kilit (freeze).
+//  Izin: 12 kademeli RBAC (can). Gereksinimler KENDI baslarina onaylanmaz;
+//  Durum sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir
+//  (bkz. verifiedFor) — onay/kilit yalnizca test tarafinda (bkz. TestCases.jsx).
 //  pageKey ayni zamanda izin bileson anahtaridir (req-user / req-system / ...).
 // ============================================================================
 import { useMemo, useState } from 'react'
@@ -22,10 +24,10 @@ import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
-import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
-import { REQ_PAGES } from '../utils/constants.js'
+import { REQ_PAGES, LINK_TYPE } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
@@ -48,19 +50,9 @@ export default function Hierarchy({
     if (!cfg || !typeFilter || !cfg.typeOptions?.includes(typeFilter)) return cfg
     return { ...cfg, typeOptions: [typeFilter], lockedType: typeFilter }
   }, [cfg, typeFilter])
-  const {
-    requirements,
-    links,
-    approvals,
-    bulkRemoveRequirements,
-    editRequirement,
-    voteApproval,
-    unlockApproval,
-    getApprovalMatrix,
-    projectId,
-  } = useApp()
+  const { requirements, links, bulkRemoveRequirements, editRequirement, projectId } = useApp()
   const { t } = useLang()
-  const { can, isPM, currentUser } = useAuth()
+  const { can } = useAuth()
   const [q, setQ] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -71,23 +63,34 @@ export default function Hierarchy({
   const [viewRow, setViewRow] = useState(null)
   // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
   const [sourceRow, setSourceRow] = useState(null)
-  const [matrixRow, setMatrixRow] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   const types = useMemo(() => effectiveCfg?.typeOptions || [], [effectiveCfg])
+  // Tip kilitliyse (tek tip) tablo sutununda tekrari onlemek icin kaldirilir;
+  // bunun yerine baslik yaninda tek bir rozet olarak gosterilir. Gereksinimler
+  // artik KENDI baslarina onaylanmaz (Issue: onay tuslari kaldirildi) — Durum
+  // sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir.
+  const tableColumns = useMemo(
+    () =>
+      effectiveCfg?.lockedType
+        ? ['field', 'status', 'links']
+        : ['type', 'field', 'status', 'links'],
+    [effectiveCfg],
+  )
+  // Bu gereksinimi dogrulayan (Verifies) en az bir test bagli mi? Degilse
+  // "Dogrulanamaz" gosterilir — durum r.status'tan degil, baglantidan okunur.
+  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
 
   // --- Izin cozumleyiciler ---------------------------------------------------
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
   const canRead = can('read', comp)
   const canAdd = can('add_requirement', comp)
   const canFields = can('manage_fields')
   const canEditRow = () => can('write', comp)
   const canDeleteRow = () => can('delete', comp)
   const canLinksRow = () => can('link_satisfies', comp)
-  const canApproveRow = () => can('approve', comp)
 
   // 5 sn geri alinabilir toplu silme.
   const del = useUndoableDelete(bulkRemoveRequirements)
@@ -113,24 +116,6 @@ export default function Hierarchy({
 
   // Issue #57: satirin supheli (suspect) cikis bag sayisi — gosterge + yonlendirme.
   const suspectCountFor = (r) => suspectLinksForRequirement(links, r.id).length
-
-  // --- Onay bilgisi ----------------------------------------------------------
-  const approvalInfoFor = (r) => ({
-    approved: r.approvalStatus === 'Approved',
-    voted: approvals.some(
-      (a) => a.entityType === 'requirement' && a.entityId === r.id && a.voterId === myVoterId,
-    ),
-  })
-
-  const toggleApprove = (r) => {
-    voteApproval({
-      entityType: 'requirement',
-      entityId: r.id,
-      voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
-    })
-  }
 
   const openCreate = () => {
     setEditing(null)
@@ -167,9 +152,12 @@ export default function Hierarchy({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || effectiveCfg.navLabel}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {titleOverride || effectiveCfg.navLabel}
+            </h2>
+            {effectiveCfg.lockedType && <TypeBadge value={effectiveCfg.lockedType} />}
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}
@@ -213,7 +201,7 @@ export default function Hierarchy({
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'links']}
+        columns={tableColumns}
         attributeEntityType="requirement"
         linkCountFor={linkCountFor}
         suspectCountFor={suspectCountFor}
@@ -226,12 +214,8 @@ export default function Hierarchy({
         canEditRow={canEditRow}
         canDeleteRow={canDeleteRow}
         canManageLinksRow={canLinksRow}
-        showApproval
-        canApproveRow={canApproveRow}
-        approvalInfoFor={approvalInfoFor}
-        onToggleApprove={toggleApprove}
-        showApprovalDetail={isPM}
-        onApprovalDetail={setMatrixRow}
+        statusLabel={t('tbl.th.verification')}
+        verifiedFor={verifiedFor}
         selectable
         selectedIds={sel.selectedSet}
         onToggleRow={sel.toggleRow}
@@ -281,14 +265,6 @@ export default function Hierarchy({
         open={Boolean(impactRow)}
         onClose={() => setImpactRow(null)}
         requirement={impactRow}
-      />
-      <ApprovalMatrixModal
-        open={Boolean(matrixRow)}
-        entityType="requirement"
-        row={matrixRow}
-        onClose={() => setMatrixRow(null)}
-        onFetch={getApprovalMatrix}
-        onUnlock={(et, id) => unlockApproval({ entityType: et, entityId: id })}
       />
       <UndoToast
         open={del.isPending}
