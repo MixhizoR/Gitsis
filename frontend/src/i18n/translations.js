@@ -117,6 +117,13 @@ export const STRINGS = {
     'docs.thActions': 'İşlemler',
     'docs.download': 'İndir',
     'docs.delete': 'Sil',
+    'docs.preview': 'Sayfada görüntüle',
+    'docs.previewSub': 'Belge sayfa içinde görüntüleniyor · indirmek için alttaki butonu kullanın',
+    'docs.previewLoading': 'Belge açılıyor…',
+    'docs.previewError': 'Belge görüntülenemedi.',
+    'docs.previewEmpty': 'Bu dosyada gösterilecek sayfa bulunamadı.',
+    'docs.previewTruncated':
+      'Büyük tablo: {total} satırın ilk {rows} satırı gösteriliyor. Tamamı için dosyayı indirin.',
 
     // --- Topbar aksiyonlar ---
     'topbar.reset': 'Demo Sıfırla',
@@ -864,6 +871,13 @@ export const STRINGS = {
     'docs.thActions': 'Actions',
     'docs.download': 'Download',
     'docs.delete': 'Delete',
+    'docs.preview': 'View in page',
+    'docs.previewSub': 'Viewing the document in place · use the button below to download',
+    'docs.previewLoading': 'Opening document…',
+    'docs.previewError': 'The document could not be displayed.',
+    'docs.previewEmpty': 'No sheet to display in this file.',
+    'docs.previewTruncated':
+      'Large table: showing the first {rows} of {total} rows. Download the file for the full content.',
 
     // --- Topbar actions ---
     'topbar.reset': 'Reset Demo',

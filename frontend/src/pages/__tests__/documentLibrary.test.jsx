@@ -12,12 +12,14 @@ const listDocuments = vi.fn()
 const uploadDocument = vi.fn()
 const deleteDocument = vi.fn()
 const downloadDocument = vi.fn()
+const previewDocument = vi.fn()
 
 vi.mock('../../services/dataService.js', () => ({
   listDocuments: (...a) => listDocuments(...a),
   uploadDocument: (...a) => uploadDocument(...a),
   deleteDocument: (...a) => deleteDocument(...a),
   downloadDocument: (...a) => downloadDocument(...a),
+  previewDocument: (...a) => previewDocument(...a),
 }))
 
 vi.mock('../../context/ProjectContext.jsx', () => ({
@@ -69,6 +71,12 @@ describe('DocumentLibrary — belge kütüphanesi', () => {
     vi.clearAllMocks()
     listDocuments.mockResolvedValue([])
     uploadDocument.mockResolvedValue({ ...DOC })
+    previewDocument.mockResolvedValue({ kind: 'spreadsheet', sheets: [], totalSheets: 0 })
+    // jsdom object URL API'sini uygulamaz; tarayicida yerlesik olan bu iki
+    // fonksiyonu taklit ediyoruz (React cleanup'i da revoke cagirdigi icin
+    // test govdesi bitince geri alinmamalilar).
+    URL.createObjectURL = vi.fn(() => 'blob:test-pdf')
+    URL.revokeObjectURL = vi.fn()
   })
 
   it('kütüphane boşken bilgilendirme gösterir', async () => {
@@ -112,6 +120,64 @@ describe('DocumentLibrary — belge kütüphanesi', () => {
 
     expect(await screen.findByText(/Yalnızca PDF ve Excel/i)).toBeInTheDocument()
     expect(uploadDocument).not.toHaveBeenCalled()
+  })
+
+  it('Excel dosyasının adına tıklayınca sayfa içinde tablo önizlemesi açılır', async () => {
+    const xlsxDoc = { ...DOC, id: 'doc-2', fileName: 'gereksinimler.xlsx', ext: '.xlsx' }
+    listDocuments.mockResolvedValue([xlsxDoc])
+    previewDocument.mockResolvedValue({
+      kind: 'spreadsheet',
+      fileName: xlsxDoc.fileName,
+      sheets: [
+        {
+          name: 'Gereksinimler',
+          rows: [
+            ['text_id', 'Baslik'],
+            ['EH-001', 'Guc dagitim karti'],
+          ],
+          totalRows: 2,
+          truncatedRows: false,
+          truncatedCols: false,
+        },
+      ],
+      totalSheets: 1,
+      truncatedSheets: false,
+    })
+    await renderPage()
+
+    fireEvent.click(await screen.findByText(xlsxDoc.fileName))
+
+    await waitFor(() => expect(previewDocument).toHaveBeenCalledWith('proj-1', xlsxDoc.id))
+    // Hucre icerigi tablo olarak cizilmeli; indirme YAPILMAMALI.
+    expect(await screen.findByText('Guc dagitim karti')).toBeInTheDocument()
+    expect(downloadDocument).not.toHaveBeenCalled()
+  })
+
+  it('PDF adına tıklayınca dosya Blob olarak çekilip iframe ile gösterilir', async () => {
+    listDocuments.mockResolvedValue([DOC])
+    downloadDocument.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    const { container } = await renderPage()
+
+    fireEvent.click(await screen.findByText(DOC.fileName))
+
+    await waitFor(() => expect(downloadDocument).toHaveBeenCalledWith('proj-1', DOC.id))
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="pdf-preview-frame"]')).toBeInTheDocument(),
+    )
+    expect(container.querySelector('[data-testid="pdf-preview-frame"]').src).toBe('blob:test-pdf')
+    // PDF backend onizleme ucundan GECMEZ.
+    expect(previewDocument).not.toHaveBeenCalled()
+  })
+
+  it('önizleme açılamazsa hata gösterir ve indirme seçeneği sunar', async () => {
+    const xlsxDoc = { ...DOC, id: 'doc-3', fileName: 'bozuk.xlsx', ext: '.xlsx' }
+    listDocuments.mockResolvedValue([xlsxDoc])
+    previewDocument.mockRejectedValue(new Error('Excel dosyasi okunamadi (bozuk olabilir).'))
+    await renderPage()
+
+    fireEvent.click(await screen.findByText(xlsxDoc.fileName))
+
+    expect(await screen.findByText(/okunamadi/i)).toBeInTheDocument()
   })
 
   it('silme gerekçe formunu açar, gerekçeyle siler ve AppContext refresh tetiklenir', async () => {

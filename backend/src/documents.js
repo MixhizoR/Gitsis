@@ -8,6 +8,7 @@
 //    GET    /                -> metadata listesi (icerik ASLA donmez)
 //    POST   /                -> multipart yukleme (alan adi: file)
 //    GET    /:id/download    -> dosyayi indir (attachment)
+//    GET    /:id/preview     -> Excel'i sayfa-ici onizleme icin JSON'a cevirir
 //    DELETE /:id             -> belgeyi sil (yalnizca PM veya 'delete' izni)
 //
 //  NOT: Router :pid altinda mount edildigi icin app.param('pid',
@@ -16,6 +17,7 @@
 import express from 'express';
 import path from 'path';
 import multer from 'multer';
+import ExcelJS from 'exceljs';
 import { PrismaClient } from '@prisma/client';
 import { requireReason } from './reason.js';
 
@@ -186,6 +188,94 @@ router.get(
     res.setHeader('Content-Length', row.size);
     res.setHeader('Content-Disposition', `attachment; filename="${safeFileName(row.fileName)}"`);
     res.send(Buffer.from(row.content));
+  }),
+);
+
+// --- Onizleme (Excel -> JSON) ----------------------------------------------
+//  Sayfa-ici goruntuleme icin .xlsx dosyasini satir dizisine cevirir. PDF bu
+//  uctan GECMEZ: tarayici PDF'i kendi goruntuleyicisiyle acabildigi icin
+//  istemci /download yanitini Blob olarak alip <iframe>'e verir (bkz.
+//  DocumentPreviewModal.jsx). Eski ikili .xls formatini ExcelJS okuyamaz;
+//  o durumda 415 ile "indirin" mesaji doner.
+//  Yanit boyutu SINIRLIDIR (asagidaki ust sinirlar): cok buyuk bir tablo
+//  tarayiciyi kilitlemesin diye kirpilir ve kirpildigi bilgisi doner.
+const MAX_PREVIEW_SHEETS = 12;
+const MAX_PREVIEW_ROWS = 300;
+const MAX_PREVIEW_COLS = 40;
+
+/** ExcelJS hucre degerini duz metne cevirir (formul/zengin metin/tarih dahil). */
+function cellText(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    // Formul hucresi: hesaplanmis sonucu goster.
+    if ('result' in value) return cellText(value.result);
+    if ('error' in value) return String(value.error);
+    if (Array.isArray(value.richText)) return value.richText.map((t) => t.text).join('');
+    if ('text' in value) return String(value.text);
+    if ('hyperlink' in value) return String(value.hyperlink);
+    return '';
+  }
+  return String(value);
+}
+
+router.get(
+  '/:id/preview',
+  wrap(async (req, res) => {
+    const row = await prisma.projectDocument.findFirst({
+      where: { id: req.params.id, projectId: req.params.pid },
+    });
+    if (!row) return res.status(404).json({ error: 'Dokuman bulunamadi.' });
+
+    if (row.ext === '.pdf') {
+      // PDF istemcide dogrudan goruntulenir; bu uc onu islemez.
+      return res.status(415).json({ error: 'PDF onizlemesi istemcide yapilir.' });
+    }
+    if (row.ext !== '.xlsx') {
+      return res.status(415).json({ error: 'Eski .xls bicimi sayfa icinde onizlenemiyor; dosyayi indirin.' });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(Buffer.from(row.content));
+    } catch {
+      return res.status(422).json({ error: 'Excel dosyasi okunamadi (bozuk olabilir).' });
+    }
+
+    const all = workbook.worksheets;
+    const sheets = all.slice(0, MAX_PREVIEW_SHEETS).map((ws) => {
+      const rows = [];
+      let widest = 0;
+      ws.eachRow({ includeEmpty: true }, (r, rowNumber) => {
+        if (rowNumber > MAX_PREVIEW_ROWS) return;
+        const cells = [];
+        r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          if (colNumber > MAX_PREVIEW_COLS) return;
+          cells[colNumber - 1] = cellText(cell.value);
+        });
+        // eachCell atlanan (hic dokunulmamis) hucreler icin bosluk birak.
+        for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
+        widest = Math.max(widest, cells.length);
+        rows.push(cells);
+      });
+      // Tum satirlari ayni genislige tamamla (tablo hizali olsun).
+      for (const r of rows) while (r.length < widest) r.push('');
+      return {
+        name: ws.name,
+        rows,
+        totalRows: ws.rowCount,
+        truncatedRows: ws.rowCount > MAX_PREVIEW_ROWS,
+        truncatedCols: ws.columnCount > MAX_PREVIEW_COLS,
+      };
+    });
+
+    res.json({
+      kind: 'spreadsheet',
+      fileName: row.fileName,
+      sheets,
+      truncatedSheets: all.length > MAX_PREVIEW_SHEETS,
+      totalSheets: all.length,
+    });
   }),
 );
 

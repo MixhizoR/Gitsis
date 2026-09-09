@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { formatDateTime } from '../utils/format.js'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import DocumentPreviewModal from '../components/common/DocumentPreviewModal.jsx'
 import {
   IconDoc,
   IconUpload,
@@ -25,6 +26,7 @@ import {
   IconSearch,
   IconLoader,
   IconAlert,
+  IconEye,
 } from '../components/common/Icons.jsx'
 import {
   listDocuments,
@@ -85,6 +87,8 @@ export default function DocumentLibrary() {
   const [busyId, setBusyId] = useState(null)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null)
+  // Sayfa-ici goruntulenen belge — bkz. DocumentPreviewModal.
+  const [previewTarget, setPreviewTarget] = useState(null)
 
   const canDelete = isPM || can('delete')
 
@@ -337,10 +341,19 @@ export default function DocumentLibrary() {
                 {filtered.map((doc) => (
                   <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="w-full max-w-0 px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <IconDoc size={18} className="shrink-0 text-slate-400" />
+                      {/* Dosya adina tiklayinca sayfa-ici onizleme acilir. */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTarget(doc)}
+                        title={t('docs.preview')}
+                        className="group flex w-full items-center gap-3 text-left"
+                      >
+                        <IconDoc
+                          size={18}
+                          className="shrink-0 text-slate-400 group-hover:text-brand-500"
+                        />
                         <div className="min-w-0">
-                          <div className="truncate font-medium text-slate-900 dark:text-white">
+                          <div className="truncate font-medium text-slate-900 group-hover:text-brand-600 group-hover:underline dark:text-white dark:group-hover:text-brand-400">
                             {doc.fileName}
                           </div>
                           {doc.description && (
@@ -349,7 +362,7 @@ export default function DocumentLibrary() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </button>
                     </td>
                     <td className="px-4 py-4">
                       <TypeBadge ext={doc.ext} />
@@ -365,6 +378,14 @@ export default function DocumentLibrary() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setPreviewTarget(doc)}
+                          className="btn-ghost btn-sm"
+                          title={t('docs.preview')}
+                          data-testid={`preview-${doc.id}`}
+                        >
+                          <IconEye size={17} />
+                        </button>
                         <button
                           onClick={() => handleDownload(doc)}
                           disabled={busyId === doc.id}
@@ -392,6 +413,13 @@ export default function DocumentLibrary() {
           </div>
         )}
       </div>
+      <DocumentPreviewModal
+        open={Boolean(previewTarget)}
+        doc={previewTarget}
+        projectId={activeProjectId}
+        onClose={() => setPreviewTarget(null)}
+        onDownload={handleDownload}
+      />
       <ReasonModal
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}

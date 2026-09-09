@@ -184,3 +184,6 @@ export const downloadDocument = (pid, id) =>
 
 export const deleteDocument = (pid, id, reason) =>
   api.del(`/projects/${pid}/documents/${id}`, { reason })
+
+/** Excel belgesini sayfa-ici onizleme icin satir dizisine cevirtir (backend). */
+export const previewDocument = (pid, id) => api.get(`/projects/${pid}/documents/${id}/preview`)
