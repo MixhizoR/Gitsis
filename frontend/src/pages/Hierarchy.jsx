@@ -23,6 +23,7 @@ import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
@@ -74,6 +75,12 @@ export default function Hierarchy({
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   const types = useMemo(() => effectiveCfg?.typeOptions || [], [effectiveCfg])
+  // Tip kilitliyse (tek tip) tablo sutununda tekrari onlemek icin kaldirilir;
+  // bunun yerine baslik yaninda tek bir rozet olarak gosterilir.
+  const tableColumns = useMemo(
+    () => (effectiveCfg?.lockedType ? ['field', 'links'] : ['type', 'field', 'links']),
+    [effectiveCfg],
+  )
 
   // --- Izin cozumleyiciler ---------------------------------------------------
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
@@ -163,9 +170,12 @@ export default function Hierarchy({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || effectiveCfg.navLabel}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {titleOverride || effectiveCfg.navLabel}
+            </h2>
+            {effectiveCfg.lockedType && <TypeBadge value={effectiveCfg.lockedType} />}
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}
@@ -209,7 +219,7 @@ export default function Hierarchy({
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'links']}
+        columns={tableColumns}
         attributeEntityType="requirement"
         linkCountFor={linkCountFor}
         suspectCountFor={suspectCountFor}

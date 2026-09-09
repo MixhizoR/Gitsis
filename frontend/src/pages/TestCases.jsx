@@ -21,6 +21,7 @@ import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
 import { suspectLinksForTestCase } from '../utils/suspect.js'
@@ -59,6 +60,12 @@ export default function TestCases({
   const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
+  // Test sayfalari daima tek tipe kilitlidir (TEST_PAGES); tabloda tekrari
+  // onlemek icin 'type' sutunu kaldirilir, baslik yaninda rozet gosterilir.
+  const tableColumns = useMemo(
+    () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
+    [cfg],
+  )
   const myVoterId = isPM ? 'PM' : currentUser?.personnelId
   const canRead = can('read', comp)
   const canAdd = can('add_test', comp)
@@ -146,9 +153,12 @@ export default function TestCases({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || cfg.navLabel}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {titleOverride || cfg.navLabel}
+            </h2>
+            {cfg.lockedType && <TypeBadge value={cfg.lockedType} />}
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}
@@ -187,7 +197,7 @@ export default function TestCases({
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'status', 'links']}
+        columns={tableColumns}
         attributeEntityType="testcase"
         statusLabel={t('tbl.th.testResult')}
         linkCountFor={linkCountFor}
