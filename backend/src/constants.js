@@ -19,6 +19,12 @@ export const TEST_TYPE = {
 };
 export const TEST_TYPES = Object.values(TEST_TYPE);
 
+// --- Roller -------------------------------------------------------------------
+//  PM rolü SERBEST METIN (User.role) icinde tutulur; isPM tespiti tum
+//  katmanlarda bu sabit uzerinden yapilir (login/refresh isPM, cascade,
+//  requirePM). DEGER UI (UsersPage, AuthContext) ile BIREBIR AYNI olmalidir.
+export const PM_ROLE = 'Proje Yöneticisi';
+
 export const PRIORITY = { HIGH: 'High', MEDIUM: 'Medium', LOW: 'Low' };
 export const STATUS = {
   DRAFT: 'Draft',

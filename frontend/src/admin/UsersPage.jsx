@@ -1,20 +1,21 @@
 // ============================================================================
-//  AdminPanel.jsx — Issue #90: Admin paneli (kullanici yonetimi + denetim).
-//  Yalnizca systemRole='ADMIN' oturumunda gorunur/erisilebilir. Backend #88
-//  API'lerini (users CRUD, unlock, audit-logs) kullanir.
+//  UsersPage.jsx — Admin konsolu: kullanıcı yönetimi (Issue #90).
+//  AdminLayout altında çalışır; /api/admin/users uçlarını kullanır.
+//  Proje ekranlarından tamamen ayrıktır (admin persona ayrımı).
 // ============================================================================
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import {
-  listUsers,
   createUser,
-  updateUser,
+  listUsers,
   unlockUser,
-  listAuditLogs,
+  updateUser,
+  deleteUser,
 } from '../services/adminService.js'
+import { PM_ROLE } from '../services/authService.js'
 
-const ROLE_OPTIONS = ['System Engineer', 'Developer', 'Proje Yöneticisi']
+const ROLE_OPTIONS = ['System Engineer', 'Developer', PM_ROLE]
 const SYSTEM_ROLES = ['USER', 'ADMIN']
 
 function statusOf(u) {
@@ -176,14 +177,11 @@ function UserForm({ mode, user, onClose, onSaved }) {
   )
 }
 
-// ---- Ana bilesen -----------------------------------------------------------
-export default function AdminPanel() {
-  const { currentUser } = useAuth()
+// ---- Kullanici tablosu ------------------------------------------------------
+export default function UsersPage() {
   const { t } = useLang()
-  const isAdmin = currentUser?.systemRole === 'ADMIN'
-  const [tab, setTab] = useState('users')
+  const { currentUser } = useAuth()
   const [users, setUsers] = useState([])
-  const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null) // { mode, user }
@@ -192,9 +190,7 @@ export default function AdminPanel() {
     setLoading(true)
     setError('')
     try {
-      const [u, l] = await Promise.all([listUsers(), listAuditLogs({ limit: 200 })])
-      setUsers(u)
-      setLogs(l)
+      setUsers(await listUsers())
     } catch (e) {
       setError(e.message)
     } finally {
@@ -203,16 +199,33 @@ export default function AdminPanel() {
   }, [])
 
   useEffect(() => {
-    if (isAdmin) reload()
-  }, [isAdmin, reload])
-
-  if (!isAdmin) {
-    return <div className="card text-sm font-medium text-slate-500">{t('admin.unauthorized')}</div>
-  }
+    reload()
+  }, [reload])
 
   const onUnlock = async (id) => {
     try {
       await unlockUser(id)
+      await reload()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  // Aktif <-> devre disi gecisi (backend PATCH isActive).
+  const onToggleActive = async (u) => {
+    try {
+      await updateUser(u.id, { isActive: !u.isActive })
+      await reload()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  // Kalici silme — kendi hesabi ve ADMIN'ler korumali (backend da korur).
+  const onDelete = async (u) => {
+    if (!window.confirm(t('admin.deleteConfirm', { username: u.username }))) return
+    try {
+      await deleteUser(u.id)
       await reload()
     } catch (e) {
       setError(e.message)
@@ -227,37 +240,15 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Sekmeler + yeni kullanici */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-          {[
-            { key: 'users', label: t('admin.users') },
-            { key: 'logs', label: t('admin.auditLogs') },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-all ${
-                tab === key
-                  ? 'bg-white shadow text-slate-900 dark:bg-slate-700 dark:text-white'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {tab === 'users' && (
-          <button className="btn-primary" onClick={() => setModal({ mode: 'create', user: null })}>
-            {t('admin.newUser')}
-          </button>
-        )}
+      <div className="flex justify-end">
+        <button className="btn-primary" onClick={() => setModal({ mode: 'create', user: null })}>
+          {t('admin.newUser')}
+        </button>
       </div>
 
       {loading ? (
         <div className="card text-sm text-slate-500">{t('admin.loading')}</div>
-      ) : tab === 'users' ? (
+      ) : (
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400 dark:border-slate-800">
@@ -272,6 +263,13 @@ export default function AdminPanel() {
               </tr>
             </thead>
             <tbody>
+              {users.length === 0 && (
+                <tr>
+                  <td className="px-4 py-4 text-slate-400" colSpan={7}>
+                    {t('admin.noLogs')}
+                  </td>
+                </tr>
+              )}
               {users.map((u) => (
                 <tr
                   key={u.id}
@@ -290,7 +288,7 @@ export default function AdminPanel() {
                     <StatusBadge u={u} t={t} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         className="btn-secondary !px-2.5 !py-1 text-xs"
                         onClick={() => setModal({ mode: 'edit', user: u })}
@@ -305,44 +303,23 @@ export default function AdminPanel() {
                           {t('admin.unlock')}
                         </button>
                       )}
+                      {u.systemRole !== 'ADMIN' && (
+                        <button
+                          className="btn-secondary !px-2.5 !py-1 text-xs"
+                          onClick={() => onToggleActive(u)}
+                        >
+                          {u.isActive ? t('admin.deactivate') : t('admin.activate')}
+                        </button>
+                      )}
+                      {u.systemRole !== 'ADMIN' && u.id !== currentUser?.id && (
+                        <button
+                          className="btn-ghost !px-2.5 !py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                          onClick={() => onDelete(u)}
+                        >
+                          {t('admin.delete')}
+                        </button>
+                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400 dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-3">{t('admin.date')}</th>
-                <th className="px-4 py-3">{t('admin.action')}</th>
-                <th className="px-4 py-3">{t('admin.user')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 && (
-                <tr>
-                  <td className="px-4 py-4 text-slate-400" colSpan={3}>
-                    {t('admin.noLogs')}
-                  </td>
-                </tr>
-              )}
-              {logs.map((l) => (
-                <tr
-                  key={l.id}
-                  className="border-b border-slate-100 last:border-0 dark:border-slate-800/60"
-                >
-                  <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">
-                    {new Date(l.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-700 dark:text-slate-200">
-                    {l.action}
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
-                    {l.metadata?.username || l.metadata?.targetUsername || l.userId || '—'}
                   </td>
                 </tr>
               ))}

@@ -77,8 +77,7 @@ export default function Sidebar({ active, onNavigate }) {
   const { activeProject, closeProject } = useProject()
   const { nav } = useApp()
   const { t } = useLang()
-  const { isPM, can, currentUser } = useAuth()
-  const isAdmin = currentUser?.systemRole === 'ADMIN'
+  const { isPM, can } = useAuth()
   // Kapali gruplarin id'leri (varsayilan: hepsi acik).
   const [closedGroups, setClosedGroups] = useState(() => new Set())
   const [navMgrOpen, setNavMgrOpen] = useState(false)
@@ -142,17 +141,6 @@ export default function Sidebar({ active, onNavigate }) {
             onClick={() => onNavigate('roles')}
             Icon={IconUsers}
             label={t('nav.roles')}
-          />
-        )}
-
-        {/* Issue #90: Admin paneli — yalnizca systemRole='ADMIN' */}
-        {isAdmin && (
-          <NavButton
-            key="admin"
-            active={active === 'admin'}
-            onClick={() => onNavigate('admin')}
-            Icon={IconShield}
-            label={t('nav.admin')}
           />
         )}
 

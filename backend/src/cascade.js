@@ -5,7 +5,7 @@
 //  Sadece degeri DEGISEN satirlar yazilir ("sadece etkilenenler").
 // ============================================================================
 import { Prisma } from '@prisma/client';
-import { REQ_TYPE, TEST_TYPE } from './constants.js';
+import { REQ_TYPE, TEST_TYPE, PM_ROLE } from './constants.js';
 
 // --- Bilesen -> varlik tip eslemesi (server.js'teki componentKeyOf ile ayni)
 const COMPONENT_TYPES = [
@@ -156,7 +156,7 @@ function requiredVotersFor(pmUserIds, personnel, componentKey) {
  */
 async function getProjectManagerIds(prisma) {
   const pms = await prisma.user.findMany({
-    where: { role: 'Proje Yoneticisi' },
+    where: { role: PM_ROLE },
     select: { id: true },
   });
   return pms.map((u) => u.id);

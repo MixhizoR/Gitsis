@@ -57,7 +57,7 @@ before(async () => {
       username: PM.username,
       passwordHash: await hashPassword(PM.password),
       name: 'PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
       systemRole: 'USER',
       clearanceLevel: 5,
       isActive: true,

@@ -16,7 +16,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS } from './constants.js';
+import { STATUS, PM_ROLE } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import {
@@ -289,7 +289,7 @@ async function recomputeApproval(pid, entityType, entityId) {
   const votedIds = new Set(approvals.map((a) => a.voterId));
   const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
   const pmUsers = await prisma.user.findMany({
-    where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' },
+    where: { id: { in: Array.from(votedIds) }, role: PM_ROLE },
     select: { id: true },
   });
   const pmVoted = pmUsers.length > 0;
@@ -412,7 +412,7 @@ async function handleLogin(req, res, user, info) {
   if (user.failedAttempts) {
     await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
   }
-  const isPM = user.role === 'Proje Yoneticisi';
+  const isPM = user.role === PM_ROLE;
   const accessToken = signToken({
     kind: isPM ? 'pm' : 'user',
     isPM,
@@ -454,7 +454,7 @@ app.post(
     }
     // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
     await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    const isPM = stored.user.role === 'Proje Yoneticisi';
+    const isPM = stored.user.role === PM_ROLE;
     const accessToken = signToken({
       kind: isPM ? 'pm' : 'user',
       isPM,
@@ -495,10 +495,12 @@ app.post(
 );
 
 // --- Issue #88: Admin kullanici yonetimi (yalnizca systemRole='ADMIN') ------
-//  Signup kapali; kullanicilari yalnizca admin olusturur/yonetir. Admin
-//  islemleri de SystemAuditLog'a yazilir (sifre/token ASLA loglanmaz).
+//  API yuzeyi /api/admin/* altinda IZOLEDIR (admin konsolu ayrik UI): kullanici
+//  yonetimi proje kaynaklarindan tamamen ayriktir. Signup kapali; kullanicilari
+//  yalnizca admin olusturur/yonetir. Admin islemleri de SystemAuditLog'a yazilir
+//  (sifre/token ASLA loglanmaz).
 app.get(
-  '/api/users',
+  '/api/admin/users',
   requireAdmin,
   wrap(async (_req, res) => {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
@@ -507,7 +509,7 @@ app.get(
 );
 
 app.post(
-  '/api/users',
+  '/api/admin/users',
   requireAdmin,
   wrap(async (req, res) => {
     const b = req.body || {};
@@ -553,7 +555,7 @@ app.post(
 );
 
 app.patch(
-  '/api/users/:id',
+  '/api/admin/users/:id',
   requireAdmin,
   wrap(async (req, res) => {
     const b = req.body || {};
@@ -599,7 +601,7 @@ app.patch(
 );
 
 app.post(
-  '/api/users/:id/unlock',
+  '/api/admin/users/:id/unlock',
   requireAdmin,
   wrap(async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
@@ -613,10 +615,34 @@ app.post(
   }),
 );
 
+// --- Kullanici silme (Issue: admin paneli feedback) ------------------------
+//  Guvenlik kuralari:
+//    - Admin KENDI hesabini silemez (kilitlenme korumasi).
+//    - ADMIN systemRole'lu baska bir hesap silinemez (son admin kalmasin).
+//  User silinince refreshToken'lari Cascade ile temizlenir; proje verisine
+//  dokunulmaz (User yalnizca kimlik/giris kaydidir).
+app.delete(
+  '/api/admin/users/:id',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!target) throw bad('Kullanici bulunamadi.', 404);
+    if (target.id === req.auth.userId) throw bad('Kendi hesabinizi silemezsiniz.');
+    if (target.systemRole === 'ADMIN') throw bad('Admin hesabi silinemez.');
+    await prisma.user.delete({ where: { id: target.id } });
+    await auditSystem('admin.user.delete', {
+      userId: req.auth.userId,
+      targetUserId: target.id,
+      targetUsername: target.username,
+    });
+    res.status(204).end();
+  }),
+);
+
 // --- Issue #88: auth/admin denetim kayitlari (yalnizca ADMIN) ---------------
 //  Sifre/token ASLA loglanmaz; metadata yalnizca username/ip gibi guvenli alanlar.
 app.get(
-  '/api/audit-logs',
+  '/api/admin/audit-logs',
   requireAdmin,
   wrap(async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 100, 500);

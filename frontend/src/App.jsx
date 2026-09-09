@@ -28,7 +28,7 @@ import SnapshotsPage from './pages/Snapshots.jsx'
 import SuspectPage from './pages/SuspectPage.jsx'
 import ProjectSelect from './pages/ProjectSelect.jsx'
 import Login from './pages/Login.jsx'
-import AdminPanel from './pages/AdminPanel.jsx'
+import AdminLayout from './admin/AdminLayout.jsx'
 import AIAssistant from './components/common/AIAssistant.jsx'
 import { TraceabilityPage } from './pages/TraceabilityPage'
 import { TraceabilityImportPage } from './pages/TraceabilityImportPage'
@@ -65,24 +65,15 @@ export default function App() {
   // 1) Giris kapisi
   if (!currentUser) return <Login />
 
+  // 1b) Admin ayrimi (Issue #90 + konsol ayrilmasi): ADMIN hesaplari proje
+  //  ekranlarini HIC GORMEZ — yalnizca sistem yonetim konsoluna (kullanici
+  //  yonetimi + denetim kayitlari) dusur. "User yonetimi" ile "proje
+  //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
+  if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
+
   // 2) Proje secim kapisi — YALNIZCA PM icin. Personel dogrudan projesine gider.
   if (!activeProjectId || (forcedProjectId && activeProjectId !== forcedProjectId)) {
     if (currentUser.isPM) return <ProjectSelect />
-    // Issue #90: admin kullanici yonetimi projeden bagimsizdir; projesiz de
-    // paneli kullanabilmelidir.
-    if (currentUser.systemRole === 'ADMIN') {
-      return (
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar active="admin" onNavigate={() => {}} />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Topbar active="admin" />
-            <main className="flex-1 overflow-y-auto p-6">
-              <AdminPanel />
-            </main>
-          </div>
-        </div>
-      )
-    }
     // Personel projesi baglaniyor
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
@@ -122,7 +113,6 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
-          {page === 'admin' && <AdminPanel />}
           {page === 'pbs-tree' && <PbsTree />}
           {REQ_KEYS.includes(pageKey) && (
             <Hierarchy

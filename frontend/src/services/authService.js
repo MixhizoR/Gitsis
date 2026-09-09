@@ -12,6 +12,8 @@
 // ============================================================================
 import * as api from './apiClient.js'
 
+const PM_ROLE = 'Proje Yöneticisi'
+
 // --- Rol tanimlari (istemci; kayit ekraninda secilir) -----------------------
 //  Backend'e gonderilen deger cevrilmez; bu etiketler ayni zamanda backend
 //  User.role alanina yazilir.
@@ -24,6 +26,7 @@ export const ROLES = {
 export const ROLE_LABELS = {
   [ROLES.SYSTEM_ENGINEER]: 'Sistem Mühendisi',
   [ROLES.DEVELOPER]: 'Geliştirici',
+  [PM_ROLE]: 'Proje Yöneticisi',
 }
 
 // --- Izin matrisi -----------------------------------------------------------

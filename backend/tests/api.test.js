@@ -37,8 +37,8 @@ before(async () => {
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
-      name: 'Test Proje Yoneticisi',
-      role: 'Proje Yoneticisi',
+      name: 'Test Proje Yöneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 

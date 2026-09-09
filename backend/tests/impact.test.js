@@ -22,7 +22,7 @@ before(async () => {
       username: 'pm-impact',
       passwordHash: await hashPassword('pm-pass'),
       name: 'Impact PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   const proj = await prisma.project.create({ data: { name: 'Impact Proje', description: 'Test' } });
