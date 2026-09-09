@@ -1463,12 +1463,23 @@ app.post(
     const { name } = req.body || {};
     if (!name || !name.trim()) throw bad('Snapshot adı zorunlu.');
 
-    // Mevcut tüm varlıkları topla.
-    const [requirements, testCases, glossary, links] = await Promise.all([
+    // Mevcut tüm varlıkları topla. attributeDefs (modular öznitelik ŞEMASI —
+    // etiket/tip/sıra) ve nav düzeni (menü grupları/sayfaları) de dahil:
+    // ikisi de projeyle birlikte ZAMANLA değişebilir, snapshot'ın kendi
+    // başına (o anki şema/düzenle) yorumlanabilir kalması için an be an
+    // yakalanır — yalnızca CANLI şemaya bakılırsa eski snapshot'lar daha
+    // sonra silinen/yeniden adlandırılan öznitelikleri veya taşınan
+    // sayfaları doğru gösteremezdi.
+    const [requirements, testCases, glossary, links, attributeDefs, navLayout] = await Promise.all([
       prisma.requirement.findMany({ where: { projectId: pid } }),
       prisma.testCase.findMany({ where: { projectId: pid } }),
       prisma.glossaryTerm.findMany({ where: { projectId: pid } }),
       prisma.traceabilityLink.findMany({ where: { projectId: pid } }),
+      prisma.attributeDefinition.findMany({
+        where: { projectId: pid },
+        orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      }),
+      getNavLayout(prisma, pid),
     ]);
 
     // Link'ler için text_id'leri önceden çöz (fromId/toId -> text_id) - zaten çekilen verilerden
@@ -1510,6 +1521,18 @@ app.post(
         };
         items.push({ snapshotId: snap.id, entityType: 'link', entityId: l.id, data: linkData });
       }
+      // Modular öznitelik ŞEMASI: her tanım kendi satırı — görüntüleyici,
+      // o anki gereksinim/test verisindeki 'attributes' torbasını (zaten
+      // flatten() ile spread edilmiş) bu tanımlarla eşleştirerek dinamik
+      // sütun üretir (bkz. frontend Snapshots.jsx).
+      for (const d of attributeDefs) {
+        items.push({ snapshotId: snap.id, entityType: 'attributeDef', entityId: d.id, data: d });
+      }
+      // Menü düzeni: TEK satır, tüm grup/sayfa ağacını tasır (gruplar
+      // arasinda FK gerektirmez, ic ice items[] zaten hiyerarsiyi tasir).
+      // entityId=pid: bu satir bir varlik degil, proje-genelinde TEK bir
+      // yapilandirma anlik goruntusudur.
+      items.push({ snapshotId: snap.id, entityType: 'navLayout', entityId: pid, data: navLayout });
 
       if (items.length > 0) {
         await tx.snapshotItem.createMany({ data: items });
