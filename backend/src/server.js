@@ -35,6 +35,7 @@ import {
   REFRESH_TOKEN_TTL_MS,
 } from './auth.js';
 import { cleanRichText } from './sanitize.js';
+import { ensureSystemRoles, resolveUserRole, isPMRole } from './systemRoles.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
@@ -412,13 +413,15 @@ async function handleLogin(req, res, user, info) {
   if (user.failedAttempts) {
     await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
   }
-  const isPM = user.role === PM_ROLE;
+  const isPM = isPMRole(user);
   const accessToken = signToken({
     kind: isPM ? 'pm' : 'user',
     isPM,
     userId: user.id,
     systemRole: user.systemRole,
     clearanceLevel: user.clearanceLevel,
+    // Issue #101: sistem rol anahtari — frontend izin eslemesi icin.
+    roleKey: user.roleKey || null,
     ...(user.projectId ? { projectId: user.projectId } : {}),
   });
   const refreshToken = generateRefreshToken();
@@ -454,13 +457,14 @@ app.post(
     }
     // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
     await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    const isPM = stored.user.role === PM_ROLE;
+    const isPM = isPMRole(stored.user);
     const accessToken = signToken({
       kind: isPM ? 'pm' : 'user',
       isPM,
       userId: stored.user.id,
       systemRole: stored.user.systemRole,
       clearanceLevel: stored.user.clearanceLevel,
+      roleKey: stored.user.roleKey || null,
       ...(stored.user.projectId ? { projectId: stored.user.projectId } : {}),
     });
     const newRefresh = generateRefreshToken();
@@ -517,7 +521,16 @@ app.post(
     const password = String(b.password || '');
     const name = String(b.name || '').trim();
     if (!username || !password || !name) throw bad('username, password, name zorunlu.');
-    const role = b.role ? String(b.role) : 'System Engineer';
+    // Issue #101: roleKey verilmisse SystemRole'den cozumle; display `role`
+    // adini sistem rolunden turet (PM tespiti ve izin eslemesi tutarli kalsin).
+    let roleKey = null;
+    let role = b.role ? String(b.role).trim() || 'System Engineer' : 'System Engineer';
+    if (b.roleKey) {
+      const sr = await prisma.systemRole.findUnique({ where: { key: String(b.roleKey) } });
+      if (!sr || !sr.isActive) throw bad('Gecersiz veya pasif rol.', 400);
+      roleKey = sr.key;
+      role = sr.name;
+    }
     const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
     const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
     if (!Number.isInteger(clearanceLevel) || clearanceLevel < 1) throw bad('clearanceLevel gecersiz.');
@@ -540,6 +553,7 @@ app.post(
         name,
         initials,
         role,
+        roleKey,
         systemRole,
         clearanceLevel,
         projectId,
@@ -563,6 +577,17 @@ app.patch(
     if (!existing) throw bad('Kullanici bulunamadi.', 404);
     const data = {};
     if (b.role != null) data.role = String(b.role);
+    // Issue #101: roleKey guncellenirse display `role` adini SystemRole'den turet.
+    if (b.roleKey !== undefined) {
+      if (b.roleKey === null) {
+        data.roleKey = null;
+      } else {
+        const sr = await prisma.systemRole.findUnique({ where: { key: String(b.roleKey) } });
+        if (!sr || !sr.isActive) throw bad('Gecersiz veya pasif rol.', 400);
+        data.roleKey = sr.key;
+        data.role = sr.name;
+      }
+    }
     if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
     if (b.clearanceLevel != null) {
       const cl = Number(b.clearanceLevel);
@@ -639,6 +664,130 @@ app.delete(
   }),
 );
 
+// ============================================================================
+//  AYRINTILI BILGI (permission debug/rapor icin) — Issue #101.
+//  resolveUserRole tek kanonik cozucuyle cozulmus rol + izin dondurur.
+//  Backend izin zorlamasi `requirePM`/`projectAccessGuard` uzerinden calisir;
+//  bu endpoint SADECE admin konsol raporlamsi icindir.
+app.get(
+  '/api/admin/resolve-role',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const { username, userId } = req.query || {};
+    const user = username
+      ? await prisma.user.findUnique({ where: { username: String(username) } })
+      : userId
+        ? await prisma.user.findUnique({ where: { id: String(userId) } })
+        : null;
+    if (!user) throw bad('Kullanici bulunamadi.', 404);
+    const resolved = await resolveUserRole(prisma, user);
+    res.json({
+      username: user.username,
+      storedRole: user.role,
+      storedRoleKey: user.roleKey || null,
+      resolved,
+      isPM: isPMRole(user),
+    });
+  }),
+);
+
+// ===========================================================================
+//  SYSTEM ROLES (Issue #101) — sabit cekirdek roller + izin yonetimi.
+//  Yalnizca ADMIN. isSystem roller silinemez (pasiflestirilebilir); ozel
+//  roller (isSystem=false) silinebilir. permissions: 12 kademeli izin JSON'u.
+// ===========================================================================
+const systemRoleView = (r) => ({
+  id: r.id,
+  key: r.key,
+  name: r.name,
+  permissions: r.permissions || {},
+  isSystem: r.isSystem,
+  isActive: r.isActive,
+  createdAt: r.createdAt,
+});
+
+app.get(
+  '/api/admin/system-roles',
+  requireAdmin,
+  wrap(async (_req, res) => {
+    const rows = await prisma.systemRole.findMany({ orderBy: [{ isSystem: 'desc' }, { key: 'asc' }] });
+    res.json(rows.map(systemRoleView));
+  }),
+);
+
+app.post(
+  '/api/admin/system-roles',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const key = String(b.key || '')
+      .trim()
+      .toLowerCase();
+    const name = String(b.name || '').trim();
+    if (!/^[a-z0-9_-]{2,32}$/.test(key)) throw bad('Rol anahtari 2-32 karakter, a-z0-9_- olmali.');
+    if (!name) throw bad('Rol adi zorunlu.');
+    const exists = await prisma.systemRole.findUnique({ where: { key } });
+    if (exists) throw bad('Bu rol anahtari zaten kullaniliyor.', 409);
+    const role = await prisma.systemRole.create({
+      data: { key, name, permissions: b.permissions || {}, isSystem: false, isActive: true },
+    });
+    await auditSystem('admin.system_role.create', { userId: req.auth.userId, roleKey: key, roleName: name });
+    res.status(201).json(systemRoleView(role));
+  }),
+);
+
+app.patch(
+  '/api/admin/system-roles/:key',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const role = await prisma.systemRole.findUnique({ where: { key: req.params.key } });
+    if (!role) throw bad('Rol bulunamadi.', 404);
+    const data = {};
+    if (b.name != null) {
+      data.name = String(b.name).trim();
+      if (!data.name) throw bad('Rol adi bos olamaz.');
+    }
+    if (b.permissions != null) {
+      if (typeof b.permissions !== 'object' || Array.isArray(b.permissions)) {
+        throw bad('permissions gecersiz.');
+      }
+      data.permissions = b.permissions;
+    }
+    if (b.isActive != null) {
+      data.isActive = Boolean(b.isActive);
+      // Son aktif PM rolunu pasiflestirmeyi engelle (PM tespiti bozulmasin).
+      if (role.key === 'pm' && b.isActive === false) {
+        throw bad('PM rolu pasiflestirilemez — PM tespiti bu role baglidir.');
+      }
+    }
+    if (Object.keys(data).length === 0) throw bad('Guncellenecek alan yok.');
+    const updated = await prisma.systemRole.update({ where: { key: req.params.key }, data });
+    await auditSystem('admin.system_role.update', {
+      userId: req.auth.userId,
+      roleKey: role.key,
+      fields: Object.keys(data),
+    });
+    res.json(systemRoleView(updated));
+  }),
+);
+
+app.delete(
+  '/api/admin/system-roles/:key',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const role = await prisma.systemRole.findUnique({ where: { key: req.params.key } });
+    if (!role) throw bad('Rol bulunamadi.', 404);
+    if (role.isSystem) throw bad('Sistem rolleri silinemez; yalnizca pasiflestirilebilir.');
+    // Role bagli kullanici varsa silme.
+    const inUse = await prisma.user.count({ where: { roleKey: role.key } });
+    if (inUse > 0) throw bad(`Bu rol ${inUse} kullanici tarafindan kullaniliyor; once onlarin rolunu degistirin.`);
+    await prisma.systemRole.delete({ where: { key: role.key } });
+    await auditSystem('admin.system_role.delete', { userId: req.auth.userId, roleKey: role.key });
+    res.status(204).end();
+  }),
+);
+
 // --- Issue #88: auth/admin denetim kayitlari (yalnizca ADMIN) ---------------
 //  Sifre/token ASLA loglanmaz; metadata yalnizca username/ip gibi guvenli alanlar.
 app.get(
@@ -701,6 +850,8 @@ const safeUser = (u) => ({
   name: u.name,
   initials: u.initials,
   role: u.role,
+  // Issue #101: sistem rol anahtari — frontend izin eslemesi bunu kullanir.
+  roleKey: u.roleKey || null,
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
   systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
@@ -713,6 +864,7 @@ const adminUser = (u) => ({
   name: u.name,
   initials: u.initials,
   role: u.role,
+  roleKey: u.roleKey || null,
   systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
   isActive: u.isActive,
@@ -2225,9 +2377,19 @@ app.use((req, res) => res.status(404).json({ error: `Bulunamadi: ${req.method} $
 // Test ortaminda (node:test + supertest) dinlemeye kapilmayalim; app disa
 // aktarilir, supertest kendi portunu yonetir.
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
-  });
+  // Issue #101: sistem rollerini garanti altina al (idempotent) sonra dinle.
+  ensureSystemRoles(prisma)
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
+      });
+    })
+    .catch((e) => {
+      console.error('[system-roles] seed hatasi:', e);
+      app.listen(PORT, () => {
+        console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
+      });
+    });
 }
 //reqIF Integration
 app.post(

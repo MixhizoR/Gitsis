@@ -12,10 +12,12 @@ import {
   unlockUser,
   updateUser,
   deleteUser,
+  listSystemRoles,
 } from '../services/adminService.js'
-import { PM_ROLE } from '../services/authService.js'
 
-const ROLE_OPTIONS = ['System Engineer', 'Developer', PM_ROLE]
+// Issue #101: rol `<select>` sabit ROLE_OPTIONS yerine aktif SystemRole
+// listesinden beslenir; backend `roleKey`'den display adi turettigi icin
+// forma ayrica `role` gonderilmez.
 const SYSTEM_ROLES = ['USER', 'ADMIN']
 
 function statusOf(u) {
@@ -38,14 +40,18 @@ function StatusBadge({ u, t }) {
 }
 
 // ---- Kullanici olusturma/duzenleme formu (modal) ---------------------------
-function UserForm({ mode, user, onClose, onSaved }) {
+//  Issue #101: rol secimi SystemRole listesinden beslenir; forma `roleKey`
+//  gonderilir, backend display `role` adini kendisi tureter.
+function UserForm({ mode, user, roles, onClose, onSaved }) {
   const { t } = useLang()
   const isEdit = mode === 'edit'
+  const activeRoles = (roles || []).filter((r) => r.isActive)
+  const defaultRoleKey = activeRoles[0]?.key || user?.roleKey || 'system_engineer'
   const [form, setForm] = useState({
     username: user?.username || '',
     password: '',
     name: user?.name || '',
-    role: user?.role || ROLE_OPTIONS[0],
+    roleKey: user?.roleKey || defaultRoleKey,
     systemRole: user?.systemRole || 'USER',
     clearanceLevel: user?.clearanceLevel ?? 1,
   })
@@ -60,7 +66,7 @@ function UserForm({ mode, user, onClose, onSaved }) {
     try {
       const body = {
         name: form.name.trim(),
-        role: form.role,
+        roleKey: form.roleKey,
         systemRole: form.systemRole,
         clearanceLevel: Number(form.clearanceLevel),
       }
@@ -127,14 +133,24 @@ function UserForm({ mode, user, onClose, onSaved }) {
             <label className="label">{t('admin.role')}</label>
             <select
               className="input"
-              value={form.role}
-              onChange={(e) => set('role', e.target.value)}
+              value={form.roleKey}
+              onChange={(e) => set('roleKey', e.target.value)}
             >
-              {[...new Set([...ROLE_OPTIONS, form.role])].filter(Boolean).map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
+              {[
+                ...new Set([
+                  ...(roles || []).filter((r) => r.isActive).map((r) => r.key),
+                  form.roleKey,
+                ]),
+              ]
+                .filter(Boolean)
+                .map((k) => {
+                  const found = (roles || []).find((r) => r.key === k)
+                  return (
+                    <option key={k} value={k}>
+                      {found ? found.name : k}
+                    </option>
+                  )
+                })}
             </select>
           </div>
           <div>
@@ -182,6 +198,7 @@ export default function UsersPage() {
   const { t } = useLang()
   const { currentUser } = useAuth()
   const [users, setUsers] = useState([])
+  const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null) // { mode, user }
@@ -190,7 +207,9 @@ export default function UsersPage() {
     setLoading(true)
     setError('')
     try {
-      setUsers(await listUsers())
+      const [u, r] = await Promise.all([listUsers(), listSystemRoles()])
+      setUsers(u)
+      setRoles(r)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -332,6 +351,7 @@ export default function UsersPage() {
         <UserForm
           mode={modal.mode}
           user={modal.user}
+          roles={roles}
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null)

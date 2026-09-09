@@ -7,11 +7,12 @@
 // ============================================================================
 import { useState } from 'react'
 import Logo from '../components/common/Logo.jsx'
-import { IconHistory, IconUsers } from '../components/common/Icons.jsx'
+import { IconHistory, IconList, IconUsers } from '../components/common/Icons.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import UsersPage from './UsersPage.jsx'
 import AuditLogPage from './AuditLogPage.jsx'
+import RolesAdminPage from './RolesAdminPage.jsx'
 
 export default function AdminLayout() {
   const { currentUser, logout } = useAuth()
@@ -30,9 +31,15 @@ export default function AdminLayout() {
 
   const NAV = [
     { key: 'users', label: t('admin.navUsers'), Icon: IconUsers },
+    { key: 'roles', label: t('rolesAdmin.nav'), Icon: IconList },
     { key: 'logs', label: t('admin.navLogs'), Icon: IconHistory },
   ]
-  const title = tab === 'users' ? t('admin.users') : t('admin.auditLogs')
+  const title =
+    tab === 'users'
+      ? t('admin.users')
+      : tab === 'roles'
+        ? t('rolesAdmin.title')
+        : t('admin.auditLogs')
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
@@ -106,7 +113,13 @@ export default function AdminLayout() {
           </span>
         </header>
         <main className="flex-1 overflow-y-auto p-6">
-          {tab === 'users' ? <UsersPage /> : <AuditLogPage />}
+          {tab === 'users' ? (
+            <UsersPage />
+          ) : tab === 'roles' ? (
+            <RolesAdminPage />
+          ) : (
+            <AuditLogPage />
+          )}
         </main>
       </div>
     </div>

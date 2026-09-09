@@ -12,7 +12,9 @@
 // ============================================================================
 import * as api from './apiClient.js'
 
-const PM_ROLE = 'Proje Yöneticisi'
+// Issue #101: sistem rol anahtari icin kanonik kaynak. AuthContext
+// `roleKey === 'pm' || role === PM_ROLE` ile PM tespiti yapar.
+export const PM_ROLE = 'Proje Yöneticisi'
 
 // --- Rol tanimlari (istemci; kayit ekraninda secilir) -----------------------
 //  Backend'e gonderilen deger cevrilmez; bu etiketler ayni zamanda backend

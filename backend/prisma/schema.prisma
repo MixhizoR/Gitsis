@@ -33,6 +33,10 @@ model User {
   name           String
   initials       String?
   role           String    @default("System Engineer")
+  // Issue #101: sistem-geneli sabit role anahtari (SystemRole.key). `role`
+  // display adi olarak korunur; yetki bu anahtardan turetilir. Eski verilerde
+  // null olabilir (o zaman `role` eslesmesi - PM_ROLE - gecerli kalir).
+  roleKey        String?
   systemRole     String    @default("USER") // 'ADMIN' | 'USER'
   clearanceLevel Int       @default(1)
   isActive       Boolean   @default(true)
@@ -46,6 +50,24 @@ model User {
   project        Project?  @relation("UserProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   refreshTokens  RefreshToken[]
+}
+
+// --- Sistem-geneli sabit roller (Issue #101) --------------------------------
+//  Personel/passcode dunyasindaki proje-bazli `Role` modelinden AYRI: bu,
+//  User.role icin SISTEM seviyesinde tanimli cekirdek roller + izinleridir
+//  (PM / System Engineer / Developer / Admin...). `permissions` 12 kademeli
+//  izin JSON'udur (frontend utils/permissions.js semasi). isSystem=true olan
+//  roller silinemez (yalnizca pasiflestirilebilir) — DO-178C tasarim karari.
+//  Ileride ozel (custom) rol eklemek icin zemin: isSystem=false + admin CRUD.
+model SystemRole {
+  id          String    @id @default(uuid())
+  key         String    @unique // 'pm' | 'system_engineer' | 'developer' | ...
+  name        String
+  permissions Json      @default("{}")
+  isSystem    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // --- Refresh tokenlari (Issue #85) -----------------------------------------

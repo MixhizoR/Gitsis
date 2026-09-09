@@ -1,13 +1,16 @@
 // ============================================================================
 //  AuthContext.jsx  —  Kimlik doğrulama + RBAC (rol bazlı erişim).
 //  İki oturum türü:
-//    1) PM (Proje Yöneticisi): kullanıcı adı + şifre (admin/admin). Tam yetki.
+//    1) PM (Proje Yöneticisi): kullanıcı adı + şifre. Tam yetki.
 //    2) Personel: 5 karakterlik passcode. Rolüne tanımlı 12 kademeli izin.
 //  Yalnızca OTURUM bilgisi tarayıcıda (LocalStorage) tutulur.
+//  Issue #101: `roleKey` oturuma kaydedilir (PM tespiti ve rol/izin eslemesi
+//  icin kanonik kaynak).
 // ============================================================================
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import {
   ROLES,
+  PM_ROLE,
   authenticate,
   passcodeAuthenticate,
   logoutRefresh,
@@ -43,7 +46,8 @@ export function AuthProvider({ children }) {
     const res = await authenticate(username, password)
     const { accessToken, refreshToken, user } = res || {}
     if (!user || !accessToken || !refreshToken) throw new Error('Kullanıcı adı veya şifre yanlış.')
-    const isPM = user.role === 'Proje Yöneticisi'
+    // Issue #101: PM tespiti tek kanonik kuralla (roleKey==='pm' OR serbest-metin fallback).
+    const isPM = user.roleKey === 'pm' || user.role === PM_ROLE
     return persist({
       kind: isPM ? 'pm' : 'user',
       isPM,
@@ -56,6 +60,8 @@ export function AuthProvider({ children }) {
       systemRole: user.systemRole,
       clearanceLevel: user.clearanceLevel,
       role: user.role,
+      // Issue #101: sistem rol anahtari — rol/izin eslemesi icin kanonik kaynak.
+      roleKey: user.roleKey || null,
       projectId: user.projectId || null,
     })
   }, [])

@@ -30,7 +30,7 @@ export async function upsertAdmin(clientOverride) {
   const prisma = clientOverride || new PrismaClient();
   const username = process.env.ADMIN_USERNAME || 'admin';
   const password = process.env.ADMIN_DEFAULT_PASSWORD || 'admin';
-  const name = process.env.ADMIN_NAME || 'Eren Mutaf';
+  const name = process.env.ADMIN_NAME || 'Admin';
   const initials =
     process.env.ADMIN_INITIALS ||
     name

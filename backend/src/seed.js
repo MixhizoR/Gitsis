@@ -27,6 +27,7 @@ import {
 } from './constants.js';
 import { recomputeAllStatuses } from './logic.js';
 import { hashPassword } from './auth.js';
+import { ensureSystemRoles } from './systemRoles.js';
 import { seedDefaultAttributeDefinitions } from './attributes.js';
 
 const prisma = new PrismaClient();
@@ -176,6 +177,9 @@ export async function runSeed() {
   }
   console.log('[seed] Bos veri tabani — resmi seed yukleniyor...');
 
+  // 1) Sistem rolleri (Issue #101) — cekirdek roller her bos DB'de garanti.
+  await ensureSystemRoles(prisma);
+
   // 1) Varsayilan yonetici kullanici (yoksa)
   const userCount = await prisma.user.count();
   if (userCount === 0) {
@@ -186,9 +190,10 @@ export async function runSeed() {
         // kolonunu dustugu icin bu seed admin'i yeniden yaratir (sifre
         // kaybi bilinclidir; ADMIN_DEFAULT_PASSWORD env ile degistirilebilir).
         passwordHash: await hashPassword(process.env.ADMIN_DEFAULT_PASSWORD || 'admin'),
-        name: 'Eren Mutaf',
-        initials: 'EM',
+        name: 'Admin',
+        initials: 'AD',
         role: 'System Engineer',
+        roleKey: 'system_engineer',
         systemRole: 'ADMIN',
         clearanceLevel: 5,
         isActive: true,
