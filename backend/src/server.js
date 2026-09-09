@@ -237,17 +237,31 @@ async function recomputeApproval(pid, entityType, entityId) {
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
   const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
+  // Bug fix: "PM" User tablosundaki HERHANGI bir hesaptir (auth.js requirePM
+  // ile ayni tanim: req.auth.isPM, kullaniciadi/sifre ile giren HERKESE
+  // kosulsuz verilir — bkz. /auth/login). User.role SADECE gorsel bir unvan
+  // (varsayilan "System Engineer") ve erisim kontrolu icin KULLANILMAZ. Bu
+  // satir eskiden role==='Proje Yoneticisi' filtreliyordu; varsayilan admin
+  // hesabi (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin PM
+  // oyu HICBIR ZAMAN sayilmiyor, konsensus asla tamamlanamiyordu.
   const pmUsers = await prisma.user.findMany({
-    where: { id: { in: Array.from(votedIds) }, role: 'Proje Yoneticisi' },
+    where: { id: { in: Array.from(votedIds) } },
     select: { id: true },
   });
   const pmVoted = pmUsers.length > 0;
   const approved = allPersonnelVoted && pmVoted;
-  await prisma[model].update({
-    where: { id: entityId },
-    data: { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved },
-  });
-  return { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved };
+  const data = { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved };
+  // Test SONUCU (Passed/Failed/In Review) artik elle duzenlenemez; yalnizca
+  // onay/red aksiyonlarindan turetilir. Tam konsensus -> 'Approved' (Passed).
+  // Aksi halde (oy geri cekildi / kilit acildi) -> 'In Review'e doner.
+  // 'Rejected' BURADAN degil, ayri /approvals/reject (tek yetkili) aksiyonundan
+  // gelir. Gereksinimler icin status bu fonksiyondan asla degistirilmez —
+  // onlarin durumu SADECE cascade.js ile bagli testlerden turetilir.
+  if (entityType === 'testcase') data.status = approved ? STATUS.APPROVED : STATUS.IN_REVIEW;
+  await prisma[model].update({ where: { id: entityId }, data });
+  // Test sonucu degistiyse bagli gereksinimlerin dogrulama durumu da tazelenmeli.
+  if (entityType === 'testcase') await cascade(pid);
+  return { approvalStatus: data.approvalStatus, locked: data.locked, status: data.status };
 }
 
 // ===========================================================================
@@ -1047,10 +1061,11 @@ app.post(
     const b = req.body || {};
     if (!b.type) throw bad('Test tipi zorunlu.');
     const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, b.type, true));
-    // Alan/oncelik/dal ve test sonucu (durum) artik ELLE girilir; bir gereksinime
-    // baglanmak bu degerleri OTOMATIK doldurmaz (bir test coklu gereksinim dogrular).
-    const status = b.status || STATUS.IN_REVIEW;
-    if (![STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW].includes(status)) throw bad('Gecersiz test sonucu.');
+    // Alan/oncelik/dal artik ELLE girilir; bir gereksinime baglanmak bu
+    // degerleri OTOMATIK doldurmaz (bir test coklu gereksinim dogrular).
+    // Test SONUCU (Passed/Failed/In Review) ise ARTIK client'tan alinmaz:
+    // her yeni test 'In Review' baslar, sonucu SADECE onay/red aksiyonlari
+    // (bkz. /approvals/vote, /approvals/reject) belirler.
     const defs = await listDefs(prisma, pid, 'testcase');
     // Test senaryolarinda oznitelikler bos birakilabilir (zorunlu degil); yalnizca
     // gonderilenler dogrulanir, bos birakilanlar null kalir.
@@ -1070,7 +1085,7 @@ app.post(
         type: b.type,
         field: b.field || null,
         attributes,
-        status,
+        status: STATUS.IN_REVIEW,
         author: b.author || 'ehsim.user',
       },
     });
@@ -1107,21 +1122,16 @@ app.put(
         before.attributes || {},
       );
     }
-    // Durum elle degistirilebilir (test sonucu: Passed/Failed/In Review)
-    if (b.status != null) {
-      if (![STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW].includes(b.status)) throw bad('Gecersiz test durumu.');
-      data.status = b.status;
-    }
+    // Test SONUCU (status) bu route'tan ARTIK degistirilemez — yalnizca
+    // onay/red aksiyonlarindan turetilir (bkz. recomputeApproval, /approvals/reject).
     const row = await prisma.testCase.update({ where: { id: req.params.id }, data });
     await audit(pid, {
       action: 'UPDATE',
       entityType: 'testcase',
       entityId: row.id,
       textId: row.text_id,
-      message: `Test guncellendi: "${row.title}" (durum: ${row.status}).`,
+      message: `Test guncellendi: "${row.title}".`,
     });
-    // Test durumu degistiyse cascade
-    await cascade(pid);
     res.json(flatten(row));
   }),
 );
@@ -1819,6 +1829,40 @@ app.post(
   }),
 );
 
+// Test senaryosunu DERHAL "Failed" yapar. Onaylamanin aksine TAM konsensus
+// GEREKMEZ: onay yetkisi olan TEK kisi (PM dahil) bir hatayi isaretleyebilmeli.
+// Yalnizca testcase icin gecerlidir — gereksinimler artik kendi baslarina
+// onaylanmadigi/reddedilmedigi icin (durumlari bagli testten turetilir,
+// bkz. cascade.js).
+app.post(
+  '/api/projects/:pid/approvals/reject',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { entityId } = req.body || {};
+    if (!entityId) throw bad('entityId zorunlu.');
+    const entity = await prisma.testCase.findUnique({ where: { id: entityId } });
+    if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
+    if (entity.locked && !req.auth.isPM)
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+    await assertApprovePermission(req, pid, 'testcase', entity);
+    const row = await prisma.testCase.update({
+      where: { id: entityId },
+      data: { status: STATUS.REJECTED, approvalStatus: 'Pending', locked: true },
+    });
+    await audit(pid, {
+      action: 'TEST_REJECT',
+      entityType: 'testcase',
+      entityId,
+      textId: entity.text_id,
+      actor: actorOf(req),
+      message: `Test reddedildi (Failed): "${entity.title}".`,
+    });
+    // Bagli gereksinim(ler)in dogrulama durumu 'Rejected'e donsun.
+    await cascade(pid);
+    res.json({ status: row.status, approvalStatus: row.approvalStatus, locked: row.locked });
+  }),
+);
+
 // PM kilit acar: PM'in onayini geri ceker -> durum Beklemede'ye doner.
 app.post(
   '/api/projects/:pid/approvals/unlock',
@@ -1854,12 +1898,25 @@ app.get(
     const entity = await prisma[model].findUnique({ where: { id: String(entityId) } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
     const { requiredPersonnel } = await requiredVotersFor(pid, entityType, entity);
-    const approvals = await prisma.approval.findMany({
-      where: { projectId: pid, entityType, entityId: String(entityId) },
-    });
+    // Bug fix: oylar PM'in GERCEK kullanici id'siyle saklanir (bkz. /approvals/vote:
+    // voterId = req.auth.userId), 'PM' sabit dizgesiyle degil — bu satir 'PM' sabiti
+    // kullaniyordu ve PM asla oy vermis GORUNMUYORDU (Issue #53'te cascade.js'te
+    // duzeltilen ayni sinif hata; matris ucundan atlanmisti). "PM" User
+    // tablosundaki HERHANGI bir hesaptir (role='Proje Yoneticisi' degil —
+    // bkz. recomputeApproval'daki ayni sinif duzeltme); birden fazla PM
+    // olabilir (co-PM kurulumlar), hepsi ayri satir olarak listelenir.
+    const [approvals, pmUsers] = await Promise.all([
+      prisma.approval.findMany({ where: { projectId: pid, entityType, entityId: String(entityId) } }),
+      prisma.user.findMany({ select: { id: true, name: true } }),
+    ]);
     const votedIds = new Set(approvals.map((a) => a.voterId));
     const voters = [
-      { voterId: 'PM', name: 'Proje Yoneticisi', role: 'Proje Yoneticisi', voted: votedIds.has('PM') },
+      ...pmUsers.map((u) => ({
+        voterId: u.id,
+        name: u.name || 'Proje Yoneticisi',
+        role: 'Proje Yoneticisi',
+        voted: votedIds.has(u.id),
+      })),
       ...requiredPersonnel.map((p) => ({
         voterId: p.id,
         name: `${p.firstName} ${p.lastName}`,

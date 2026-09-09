@@ -122,6 +122,8 @@ export const deletePersonnel = (pid, id, reason) =>
 export const listApprovals = (pid) => api.get(`/projects/${pid}/approvals`)
 export const voteApproval = (pid, body) => api.post(`/projects/${pid}/approvals/vote`, body)
 export const unlockApproval = (pid, body) => api.post(`/projects/${pid}/approvals/unlock`, body)
+// Test senaryosunu DERHAL "Failed" yapar (tek yetkili yeterli, tam konsensus gerekmez).
+export const rejectApproval = (pid, body) => api.post(`/projects/${pid}/approvals/reject`, body)
 export const approvalMatrix = (pid, entityType, entityId) =>
   api.get(`/projects/${pid}/approvals/matrix?entityType=${entityType}&entityId=${entityId}`)
 

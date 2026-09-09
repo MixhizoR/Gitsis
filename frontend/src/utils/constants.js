@@ -371,15 +371,5 @@ export const TEST_PAGES = {
   },
 }
 
-// Test durumu icin izin verilen elle secilebilir degerler (bag kurulurken).
-// Persist edilen degerler cevrilmez.
-export const TEST_STATUS_OPTIONS = [STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW]
-// Kullaniciya gosterilen Turkce etiketler (deger degismez).
-export const TEST_STATUS_LABELS = {
-  [STATUS.APPROVED]: 'Passed (Basarili)',
-  [STATUS.REJECTED]: 'Failed (Basarisiz)',
-  [STATUS.IN_REVIEW]: 'In Review (Incelemede)',
-}
-
 // Oturum acan kullanici (auth katmani MVP'de yok; tek kullanici simulasyonu).
 export const CURRENT_USER = 'ehsim.user'

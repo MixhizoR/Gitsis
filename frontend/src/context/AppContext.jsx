@@ -332,6 +332,12 @@ export function AppProvider({ children }) {
       await refresh()
       return r
     },
+    //  body: { entityId } — yalnizca test senaryosu icin; tek yetkili yeterli.
+    async rejectApproval(body) {
+      const r = await data.rejectApproval(pid, body)
+      await refresh()
+      return r
+    },
     async getApprovalMatrix(entityType, entityId) {
       return data.approvalMatrix(pid, entityType, entityId)
     },

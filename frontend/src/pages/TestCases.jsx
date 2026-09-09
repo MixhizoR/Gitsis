@@ -1,8 +1,11 @@
 // ============================================================================
 //  TestCases.jsx  —  Test senaryosu sayfasi (Acceptance / System / Sub-system).
 //  Tek bilesen, `pageKey` ile hangi test tipinin gosterilecegini belirler
-//  (TEST_PAGES). Tip kilitli. Verifies bagi (strict) + zorunlu test durumu
-//  LinkManager ile yonetilir; secilen durum backend'de gereksinime cascade edilir.
+//  (TEST_PAGES). Tip kilitli. Verifies bagi (strict) LinkManager ile yonetilir.
+//  Test SONUCU (Passed/Failed/In Review) formdan ELLE girilmez: tablodaki
+//  Onay (checkmark, tam konsensus) / Reddet (tek yetkili, derhal) aksiyonlarindan
+//  turetilir; bu sonuc backend'de bagli gereksinim(ler)e cascade edilir (bkz.
+//  cascade.js, server.js recomputeApproval/reject).
 //  Toplu islem: coklu secim + 5 sn geri alinabilir toplu silme + toplu linkle.
 //  Izin/onay: 12 kademeli RBAC (can) + consensus onay + kilit (freeze).
 //  pageKey ayni zamanda izin bileson anahtaridir (test-acceptance / ...).
@@ -21,6 +24,7 @@ import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
 import { suspectLinksForTestCase } from '../utils/suspect.js'
@@ -43,6 +47,7 @@ export default function TestCases({
     editTestCase,
     voteApproval,
     unlockApproval,
+    rejectApproval,
     getApprovalMatrix,
   } = useApp()
   const { t } = useLang()
@@ -59,14 +64,28 @@ export default function TestCases({
   const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
+  // Test sayfalari daima tek tipe kilitlidir (TEST_PAGES); tabloda tekrari
+  // onlemek icin 'type' sutunu kaldirilir, baslik yaninda rozet gosterilir.
+  const tableColumns = useMemo(
+    () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
+    [cfg],
+  )
+  // Bug fix: backend oy kaydini PM'in GERCEK kullanici id'siyle saklar
+  // (bkz. server.js /approvals/vote: voterId = req.auth.userId), 'PM' sabit
+  // dizgesiyle degil. Burada da 'PM' kullanilirsa PM kendi oyunu verdikten
+  // hemen sonra "oy verildi" gorunumu HICBIR ZAMAN gorunmuyordu (Issue #53'te
+  // ayni sinif hata cascade.js'te duzeltilmisti; bu sayfada kalmisti).
+  const myVoterId = isPM ? currentUser?.id : currentUser?.personnelId
   const canRead = can('read', comp)
   const canAdd = can('add_test', comp)
   const canFields = can('manage_fields')
   const canEditRow = () => can('write', comp)
   const canDeleteRow = () => can('delete', comp)
   const canLinksRow = () => can('link_verifies', comp)
-  const canApproveRow = () => can('approve', comp)
+  // Kilitli (tam onaylanmis/reddedilmis) bir kayitta yalnizca PM oy/red
+  // butonlarini kullanabilir (backend de ayni kurali uygular) — aksi halde
+  // buton etkin gorunup 403 ile sessizce basarisiz olurdu.
+  const canApproveRow = (r) => can('approve', comp) && (!r?.locked || isPM)
 
   const del = useUndoableDelete(bulkRemoveTestCases)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
@@ -110,6 +129,8 @@ export default function TestCases({
       personnelId: isPM ? null : currentUser?.personnelId,
     })
   }
+  // Testi DERHAL "Failed" yapar — tam konsensus GEREKMEZ, tek yetkili yeterli.
+  const handleReject = (r) => rejectApproval({ entityId: r.id })
 
   const openCreate = () => {
     setEditing(null)
@@ -146,9 +167,12 @@ export default function TestCases({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || cfg.navLabel}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {titleOverride || cfg.navLabel}
+            </h2>
+            {cfg.lockedType && <TypeBadge value={cfg.lockedType} />}
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             <span className="font-bold text-slate-800 dark:text-slate-100">
               {visibleRows.length}
@@ -187,7 +211,7 @@ export default function TestCases({
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'status', 'links']}
+        columns={tableColumns}
         attributeEntityType="testcase"
         statusLabel={t('tbl.th.testResult')}
         linkCountFor={linkCountFor}
@@ -204,6 +228,7 @@ export default function TestCases({
         canApproveRow={canApproveRow}
         approvalInfoFor={approvalInfoFor}
         onToggleApprove={toggleApprove}
+        onReject={handleReject}
         showApprovalDetail={isPM}
         onApprovalDetail={setMatrixRow}
         selectable
