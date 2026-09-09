@@ -186,3 +186,12 @@ export const downloadDocument = (pid, id) =>
 
 export const deleteDocument = (pid, id, reason) =>
   api.del(`/projects/${pid}/documents/${id}`, { reason })
+
+/** Excel belgesini sayfa-ici onizleme icin satir dizisine cevirtir (backend). */
+export const previewDocument = (pid, id) => api.get(`/projects/${pid}/documents/${id}/preview`)
+
+/**
+ * Belgeden cikarilmis duz metni getirir. Kullanici bu metin uzerinde secim
+ * yapip gereksinim olusturur; secimin karakter araligi kaynak olarak saklanir.
+ */
+export const getDocumentText = (pid, id) => api.get(`/projects/${pid}/documents/${id}/text`)

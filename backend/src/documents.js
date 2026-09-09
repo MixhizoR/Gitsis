@@ -8,6 +8,8 @@
 //    GET    /                -> metadata listesi (icerik ASLA donmez)
 //    POST   /                -> multipart yukleme (alan adi: file)
 //    GET    /:id/download    -> dosyayi indir (attachment)
+//    GET    /:id/preview     -> Excel'i sayfa-ici onizleme icin JSON'a cevirir
+//    GET    /:id/text        -> cikarilmis duz metin (metinden gereksinim uretme)
 //    DELETE /:id             -> belgeyi sil (yalnizca PM veya 'delete' izni)
 //
 //  NOT: Router :pid altinda mount edildigi icin app.param('pid',
@@ -16,8 +18,10 @@
 import express from 'express';
 import path from 'path';
 import multer from 'multer';
+import ExcelJS from 'exceljs';
 import { PrismaClient } from '@prisma/client';
 import { requireReason } from './reason.js';
+import { extractDocumentText, cellText } from './documentText.js';
 
 const prisma = new PrismaClient();
 const router = express.Router({ mergeParams: true });
@@ -70,6 +74,9 @@ const META_SELECT = {
   description: true,
   uploadedBy: true,
   createdAt: true,
+  // Metin secimi mumkun mu? (extractedText'in KENDISI listede DONMEZ — buyuk
+  // olabilir; yalnizca /text ucundan tek belge icin cekilir.)
+  textStatus: true,
 };
 
 // Audit yardimcisi — yazma hatasi ana islemi bozmaz.
@@ -147,6 +154,10 @@ router.post(
     if (!req.file) return res.status(400).json({ error: 'Lutfen bir dosya secin.' });
     const originalName = req.file.originalname || 'belge';
     const ext = path.extname(originalName).toLowerCase();
+    // Metin YUKLEME ANINDA bir kez cikarilir (bkz. documentText.js): sonradan
+    // yeniden cikarilirsa bu belgeye dayanan gereksinimlerin karakter
+    // araliklari kayardi.
+    const { text, status } = await extractDocumentText(req.file.buffer, ext);
     const row = await prisma.projectDocument.create({
       data: {
         projectId: pid,
@@ -160,6 +171,8 @@ router.post(
           .slice(0, 500),
         uploadedBy: await uploaderName(req),
         content: req.file.buffer,
+        extractedText: text,
+        textStatus: status,
       },
       select: META_SELECT,
     });
@@ -186,6 +199,116 @@ router.get(
     res.setHeader('Content-Length', row.size);
     res.setHeader('Content-Disposition', `attachment; filename="${safeFileName(row.fileName)}"`);
     res.send(Buffer.from(row.content));
+  }),
+);
+
+// --- Onizleme (Excel -> JSON) ----------------------------------------------
+//  Sayfa-ici goruntuleme icin .xlsx dosyasini satir dizisine cevirir. PDF bu
+//  uctan GECMEZ: tarayici PDF'i kendi goruntuleyicisiyle acabildigi icin
+//  istemci /download yanitini Blob olarak alip <iframe>'e verir (bkz.
+//  DocumentPreviewModal.jsx). Eski ikili .xls formatini ExcelJS okuyamaz;
+//  o durumda 415 ile "indirin" mesaji doner.
+//  Yanit boyutu SINIRLIDIR (asagidaki ust sinirlar): cok buyuk bir tablo
+//  tarayiciyi kilitlemesin diye kirpilir ve kirpildigi bilgisi doner.
+const MAX_PREVIEW_SHEETS = 12;
+const MAX_PREVIEW_ROWS = 300;
+const MAX_PREVIEW_COLS = 40;
+
+router.get(
+  '/:id/preview',
+  wrap(async (req, res) => {
+    const row = await prisma.projectDocument.findFirst({
+      where: { id: req.params.id, projectId: req.params.pid },
+    });
+    if (!row) return res.status(404).json({ error: 'Dokuman bulunamadi.' });
+
+    if (row.ext === '.pdf') {
+      // PDF istemcide dogrudan goruntulenir; bu uc onu islemez.
+      return res.status(415).json({ error: 'PDF onizlemesi istemcide yapilir.' });
+    }
+    if (row.ext !== '.xlsx') {
+      return res.status(415).json({ error: 'Eski .xls bicimi sayfa icinde onizlenemiyor; dosyayi indirin.' });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(Buffer.from(row.content));
+    } catch {
+      return res.status(422).json({ error: 'Excel dosyasi okunamadi (bozuk olabilir).' });
+    }
+
+    const all = workbook.worksheets;
+    const sheets = all.slice(0, MAX_PREVIEW_SHEETS).map((ws) => {
+      const rows = [];
+      let widest = 0;
+      ws.eachRow({ includeEmpty: true }, (r, rowNumber) => {
+        if (rowNumber > MAX_PREVIEW_ROWS) return;
+        const cells = [];
+        r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          if (colNumber > MAX_PREVIEW_COLS) return;
+          cells[colNumber - 1] = cellText(cell.value);
+        });
+        // eachCell atlanan (hic dokunulmamis) hucreler icin bosluk birak.
+        for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
+        widest = Math.max(widest, cells.length);
+        rows.push(cells);
+      });
+      // Tum satirlari ayni genislige tamamla (tablo hizali olsun).
+      for (const r of rows) while (r.length < widest) r.push('');
+      return {
+        name: ws.name,
+        rows,
+        totalRows: ws.rowCount,
+        truncatedRows: ws.rowCount > MAX_PREVIEW_ROWS,
+        truncatedCols: ws.columnCount > MAX_PREVIEW_COLS,
+      };
+    });
+
+    res.json({
+      kind: 'spreadsheet',
+      fileName: row.fileName,
+      sheets,
+      truncatedSheets: all.length > MAX_PREVIEW_SHEETS,
+      totalSheets: all.length,
+    });
+  }),
+);
+
+// --- Cikarilmis duz metin ---------------------------------------------------
+//  Dokumandan metin secip gereksinim olusturma akisinin veri kaynagi.
+//  Istemci bu metni oldugu gibi gosterir; kullanicinin sectigi araligin
+//  (start/end) bu metne gore hesaplanmasi ZORUNLUDUR.
+router.get(
+  '/:id/text',
+  wrap(async (req, res) => {
+    const row = await prisma.projectDocument.findFirst({
+      where: { id: req.params.id, projectId: req.params.pid },
+      select: { id: true, fileName: true, ext: true, extractedText: true, textStatus: true, content: true },
+    });
+    if (!row) return res.status(404).json({ error: 'Dokuman bulunamadi.' });
+
+    let { extractedText, textStatus } = row;
+    // GERIYE DONUK UYUM: metin cikarma ozelligi eklenmeden ONCE yuklenmis
+    // belgeler 'pending' durumda kalir. Ilk erisimde bir KEZ cikarilip
+    // kaydedilir; sonraki isteklerde ayni metin dondurulur (karakter
+    // araliklarinin kararliligi icin metin bir daha degistirilmez).
+    if (textStatus === 'pending') {
+      const result = await extractDocumentText(Buffer.from(row.content), row.ext);
+      extractedText = result.text;
+      textStatus = result.status;
+      await prisma.projectDocument.update({
+        where: { id: row.id },
+        data: { extractedText, textStatus },
+      });
+    }
+
+    res.json({
+      id: row.id,
+      fileName: row.fileName,
+      ext: row.ext,
+      textStatus,
+      text: extractedText || '',
+    });
   }),
 );
 

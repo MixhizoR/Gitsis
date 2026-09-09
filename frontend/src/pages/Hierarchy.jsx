@@ -23,6 +23,7 @@ import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
+import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
@@ -49,7 +50,7 @@ export default function Hierarchy({
     if (!cfg || !typeFilter || !cfg.typeOptions?.includes(typeFilter)) return cfg
     return { ...cfg, typeOptions: [typeFilter], lockedType: typeFilter }
   }, [cfg, typeFilter])
-  const { requirements, links, bulkRemoveRequirements, editRequirement } = useApp()
+  const { requirements, links, bulkRemoveRequirements, editRequirement, projectId } = useApp()
   const { t } = useLang()
   const { can } = useAuth()
   const [q, setQ] = useState('')
@@ -60,6 +61,8 @@ export default function Hierarchy({
   const [attrMgr, setAttrMgr] = useState(false)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [viewRow, setViewRow] = useState(null)
+  // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
+  const [sourceRow, setSourceRow] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
@@ -250,6 +253,13 @@ export default function Hierarchy({
         showHistory
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
+        onOpenSource={setSourceRow}
+      />
+      {/* Kaynak izlenebilirligi: dokumani Metin modunda acip pasaji vurgular. */}
+      <SourceDocumentModal
+        requirement={sourceRow}
+        projectId={projectId}
+        onClose={() => setSourceRow(null)}
       />
       <ImpactAnalysisModal
         open={Boolean(impactRow)}

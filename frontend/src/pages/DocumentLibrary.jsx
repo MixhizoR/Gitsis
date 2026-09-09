@@ -17,6 +17,10 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { formatDateTime } from '../utils/format.js'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import DocumentPreviewModal from '../components/common/DocumentPreviewModal.jsx'
+import RequirementForm from '../components/requirements/RequirementForm.jsx'
+import { deriveTitle } from '../components/documents/DocumentTextView.jsx'
+import { REQ_TYPE } from '../utils/constants.js'
 import {
   IconDoc,
   IconUpload,
@@ -25,6 +29,7 @@ import {
   IconSearch,
   IconLoader,
   IconAlert,
+  IconEye,
 } from '../components/common/Icons.jsx'
 import {
   listDocuments,
@@ -69,7 +74,7 @@ export default function DocumentLibrary() {
   // Belge listesi kasten AppContext'e tasinmadi (bkz. yukaridaki not) ama
   // yukleme/silme AuditLog'a yazdigi icin Degisiklik Tarihcesi'nin bunu
   // gormesi icin AppContext'in genel refresh()'ini de tetiklemeliyiz.
-  const { refresh } = useApp()
+  const { refresh, requirements } = useApp()
   const { isPM, can } = useAuth()
   const { t } = useLang()
   const fileRef = useRef(null)
@@ -85,6 +90,11 @@ export default function DocumentLibrary() {
   const [busyId, setBusyId] = useState(null)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null)
+  // Sayfa-ici goruntulenen belge — bkz. DocumentPreviewModal.
+  const [previewTarget, setPreviewTarget] = useState(null)
+  // Metin secimiyle acilan ON-DOLU gereksinim formu.
+  //   { source: {...}, initialValues: { title, description } }
+  const [draft, setDraft] = useState(null)
 
   const canDelete = isPM || can('delete')
 
@@ -116,6 +126,33 @@ export default function DocumentLibrary() {
   }, [docs, query])
 
   const totalSize = useMemo(() => docs.reduce((s, d) => s + (d.size || 0), 0), [docs])
+
+  // Onizlenen dokumandan turetilmis gereksinimlerin pasajlari (vurgulama icin).
+  const sourceRanges = useMemo(() => {
+    if (!previewTarget) return []
+    return (requirements || [])
+      .filter((r) => r.sourceDocumentId === previewTarget.id)
+      .map((r) => ({ start: r.sourceStart, end: r.sourceEnd, label: r.text_id }))
+  }, [requirements, previewTarget])
+
+  /** Metin secimi -> ON-DOLU gereksinim formu (kayit addRequirement'tan gecer). */
+  const handleCreateFromSelection = ({ text: selected, start, end }) => {
+    // Ayni pasaj daha once kaynak olmus mu? UYARI amacli — ENGEL DEGIL.
+    const overlapping = sourceRanges
+      .filter((r) => Number.isInteger(r.start) && start < r.end && end > r.start)
+      .map((r) => r.label)
+    setDraft({
+      source: {
+        documentId: previewTarget.id,
+        documentName: previewTarget.fileName,
+        start,
+        end,
+        quote: selected,
+        duplicateOf: overlapping.length ? overlapping.join(', ') : null,
+      },
+      initialValues: { title: deriveTitle(selected), description: selected },
+    })
+  }
 
   // --- Yükleme --------------------------------------------------------------
   const handleFiles = async (fileList) => {
@@ -337,10 +374,19 @@ export default function DocumentLibrary() {
                 {filtered.map((doc) => (
                   <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="w-full max-w-0 px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <IconDoc size={18} className="shrink-0 text-slate-400" />
+                      {/* Dosya adina tiklayinca sayfa-ici onizleme acilir. */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTarget(doc)}
+                        title={t('docs.preview')}
+                        className="group flex w-full items-center gap-3 text-left"
+                      >
+                        <IconDoc
+                          size={18}
+                          className="shrink-0 text-slate-400 group-hover:text-brand-500"
+                        />
                         <div className="min-w-0">
-                          <div className="truncate font-medium text-slate-900 dark:text-white">
+                          <div className="truncate font-medium text-slate-900 group-hover:text-brand-600 group-hover:underline dark:text-white dark:group-hover:text-brand-400">
                             {doc.fileName}
                           </div>
                           {doc.description && (
@@ -349,7 +395,7 @@ export default function DocumentLibrary() {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </button>
                     </td>
                     <td className="px-4 py-4">
                       <TypeBadge ext={doc.ext} />
@@ -365,6 +411,14 @@ export default function DocumentLibrary() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setPreviewTarget(doc)}
+                          className="btn-ghost btn-sm"
+                          title={t('docs.preview')}
+                          data-testid={`preview-${doc.id}`}
+                        >
+                          <IconEye size={17} />
+                        </button>
                         <button
                           onClick={() => handleDownload(doc)}
                           disabled={busyId === doc.id}
@@ -392,6 +446,30 @@ export default function DocumentLibrary() {
           </div>
         )}
       </div>
+      <DocumentPreviewModal
+        open={Boolean(previewTarget)}
+        doc={previewTarget}
+        projectId={activeProjectId}
+        onClose={() => setPreviewTarget(null)}
+        onDownload={handleDownload}
+        onCreateRequirement={handleCreateFromSelection}
+        sourceRanges={sourceRanges}
+      />
+      {/* Ardisik secim: form kapaninca onizleme ACIK kalir ve metindeki konum
+          korunur (goruntuleyici yeniden yuklenmez). */}
+      <RequirementForm
+        open={Boolean(draft)}
+        onClose={() => setDraft(null)}
+        source={draft?.source}
+        initialValues={draft?.initialValues}
+        pageConfig={{
+          // Dokuman kutuphanesi bir hiyerarsi sayfasi degil: tip kilitli degil,
+          // kullanici dort gereksinim tipinden birini secer.
+          typeOptions: [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
+          lockedType: null,
+          addLabel: t('docsel.formTitle'),
+        }}
+      />
       <ReasonModal
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}

@@ -107,6 +107,35 @@ function fail(res, e) {
 }
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
+// --- Kaynak izlenebilirligi (dokumandan metin secerek gereksinim olusturma) --
+//  Istemciden gelen kaynak bilgisini dogrular ve saklanacak hale getirir.
+//  Dokuman ayni PROJEYE ait olmali (IDOR); degilse kaynak sessizce yok sayilmaz,
+//  hata verilir. Alinti ve dokuman adi ANLIK KOPYA olarak yazilir: dokuman
+//  sonradan silinse de (bag SetNull ile bosa duser) UI "kaynak dokuman
+//  silinmis: <ad>" diyebilsin.
+async function resolveSource(pid, body) {
+  const docId = body?.sourceDocumentId;
+  if (!docId) return {};
+  const doc = await prisma.projectDocument.findFirst({
+    where: { id: String(docId), projectId: pid },
+    select: { id: true, fileName: true },
+  });
+  if (!doc) throw bad('Kaynak dokuman bulunamadi.', 400);
+  const toInt = (v) => (Number.isInteger(v) && v >= 0 ? v : null);
+  const start = toInt(body.sourceStart);
+  const end = toInt(body.sourceEnd);
+  return {
+    sourceDocumentId: doc.id,
+    sourceDocumentName: doc.fileName,
+    sourceStart: start,
+    sourceEnd: end !== null && start !== null && end > start ? end : null,
+    sourceQuote:
+      String(body.sourceQuote || '')
+        .trim()
+        .slice(0, 5000) || null,
+  };
+}
+
 // Etki analizinde kullanilan "ilgili dokuman" etiket listesini temizler.
 function normalizeDocuments(list) {
   if (!Array.isArray(list)) return [];
@@ -788,6 +817,7 @@ app.post(
     const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, b.type, false));
     const defs = await listDefs(prisma, pid, 'requirement');
     const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
+    const source = await resolveSource(pid, b);
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
     const row = await prisma.requirement.create({
       data: {
@@ -801,6 +831,7 @@ app.post(
         attributes,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
+        ...source,
       },
     });
     await audit(pid, {
@@ -808,7 +839,9 @@ app.post(
       entityType: 'requirement',
       entityId: row.id,
       textId: row.text_id,
-      message: `Yeni gereksinim: "${row.title}" (${row.type}).`,
+      message: source.sourceDocumentId
+        ? `Yeni gereksinim: "${row.title}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
+        : `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
     res.status(201).json(flatten(row));
   }),
