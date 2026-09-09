@@ -194,7 +194,8 @@ test('DELETE /documents/:id — PM siler ve AuditLog kaydi olusur', async () => 
 
   const res = await request(app)
     .delete(`/api/projects/${projB.id}/documents/${doc.id}`)
-    .set('Authorization', `Bearer ${pmToken}`);
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ reason: 'Test verisi temizligi.' });
   assert.equal(res.status, 200);
 
   const remaining = await request(app)
@@ -204,7 +205,9 @@ test('DELETE /documents/:id — PM siler ve AuditLog kaydi olusur', async () => 
 
   const logs = await prisma.auditLog.findMany({ where: { projectId: projB.id } });
   assert.ok(logs.some((l) => l.action === 'DOCUMENT_UPLOAD'));
-  assert.ok(logs.some((l) => l.action === 'DOCUMENT_DELETE'));
+  const deleteLog = logs.find((l) => l.action === 'DOCUMENT_DELETE');
+  assert.ok(deleteLog);
+  assert.equal(deleteLog.reason, 'Test verisi temizligi.');
 });
 
 test('DELETE /documents/:id — baska projenin belgesi 404 dondurur', async () => {
