@@ -21,6 +21,7 @@ import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
+import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
@@ -56,6 +57,7 @@ export default function Hierarchy({
     voteApproval,
     unlockApproval,
     getApprovalMatrix,
+    projectId,
   } = useApp()
   const { t } = useLang()
   const { can, isPM, currentUser } = useAuth()
@@ -67,6 +69,8 @@ export default function Hierarchy({
   const [attrMgr, setAttrMgr] = useState(false)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [viewRow, setViewRow] = useState(null)
+  // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
+  const [sourceRow, setSourceRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
@@ -265,6 +269,13 @@ export default function Hierarchy({
         showHistory
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
+        onOpenSource={setSourceRow}
+      />
+      {/* Kaynak izlenebilirligi: dokumani Metin modunda acip pasaji vurgular. */}
+      <SourceDocumentModal
+        requirement={sourceRow}
+        projectId={projectId}
+        onClose={() => setSourceRow(null)}
       />
       <ImpactAnalysisModal
         open={Boolean(impactRow)}

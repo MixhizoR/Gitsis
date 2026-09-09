@@ -228,6 +228,119 @@ test('GET /documents/:id/preview — baska projenin belgesi 404 dondurur', async
   assert.equal(res.status, 404);
 });
 
+// --- Metin cikarma + kaynak izlenebilirligi ---------------------------------
+
+test('POST /documents — xlsx yuklenince metin cikarilir (textStatus=ready)', async () => {
+  const xlsx = await makeRealXlsx();
+  const created = await request(app)
+    .post(`/api/projects/${projA.id}/documents`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', xlsx, 'metin-kaynagi.xlsx');
+  assert.equal(created.status, 201);
+  assert.equal(created.body.textStatus, 'ready');
+  // Icerik gibi METIN de liste/olusturma yanitinda DONMEZ (buyuk olabilir).
+  assert.equal(created.body.extractedText, undefined);
+
+  const res = await request(app)
+    .get(`/api/projects/${projA.id}/documents/${created.body.id}/text`)
+    .set('Authorization', `Bearer ${pmToken}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.textStatus, 'ready');
+  assert.match(res.body.text, /Guc dagitim karti/);
+});
+
+test('POST /documents — .xls metni cikarilamaz (textStatus=unsupported)', async () => {
+  const created = await request(app)
+    .post(`/api/projects/${projA.id}/documents`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', Buffer.from('eski ikili xls'), 'eski.xls');
+  assert.equal(created.status, 201);
+  assert.equal(created.body.textStatus, 'unsupported');
+});
+
+test('POST /requirements — secilen pasaj documentId + karakter araligiyla kaydedilir', async () => {
+  const xlsx = await makeRealXlsx();
+  const doc = await request(app)
+    .post(`/api/projects/${projA.id}/documents`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', xlsx, 'kaynak-dokuman.xlsx');
+
+  const res = await request(app)
+    .post(`/api/projects/${projA.id}/requirements`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({
+      title: 'Guc dagitim karti',
+      description: 'Guc dagitim karti 28 VDC girisi desteklemelidir.',
+      type: 'System Requirement',
+      sourceDocumentId: doc.body.id,
+      sourceStart: 42,
+      sourceEnd: 91,
+      sourceQuote: 'Guc dagitim karti 28 VDC girisi desteklemelidir.',
+    });
+
+  assert.equal(res.status, 201);
+  assert.equal(res.body.sourceDocumentId, doc.body.id);
+  assert.equal(res.body.sourceStart, 42);
+  assert.equal(res.body.sourceEnd, 91);
+  assert.equal(res.body.sourceQuote, 'Guc dagitim karti 28 VDC girisi desteklemelidir.');
+  // Dokuman adi ANLIK KOPYA olarak yazilir (dokuman silinse de kalsin).
+  assert.equal(res.body.sourceDocumentName, 'kaynak-dokuman.xlsx');
+  // text_id uretimi mevcut akistan gecer (ayri bir yazma yolu acilmadi).
+  assert.ok(res.body.text_id);
+});
+
+test('POST /requirements — baska projenin dokumani kaynak olarak REDDEDILIR', async () => {
+  // Ayri bir proje kullaniliyor: projB'nin belge sayisi sonraki testlerin
+  // varsayimi (bkz. proje izolasyonu / silme testleri) bozulmasin.
+  const other = await prisma.project.create({ data: { name: 'IDOR Kaynak Projesi' } });
+  const doc = await request(app)
+    .post(`/api/projects/${other.id}/documents`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', PDF_BYTES, 'diger-proje-kaynak.pdf');
+
+  const res = await request(app)
+    .post(`/api/projects/${projA.id}/requirements`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ title: 'IDOR denemesi', type: 'System Requirement', sourceDocumentId: doc.body.id });
+  assert.equal(res.status, 400);
+
+  await prisma.project.delete({ where: { id: other.id } });
+});
+
+test('Kaynak dokuman silinince gereksinim SILINMEZ; bag bosa duser, alinti kalir', async () => {
+  const xlsx = await makeRealXlsx();
+  const doc = await request(app)
+    .post(`/api/projects/${projA.id}/documents`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', xlsx, 'silinecek-kaynak.xlsx');
+
+  const req1 = await request(app)
+    .post(`/api/projects/${projA.id}/requirements`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({
+      title: 'Kaynagi silinecek gereksinim',
+      type: 'System Requirement',
+      sourceDocumentId: doc.body.id,
+      sourceStart: 0,
+      sourceEnd: 20,
+      sourceQuote: 'silinen dokumandan alinti',
+    });
+  assert.equal(req1.status, 201);
+
+  const del = await request(app)
+    .delete(`/api/projects/${projA.id}/documents/${doc.body.id}`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ reason: 'Kaynak silme davranisi testi.' });
+  assert.equal(del.status, 200);
+
+  const after = await prisma.requirement.findUnique({ where: { id: req1.body.id } });
+  assert.ok(after, 'gereksinim silinmemeli');
+  assert.equal(after.sourceDocumentId, null, 'bag bosa dusmeli');
+  // UI "kaynak dokuman silinmis: <ad>" diyebilsin diye kopyalar KALIR.
+  assert.equal(after.sourceDocumentName, 'silinecek-kaynak.xlsx');
+  assert.equal(after.sourceQuote, 'silinen dokumandan alinti');
+});
+
 // --- Proje izolasyonu (IDOR) ------------------------------------------------
 
 test('GET /documents — belgeler proje bazli izole edilir', async () => {

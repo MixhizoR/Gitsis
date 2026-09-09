@@ -28,6 +28,7 @@ import { componentKeyOf } from '../utils/permissions.js'
 import { SATISFIES_PARENT_OF } from '../utils/constants.js'
 import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
+import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
@@ -72,6 +73,8 @@ export default function PbsTree() {
 
   const [q, setQ] = useState('')
   const [viewRow, setViewRow] = useState(null)
+  // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
+  const [sourceRow, setSourceRow] = useState(null)
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [linkTarget, setLinkTarget] = useState(null)
@@ -411,6 +414,13 @@ export default function PbsTree() {
         showStatus={false}
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
+        onOpenSource={setSourceRow}
+      />
+      {/* Kaynak izlenebilirligi: dokumani Metin modunda acip pasaji vurgular. */}
+      <SourceDocumentModal
+        requirement={sourceRow}
+        projectId={projectId}
+        onClose={() => setSourceRow(null)}
       />
       <ImpactAnalysisModal
         open={Boolean(impactRow)}

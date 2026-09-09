@@ -13,6 +13,8 @@ const uploadDocument = vi.fn()
 const deleteDocument = vi.fn()
 const downloadDocument = vi.fn()
 const previewDocument = vi.fn()
+const getDocumentText = vi.fn()
+const createRequirement = vi.fn()
 
 vi.mock('../../services/dataService.js', () => ({
   listDocuments: (...a) => listDocuments(...a),
@@ -20,6 +22,7 @@ vi.mock('../../services/dataService.js', () => ({
   deleteDocument: (...a) => deleteDocument(...a),
   downloadDocument: (...a) => downloadDocument(...a),
   previewDocument: (...a) => previewDocument(...a),
+  getDocumentText: (...a) => getDocumentText(...a),
 }))
 
 vi.mock('../../context/ProjectContext.jsx', () => ({
@@ -30,7 +33,16 @@ vi.mock('../../context/ProjectContext.jsx', () => ({
 const refresh = vi.fn()
 
 vi.mock('../../context/AppContext.jsx', () => ({
-  useApp: () => ({ refresh: (...a) => refresh(...a) }),
+  useApp: () => ({
+    refresh: (...a) => refresh(...a),
+    // RequirementForm'un ihtiyaclari (kayit MEVCUT addRequirement akisindan gecer).
+    addRequirement: (...a) => createRequirement(...a),
+    editRequirement: vi.fn(),
+    addField: vi.fn(),
+    fields: [],
+    attributeDefs: [],
+    requirements: [],
+  }),
   AppProvider: ({ children }) => children,
 }))
 
@@ -72,6 +84,8 @@ describe('DocumentLibrary — belge kütüphanesi', () => {
     listDocuments.mockResolvedValue([])
     uploadDocument.mockResolvedValue({ ...DOC })
     previewDocument.mockResolvedValue({ kind: 'spreadsheet', sheets: [], totalSheets: 0 })
+    getDocumentText.mockResolvedValue({ id: 'doc-1', text: '', textStatus: 'ready' })
+    createRequirement.mockResolvedValue({ id: 'req-1' })
     // jsdom object URL API'sini uygulamaz; tarayicida yerlesik olan bu iki
     // fonksiyonu taklit ediyoruz (React cleanup'i da revoke cagirdigi icin
     // test govdesi bitince geri alinmamalilar).
@@ -178,6 +192,104 @@ describe('DocumentLibrary — belge kütüphanesi', () => {
     fireEvent.click(await screen.findByText(xlsxDoc.fileName))
 
     expect(await screen.findByText(/okunamadi/i)).toBeInTheDocument()
+  })
+
+  it('metin modunda seçim yapınca ön-dolu gereksinim formu açılır', async () => {
+    const docWithText = { ...DOC, textStatus: 'ready' }
+    listDocuments.mockResolvedValue([docWithText])
+    downloadDocument.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    getDocumentText.mockResolvedValue({
+      id: docWithText.id,
+      text: 'Sistem, 200 ms icinde yanit vermelidir.',
+      textStatus: 'ready',
+    })
+    const { container } = await renderPage()
+
+    fireEvent.click(await screen.findByText(docWithText.fileName))
+    // "Metin" moduna gec (PDF goruntuleyicide secim yakalanamaz).
+    fireEvent.click(await screen.findByTestId('preview-mode-text'))
+    await screen.findByTestId('document-text')
+
+    // Secimi taklit et.
+    const seg = container.querySelector('[data-offset="0"]')
+    vi.stubGlobal('getSelection', () => ({
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => 'Sistem, 200 ms icinde yanit vermelidir.',
+      getRangeAt: () => ({
+        startContainer: seg.firstChild,
+        startOffset: 0,
+        endContainer: seg.firstChild,
+        endOffset: 39,
+        commonAncestorContainer: container.querySelector('[data-testid="document-text"]'),
+        getBoundingClientRect: () => ({ right: 100, top: 20 }),
+      }),
+    }))
+    document.dispatchEvent(new Event('selectionchange'))
+
+    fireEvent.click(await screen.findByTestId('selection-add-btn'))
+
+    // Form ON-DOLU acilmali: baslik ilk cumle, aciklama tam secim.
+    await waitFor(() => expect(container.querySelector('#req-form')).toBeInTheDocument())
+    const form = container.querySelector('#req-form')
+    expect(form).toBeInTheDocument()
+    const titleInput = form.querySelector('input.input')
+    const descField = form.querySelector('textarea')
+    expect(titleInput.value).toBe('Sistem, 200 ms icinde yanit vermelidir.')
+    expect(descField.value).toBe('Sistem, 200 ms icinde yanit vermelidir.')
+    vi.unstubAllGlobals()
+  })
+
+  it('ön-dolu form düzenlenirse KULLANICININ hâli kaydedilir, ham seçim değil', async () => {
+    const docWithText = { ...DOC, textStatus: 'ready' }
+    listDocuments.mockResolvedValue([docWithText])
+    downloadDocument.mockResolvedValue(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    getDocumentText.mockResolvedValue({
+      id: docWithText.id,
+      text: 'Sistem, 200 ms icinde yanit vermelidir.',
+      textStatus: 'ready',
+    })
+    const { container } = await renderPage()
+
+    fireEvent.click(await screen.findByText(docWithText.fileName))
+    fireEvent.click(await screen.findByTestId('preview-mode-text'))
+    await screen.findByTestId('document-text')
+
+    const seg = container.querySelector('[data-offset="0"]')
+    vi.stubGlobal('getSelection', () => ({
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => 'Sistem, 200 ms icinde yanit vermelidir.',
+      getRangeAt: () => ({
+        startContainer: seg.firstChild,
+        startOffset: 0,
+        endContainer: seg.firstChild,
+        endOffset: 39,
+        commonAncestorContainer: container.querySelector('[data-testid="document-text"]'),
+        getBoundingClientRect: () => ({ right: 100, top: 20 }),
+      }),
+    }))
+    document.dispatchEvent(new Event('selectionchange'))
+    fireEvent.click(await screen.findByTestId('selection-add-btn'))
+
+    // Kullanici basligi DEGISTIRIYOR.
+    await waitFor(() => expect(container.querySelector('#req-form')).toBeInTheDocument())
+    const form = container.querySelector('#req-form')
+    fireEvent.change(form.querySelector('input.input'), {
+      target: { value: 'Yanit suresi gereksinimi' },
+    })
+    fireEvent.submit(form)
+
+    await waitFor(() => expect(createRequirement).toHaveBeenCalledTimes(1))
+    const payload = createRequirement.mock.calls[0][0]
+    // Kaydedilen KULLANICININ hali.
+    expect(payload.title).toBe('Yanit suresi gereksinimi')
+    // Kaynak izlenebilirligi payload'a eklenmis olmali.
+    expect(payload.sourceDocumentId).toBe(docWithText.id)
+    expect(payload.sourceStart).toBe(0)
+    expect(payload.sourceEnd).toBe(39)
+    expect(payload.sourceQuote).toBe('Sistem, 200 ms icinde yanit vermelidir.')
+    vi.unstubAllGlobals()
   })
 
   it('silme gerekçe formunu açar, gerekçeyle siler ve AppContext refresh tetiklenir', async () => {

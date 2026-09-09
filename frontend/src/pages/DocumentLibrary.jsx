@@ -18,6 +18,9 @@ import { useLang } from '../context/LanguageContext.jsx'
 import { formatDateTime } from '../utils/format.js'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import DocumentPreviewModal from '../components/common/DocumentPreviewModal.jsx'
+import RequirementForm from '../components/requirements/RequirementForm.jsx'
+import { deriveTitle } from '../components/documents/DocumentTextView.jsx'
+import { REQ_TYPE } from '../utils/constants.js'
 import {
   IconDoc,
   IconUpload,
@@ -71,7 +74,7 @@ export default function DocumentLibrary() {
   // Belge listesi kasten AppContext'e tasinmadi (bkz. yukaridaki not) ama
   // yukleme/silme AuditLog'a yazdigi icin Degisiklik Tarihcesi'nin bunu
   // gormesi icin AppContext'in genel refresh()'ini de tetiklemeliyiz.
-  const { refresh } = useApp()
+  const { refresh, requirements } = useApp()
   const { isPM, can } = useAuth()
   const { t } = useLang()
   const fileRef = useRef(null)
@@ -89,6 +92,9 @@ export default function DocumentLibrary() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   // Sayfa-ici goruntulenen belge — bkz. DocumentPreviewModal.
   const [previewTarget, setPreviewTarget] = useState(null)
+  // Metin secimiyle acilan ON-DOLU gereksinim formu.
+  //   { source: {...}, initialValues: { title, description } }
+  const [draft, setDraft] = useState(null)
 
   const canDelete = isPM || can('delete')
 
@@ -120,6 +126,33 @@ export default function DocumentLibrary() {
   }, [docs, query])
 
   const totalSize = useMemo(() => docs.reduce((s, d) => s + (d.size || 0), 0), [docs])
+
+  // Onizlenen dokumandan turetilmis gereksinimlerin pasajlari (vurgulama icin).
+  const sourceRanges = useMemo(() => {
+    if (!previewTarget) return []
+    return (requirements || [])
+      .filter((r) => r.sourceDocumentId === previewTarget.id)
+      .map((r) => ({ start: r.sourceStart, end: r.sourceEnd, label: r.text_id }))
+  }, [requirements, previewTarget])
+
+  /** Metin secimi -> ON-DOLU gereksinim formu (kayit addRequirement'tan gecer). */
+  const handleCreateFromSelection = ({ text: selected, start, end }) => {
+    // Ayni pasaj daha once kaynak olmus mu? UYARI amacli — ENGEL DEGIL.
+    const overlapping = sourceRanges
+      .filter((r) => Number.isInteger(r.start) && start < r.end && end > r.start)
+      .map((r) => r.label)
+    setDraft({
+      source: {
+        documentId: previewTarget.id,
+        documentName: previewTarget.fileName,
+        start,
+        end,
+        quote: selected,
+        duplicateOf: overlapping.length ? overlapping.join(', ') : null,
+      },
+      initialValues: { title: deriveTitle(selected), description: selected },
+    })
+  }
 
   // --- Yükleme --------------------------------------------------------------
   const handleFiles = async (fileList) => {
@@ -419,6 +452,23 @@ export default function DocumentLibrary() {
         projectId={activeProjectId}
         onClose={() => setPreviewTarget(null)}
         onDownload={handleDownload}
+        onCreateRequirement={handleCreateFromSelection}
+        sourceRanges={sourceRanges}
+      />
+      {/* Ardisik secim: form kapaninca onizleme ACIK kalir ve metindeki konum
+          korunur (goruntuleyici yeniden yuklenmez). */}
+      <RequirementForm
+        open={Boolean(draft)}
+        onClose={() => setDraft(null)}
+        source={draft?.source}
+        initialValues={draft?.initialValues}
+        pageConfig={{
+          // Dokuman kutuphanesi bir hiyerarsi sayfasi degil: tip kilitli degil,
+          // kullanici dort gereksinim tipinden birini secer.
+          typeOptions: [REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
+          lockedType: null,
+          addLabel: t('docsel.formTitle'),
+        }}
       />
       <ReasonModal
         open={Boolean(deleteTarget)}

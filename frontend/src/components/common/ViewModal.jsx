@@ -20,6 +20,9 @@ export default function ViewModal({
   row,
   canWrite = false,
   showStatus = true,
+  // Kaynak dokuman satirina tiklandiginda cagirilir (dokumani acip pasaji
+  // vurgulamak icin). Verilmezse "Kaynak" satiri salt bilgi olarak gosterilir.
+  onOpenSource,
   // Issue #57: gereksinimlerde salt okunur "Gecmis" (versiyon) sekmesi.
   // Yalnizca kaynagi gereksinim olan sayfalar (Hierarchy) iletir; testlerin
   // backend'de versiyon gecmisi yoktur, bu yuzden varsayilan false'dur.
@@ -138,6 +141,39 @@ export default function ViewModal({
               </span>
             ))}
           </div>
+
+          {/* Kaynak izlenebilirligi: dokumandan metin secilerek olusturulduysa.
+              Dokuman SILINMIS olsa bile (sourceDocumentId null'a duser) alinti
+              ve dokuman adi kopyasi kaldigi icin kaynak gorunur kalir. */}
+          {(row.sourceDocumentId || row.sourceQuote) && (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {t('view.source')}
+                </span>
+                {row.sourceDocumentId ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSource?.(row)}
+                    disabled={!onOpenSource}
+                    data-testid="view-source-open"
+                    className="text-sm font-semibold text-brand-600 hover:underline disabled:cursor-default disabled:text-slate-600 disabled:no-underline dark:text-brand-400 dark:disabled:text-slate-300"
+                  >
+                    {row.sourceDocumentName || t('view.sourceDocument')}
+                  </button>
+                ) : (
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                    {t('view.sourceDeleted', { name: row.sourceDocumentName || '—' })}
+                  </span>
+                )}
+              </div>
+              {row.sourceQuote && (
+                <p className="mt-1 line-clamp-3 text-xs italic text-slate-600 dark:text-slate-400">
+                  “{row.sourceQuote}”
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">

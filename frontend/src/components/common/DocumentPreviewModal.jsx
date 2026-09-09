@@ -11,13 +11,20 @@
 //             kutuphanesi eklenmez; .xls (eski ikili bicim) onizlenemez, o
 //             durumda backend 415 doner ve kullaniciya "indirin" denir.
 //
+//  UCUNCU MOD — "Metin": backend'de yukleme aninda cikarilan duz metni
+//  secilebilir olarak gosterir. Kullanici bir pasaji secip gereksinim
+//  olusturabilir (bkz. DocumentTextView). PDF'te tarayicinin kendi
+//  goruntuleyicisi bir eklentidir; icindeki secime JavaScript ERISEMEZ, bu
+//  yuzden secim akisi ayri bir metin modunda calisir.
+//
 //  Object URL bellek sizintisi yapmasin diye kapanista revoke edilir.
 // ============================================================================
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Modal from './Modal.jsx'
 import { IconDownload, IconLoader, IconAlert } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import { downloadDocument, previewDocument } from '../../services/dataService.js'
+import DocumentTextView from '../documents/DocumentTextView.jsx'
+import { downloadDocument, previewDocument, getDocumentText } from '../../services/dataService.js'
 
 /** Excel onizlemesi: sayfa (sheet) sekmeleri + tablo. */
 function SheetView({ data }) {
@@ -94,14 +101,81 @@ function SheetView({ data }) {
   )
 }
 
-export default function DocumentPreviewModal({ open, doc, projectId, onClose, onDownload }) {
+export default function DocumentPreviewModal({
+  open,
+  doc,
+  projectId,
+  onClose,
+  onDownload,
+  // Metinden gereksinim uretme: secim yapilinca cagirilir.
+  //   onCreateRequirement({ text, start, end })
+  onCreateRequirement,
+  // Bu dokumandan turetilmis gereksinimler — pasajlari vurgulamak icin.
+  sourceRanges = [],
+  // Disaridan acilis modu ("text" => Metin sekmesi) ve vurgulanacak aralik.
+  initialMode = null,
+  focusRange = null,
+}) {
   const { t } = useLang()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [pdfUrl, setPdfUrl] = useState(null)
   const [sheetData, setSheetData] = useState(null)
+  // 'original' (PDF goruntuleyici / Excel tablosu) | 'text' (secilebilir metin)
+  const [mode, setMode] = useState('original')
+  const [textData, setTextData] = useState(null)
+  const [textLoading, setTextLoading] = useState(false)
+  const [textError, setTextError] = useState(null)
 
   const isPdf = doc?.ext === '.pdf'
+  // 'pending' de dahil: ozellik eklenmeden once yuklenmis belgelerin metni ilk
+  // erisimde sunucuda cikarilir (bkz. documents.js /text). Yalnizca kesin
+  // olarak metin cikarilamayanlarda ('unsupported' / 'failed') sekme gizlenir.
+  const canSelectText = doc?.textStatus === 'ready' || doc?.textStatus === 'pending'
+
+  // Vurgulanacak pasajlar: bu dokumandan turetilmis gereksinimler + gereksinim
+  // detayindan "Kaynak" ile gelindiyse o pasaj.
+  const highlights = useMemo(() => {
+    const list = [...(sourceRanges || [])]
+    if (focusRange && Number.isInteger(focusRange.start)) list.push(focusRange)
+    return list
+  }, [sourceRanges, focusRange])
+
+  // Acilista modu belirle: normalde "Orijinal"; kaynak pasaja gitmek icin
+  // acildiysa (gereksinim detayindaki "Kaynak" satiri) dogrudan "Metin".
+  useEffect(() => {
+    if (!open) return
+    setMode(initialMode === 'text' && doc?.textStatus !== 'unsupported' ? 'text' : 'original')
+  }, [open, doc?.id, doc?.textStatus, initialMode])
+
+  // Metin modu ilk kez acildiginda metni cek (liste yaniti metni TASIMAZ).
+  //  DIKKAT: "hangi belgenin metni yuklendi" bilgisi STATE degil REF'te tutulur.
+  //  State olsaydi effect'in bagimliligi olurdu; veri gelince bagimlilik
+  //  degisir, React once TEMIZLIGI calistirir (cancelled = true) ve ayni
+  //  zincirdeki setTextLoading(false) atlanirdi — spinner sonsuza kadar donerdi.
+  const loadedTextIdRef = useRef(null)
+  useEffect(() => {
+    if (!open || !doc || mode !== 'text') return
+    if (loadedTextIdRef.current === doc.id) return
+    let cancelled = false
+    setTextLoading(true)
+    setTextError(null)
+    getDocumentText(projectId, doc.id)
+      .then((d) => {
+        if (cancelled) return
+        loadedTextIdRef.current = doc.id
+        setTextData(d)
+        setTextLoading(false)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setTextError(e?.message || t('docs.previewError'))
+        setTextLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, doc, projectId, mode, t])
 
   useEffect(() => {
     if (!open || !doc) return
@@ -158,7 +232,7 @@ export default function DocumentPreviewModal({ open, doc, projectId, onClose, on
         </div>
       }
     >
-      {loading && (
+      {mode === 'original' && loading && (
         <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
           <IconLoader size={20} className="animate-spin" />
           <span className="text-sm">{t('docs.previewLoading')}</span>
@@ -175,7 +249,62 @@ export default function DocumentPreviewModal({ open, doc, projectId, onClose, on
         </div>
       )}
 
-      {!loading && !error && isPdf && pdfUrl && (
+      {/* Mod secici — yalnizca metni cikarilabilmis belgelerde. */}
+      {canSelectText && !error && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div
+            className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800/70"
+            role="tablist"
+          >
+            {['original', 'text'].map((m) => (
+              <button
+                key={m}
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                data-testid={`preview-mode-${m}`}
+                className={
+                  'rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ' +
+                  (mode === m
+                    ? 'bg-white text-brand-700 shadow-sm dark:bg-slate-900 dark:text-brand-300'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200')
+                }
+              >
+                {m === 'original' ? t('docs.modeOriginal') : t('docs.modeText')}
+              </button>
+            ))}
+          </div>
+          {mode === 'text' && onCreateRequirement && (
+            <span className="text-xs text-slate-500 dark:text-slate-400">{t('docsel.hint')}</span>
+          )}
+        </div>
+      )}
+
+      {/* Secilebilir metin — pasaj secip gereksinim uretme akisi. */}
+      {mode === 'text' && !error && (
+        <>
+          {textLoading && (
+            <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
+              <IconLoader size={20} className="animate-spin" />
+              <span className="text-sm">{t('docs.previewLoading')}</span>
+            </div>
+          )}
+          {!textLoading && textError && (
+            <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+              {textError}
+            </div>
+          )}
+          {!textLoading && !textError && textData && (
+            <DocumentTextView
+              text={textData.text}
+              sources={highlights}
+              onCreate={onCreateRequirement}
+            />
+          )}
+        </>
+      )}
+
+      {mode === 'original' && !loading && !error && isPdf && pdfUrl && (
         // Sarmalayici h-full: Modal'in flex-1 icerik alanini tam doldursun.
         <div className="h-full min-h-[70vh]">
           <iframe
@@ -187,7 +316,9 @@ export default function DocumentPreviewModal({ open, doc, projectId, onClose, on
         </div>
       )}
 
-      {!loading && !error && !isPdf && sheetData && <SheetView data={sheetData} />}
+      {mode === 'original' && !loading && !error && !isPdf && sheetData && (
+        <SheetView data={sheetData} />
+      )}
     </Modal>
   )
 }
