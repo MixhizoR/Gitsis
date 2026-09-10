@@ -21,7 +21,7 @@ import {
   IconChevron,
   IconLoader,
 } from './Icons.jsx'
-import { truncate } from '../../utils/format.js'
+import { truncate, personnelName } from '../../utils/format.js'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 
@@ -96,8 +96,15 @@ export default function EntityTable({
   rowDropAllowed,
 }) {
   const { t } = useLang()
-  const { attributeDefs } = useApp()
+  const { attributeDefs, personnel } = useApp()
   const has = (c) => columns.includes(c)
+  // Satirda yalnizca assigneeId tasinir; adi burada cozeriz. Personel
+  // silinmisse atama zaten bosa duser (SetNull), yine de savunmaci davraniriz.
+  const assigneeNameOf = (id) => {
+    if (!id) return null
+    const p = (personnel || []).find((x) => x.id === id)
+    return p ? personnelName(p) : null
+  }
   const isSelected = (id) => Boolean(selectedIds && selectedIds.has(id))
 
   // Modular oznitelik sutunlari: projede tanimli her oznitelik (Priority
@@ -151,6 +158,7 @@ export default function EntityTable({
               {has('type') && <th className="px-4 py-3">{t('tbl.th.type')}</th>}
               {has('field') && <th className="px-4 py-3">{t('form.field')}</th>}
               {has('status') && <th className="px-4 py-3">{statusLabel || t('tbl.th.status')}</th>}
+              {has('assignee') && <th className="px-4 py-3">{t('tbl.th.assignee')}</th>}
               {attrDefs.map((d) => (
                 <th key={d.id} className="px-4 py-3">
                   {d.label}
@@ -307,6 +315,17 @@ export default function EntityTable({
                         </span>
                       ) : r.status ? (
                         <StatusBadge value={r.status} />
+                      ) : (
+                        dash
+                      )}
+                    </td>
+                  )}
+                  {has('assignee') && (
+                    <td className="px-4 py-3 align-top">
+                      {assigneeNameOf(r.assigneeId) ? (
+                        <span className="whitespace-nowrap rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          {assigneeNameOf(r.assigneeId)}
+                        </span>
                       ) : (
                         dash
                       )}

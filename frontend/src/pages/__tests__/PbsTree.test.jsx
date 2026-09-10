@@ -333,7 +333,8 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
 
     expect(screen.getByRole('columnheader', { name: /Risk Skoru/i })).toBeInTheDocument()
     expect(within(row).getByText('High')).toBeInTheDocument()
-    expect(within(row).getByText('—')).toBeInTheDocument() // deger yok -> tire
+    // Degeri olmayan her sutun tire gosterir (risk + atanan kisi).
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('gereksinimler degisince agac satirlari YENIDEN cekilir (bayat deger kalmaz)', async () => {

@@ -17,6 +17,7 @@ import Topbar from './components/layout/Topbar.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Hierarchy from './pages/Hierarchy.jsx'
 import PbsTree from './pages/PbsTree.jsx'
+import MyAssignments from './pages/MyAssignments.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
 import Roles from './pages/Roles.jsx'
@@ -107,6 +108,7 @@ export default function App() {
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
           {page === 'pbs-tree' && <PbsTree />}
+          {page === 'my-work' && <MyAssignments />}
           {REQ_KEYS.includes(pageKey) && (
             <Hierarchy
               key={page}

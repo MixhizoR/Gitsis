@@ -18,6 +18,7 @@ import {
   IconDoc,
   IconAlert,
   IconPlus,
+  IconTarget,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
 import NavManager from './NavManager.jsx'
@@ -195,6 +196,18 @@ export default function Sidebar({ active, onNavigate }) {
             label={t(item.labelKey)}
           />
         ))}
+
+        {/* Bana Atananlar — YALNIZCA personel oturumunda. PM'in personel
+            kimligi olmadigi icin kendisine atanmis is de olamaz. */}
+        {!isPM && (
+          <NavButton
+            key="my-work"
+            active={active === 'my-work'}
+            onClick={() => onNavigate('my-work')}
+            Icon={IconTarget}
+            label={t('nav.myWork')}
+          />
+        )}
 
         {/* Roller — Dashboard ile Hiyerarsi ARASINDA (yalnizca yetkiliye) */}
         {canSeeRoles && (

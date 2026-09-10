@@ -17,7 +17,7 @@ import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
 const { canMock, appMock } = vi.hoisted(() => ({
   canMock: vi.fn(() => true),
-  appMock: { requirements: [], links: [], fields: [], attributeDefs: [] },
+  appMock: { requirements: [], links: [], fields: [], attributeDefs: [], personnel: [] },
 }))
 
 vi.mock('../../context/AppContext.jsx', () => ({
@@ -28,6 +28,7 @@ vi.mock('../../context/AppContext.jsx', () => ({
     links: appMock.links,
     fields: appMock.fields,
     attributeDefs: appMock.attributeDefs,
+    personnel: appMock.personnel,
     approvals: [],
     bulkRemoveRequirements: vi.fn(),
     editRequirement: vi.fn(),
@@ -103,6 +104,10 @@ describe('Hierarchy — ortak filtre cubugu', () => {
       { id: 'f2', name: 'Yazilim / Kontrol' },
     ]
     appMock.attributeDefs = [priorityDef]
+    appMock.personnel = [
+      { id: 'p1', firstName: 'Ayse', lastName: 'Demir' },
+      { id: 'p2', firstName: 'Mehmet', lastName: 'Kaya' },
+    ]
     appMock.links = []
     appMock.requirements = [
       req({ id: 'r-1', text_id: 'EH-USR-001', title: 'Kullanici girisi' }),
@@ -245,6 +250,52 @@ describe('Hierarchy — ortak filtre cubugu', () => {
     renderPage({ fieldFilter: 'Arayuz / HMI' })
     expect(screen.queryByTestId('filter-field')).not.toBeInTheDocument()
     expect(codes()).toEqual(['EH-USR-001'])
+  })
+
+  it('tabloda Atanan Kişi sutunu cikar; ad cozulur, atanmamis satirda tire', () => {
+    appMock.requirements = [
+      req({ id: 'r-1', text_id: 'EH-USR-001', assigneeId: 'p1' }),
+      req({ id: 'r-2', text_id: 'EH-USR-002', assigneeId: null }),
+    ]
+    renderPage()
+
+    expect(screen.getByRole('columnheader', { name: /Atanan Kişi/i })).toBeInTheDocument()
+    const assigned = screen.getByText('EH-USR-001').closest('tr')
+    expect(within(assigned).getByText('Ayse Demir')).toBeInTheDocument()
+    const unassigned = screen.getByText('EH-USR-002').closest('tr')
+    expect(within(unassigned).queryByText('Ayse Demir')).not.toBeInTheDocument()
+  })
+
+  it('Atanan Kişi filtresi kisiye ve "atanmamış" secenegine gore daraltir', () => {
+    appMock.requirements = [
+      req({ id: 'r-1', text_id: 'EH-USR-001', assigneeId: 'p1' }),
+      req({ id: 'r-2', text_id: 'EH-USR-002', assigneeId: 'p2' }),
+      req({ id: 'r-3', text_id: 'EH-USR-003', assigneeId: null }),
+    ]
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('filter-assignee'), { target: { value: 'p1' } })
+    expect(codes()).toEqual(['EH-USR-001'])
+
+    fireEvent.change(screen.getByTestId('filter-assignee'), {
+      target: { value: '__unassigned__' },
+    })
+    expect(codes()).toEqual(['EH-USR-003'])
+  })
+
+  it('Atanan Kişi filtresi diger olcutlerle AND ile birlesir', () => {
+    appMock.requirements = [
+      req({ id: 'r-1', text_id: 'EH-USR-001', assigneeId: 'p1', field: 'Arayuz / HMI' }),
+      req({ id: 'r-2', text_id: 'EH-USR-002', assigneeId: 'p1', field: 'Yazilim / Kontrol' }),
+    ]
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('filter-assignee'), { target: { value: 'p1' } })
+    fireEvent.change(screen.getByTestId('filter-field'), {
+      target: { value: 'Yazilim / Kontrol' },
+    })
+    expect(codes()).toEqual(['EH-USR-002'])
+    expect(screen.getByTestId('filter-active-badge')).toHaveTextContent('2 filtre aktif')
   })
 
   it('kayit sayaci filtrelenmis sonucu gosterir', () => {

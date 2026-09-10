@@ -1,7 +1,7 @@
 // ============================================================================
 //  useEntityFilters.js  —  Gereksinim / test listelerinin ortak filtre durumu.
-//  Arama (q) + Tip + Alan + Durum + modular select ozniteliklerinden olusur;
-//  tum olculer AND ile birlesir.
+//  Arama (q) + Tip + Alan + Durum + Atanan Kisi + modular select
+//  ozniteliklerinden olusur; tum olculer AND ile birlesir.
 //
 //  Kalicilik: durum sayfa/nav-item bazli bir anahtarla sessionStorage'a yazilir
 //  — kullanici baska bir sayfaya gecip geri donunce filtreler kaybolmaz, ama
@@ -14,7 +14,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const STORAGE_PREFIX = 'ehsim_filters:'
 
-export const EMPTY_FILTERS = { q: '', type: '', field: '', status: '', attrs: {} }
+export const EMPTY_FILTERS = { q: '', type: '', field: '', status: '', assignee: '', attrs: {} }
+
+// Atanan Kisi filtresinin "kimseye atanmamis" secenegi. Bos dize zaten
+// "filtre yok" anlamina geldigi icin ayri bir sentinel gerekir.
+export const UNASSIGNED = '__unassigned__'
 
 // Durum filtresinin gereksinim sayfalarindaki ozel degeri: gereksinimler KENDI
 // baslarina onaylanmaz, DURUM sutunu onlari DOGRULAYAN test senaryosundan
@@ -40,6 +44,7 @@ export function countActive(filters) {
   if (filters.type) n += 1
   if (filters.field) n += 1
   if (filters.status) n += 1
+  if (filters.assignee) n += 1
   for (const v of Object.values(filters.attrs || {})) if (v) n += 1
   return n
 }
@@ -58,6 +63,10 @@ export function matchesFilters(row, filters, statusOf) {
   if (filters.type && row.type !== filters.type) return false
   if (filters.field && row.field !== filters.field) return false
   if (filters.status && statusOf(row) !== filters.status) return false
+  if (filters.assignee) {
+    const wantUnassigned = filters.assignee === UNASSIGNED
+    if (wantUnassigned ? row.assigneeId : row.assigneeId !== filters.assignee) return false
+  }
   for (const [key, value] of Object.entries(filters.attrs || {})) {
     if (!value) continue
     if (String((row.attributes || {})[key] ?? '') !== value) return false

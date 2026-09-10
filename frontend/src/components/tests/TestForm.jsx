@@ -21,12 +21,13 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
+import { personnelName } from '../../utils/format.js'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
 
 export default function TestForm({ open, onClose, editing, pageConfig }) {
-  const { addTestCase, editTestCase, fields, addField, attributeDefs } = useApp()
+  const { addTestCase, editTestCase, fields, addField, attributeDefs, personnel } = useApp()
   const { t } = useLang()
   const lockedType = pageConfig?.lockedType
 
@@ -34,6 +35,7 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
     title: '',
     description: '',
     field: '',
+    assigneeId: '',
   }
 
   const [form, setForm] = useState(EMPTY)
@@ -50,6 +52,7 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: editing.title || '',
         description: editing.description || '',
         field: editing.field || '',
+        assigneeId: editing.assigneeId || '',
       })
       setCustomAttrs(editing.attributes || {})
     } else {
@@ -83,6 +86,8 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: form.title,
         description: form.description,
         field: form.field || null,
+        // Bos dize = atamayi kaldir (backend bunu null'a cevirir).
+        assigneeId: form.assigneeId,
         attributes: customAttrs,
       }
       if (isEdit) await editTestCase(editing.id, payload)
@@ -171,6 +176,24 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
             {fields.map((f) => (
               <option key={f.id} value={f.name}>
                 {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Sorumlu personel — sozlukteki "Assigned To" bagindan bagimsizdir. */}
+        <div>
+          <label className="label">{t('form.assignee')}</label>
+          <select
+            className="input"
+            value={form.assigneeId}
+            onChange={set('assigneeId')}
+            data-testid="form-assignee"
+          >
+            <option value="">{t('form.assigneeNone')}</option>
+            {personnel.map((p) => (
+              <option key={p.id} value={p.id}>
+                {personnelName(p)}
               </option>
             ))}
           </select>
