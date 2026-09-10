@@ -9,6 +9,8 @@
 //        testcases      (GET/POST/GET:id/PUT:id/DELETE:id)
 //        glossary       (GET/POST/PUT:id/DELETE:id)
 //        links          (GET/POST/DELETE:id)
+//        documents      (GET/POST/GET:id/download/DELETE:id)
+//        comments       (GET/POST/DELETE:id)  -> generic entityType+entityId
 //        audit          (GET/POST)
 //        recompute      (POST)  -> tum durumlari yeniden hesaplar (cascade)
 // ============================================================================
@@ -16,7 +18,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS, isValidClearanceLevel } from './constants.js';
+import { STATUS, isValidClearanceLevel, componentKeyOf } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, getRequiredVoters } from './cascade.js';
 import {
@@ -36,7 +38,10 @@ import {
 } from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import { ensureSystemRoles, resolveUserRole, isPMRole, isAdminRole } from './systemRoles.js';
+import { requireReason } from './reason.js';
 import traceabilityRoutes from './traceability.js';
+import documentRoutes from './documents.js';
+import commentRoutes from './comments.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
 import { nextTextId as nextTextIdShared } from './idGen.js';
@@ -63,6 +68,16 @@ import {
   flattenAll,
 } from './attributes.js';
 import { contentFieldsChanged, nextHistoryVersion, SUSPECT_LINK_TYPES } from './versioning.js';
+import {
+  resolveAssigneeIds,
+  setAssignees,
+  getAssigneeIds,
+  withAssigneeIds,
+  withAssigneeIdsAll,
+  auditAssignment,
+  backfillAssignees,
+  resyncLegacyAssignee,
+} from './assignees.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -120,6 +135,10 @@ app.param('pid', makeProjectAccessGuard(prisma));
 
 // Traceability router — mounted under :pid so app.param('pid', projectAccessGuard)
 app.use('/api/projects/:pid/traceability', traceabilityRoutes);
+// Dokuman kutuphanesi (PDF/Excel yukleme) — ayni sekilde :pid altinda.
+app.use('/api/projects/:pid/documents', documentRoutes);
+// Yorumlar (ana varliklar uzerinde ekip ici iletisim) — ayni sekilde :pid altinda.
+app.use('/api/projects/:pid/comments', commentRoutes);
 
 const PORT = process.env.PORT || 4001;
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => fail(res, e));
@@ -131,6 +150,35 @@ function fail(res, e) {
   return res.status(e?.status || 500).json({ error: e?.message || 'Sunucu hatasi.' });
 }
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+
+// --- Kaynak izlenebilirligi (dokumandan metin secerek gereksinim olusturma) --
+//  Istemciden gelen kaynak bilgisini dogrular ve saklanacak hale getirir.
+//  Dokuman ayni PROJEYE ait olmali (IDOR); degilse kaynak sessizce yok sayilmaz,
+//  hata verilir. Alinti ve dokuman adi ANLIK KOPYA olarak yazilir: dokuman
+//  sonradan silinse de (bag SetNull ile bosa duser) UI "kaynak dokuman
+//  silinmis: <ad>" diyebilsin.
+async function resolveSource(pid, body) {
+  const docId = body?.sourceDocumentId;
+  if (!docId) return {};
+  const doc = await prisma.projectDocument.findFirst({
+    where: { id: String(docId), projectId: pid },
+    select: { id: true, fileName: true },
+  });
+  if (!doc) throw bad('Kaynak dokuman bulunamadi.', 400);
+  const toInt = (v) => (Number.isInteger(v) && v >= 0 ? v : null);
+  const start = toInt(body.sourceStart);
+  const end = toInt(body.sourceEnd);
+  return {
+    sourceDocumentId: doc.id,
+    sourceDocumentName: doc.fileName,
+    sourceStart: start,
+    sourceEnd: end !== null && start !== null && end > start ? end : null,
+    sourceQuote:
+      String(body.sourceQuote || '')
+        .trim()
+        .slice(0, 5000) || null,
+  };
+}
 
 // Etki analizinde kullanilan "ilgili dokuman" etiket listesini temizler.
 function normalizeDocuments(list) {
@@ -178,6 +226,15 @@ function assertRequirementVisible(req, row) {
   }
 }
 
+// --- Sorumlu personel (is atama) -------------------------------------------
+//  Atama artik COKLUDUR (bir kayda birden fazla sorumlu) ve tum mantik
+//  src/assignees.js icindedir: dogrulama (proje sinirini asma korumasi),
+//  ara tabloya yazma, legacy `assigneeId` kolonunu senkron tutma ve ASSIGN
+//  audit kaydi. Buradaki sarmalayicilar yalnizca prisma/audit'i baglar.
+//  Issue #97/A: atanan kisi Personel degil USER'dir (uyelik ProjectMember).
+const assigneeIdsFrom = (body, pid) => resolveAssigneeIds(prisma, pid, body);
+const logAssignment = (pid, entry) => auditAssignment(prisma, audit, pid, entry);
+
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
 //  icinden uretebilmesi icin paylasilabilir hale getirildi.
@@ -194,7 +251,7 @@ async function cascade(projectId) {
 //  Secilen id'leri (proje kapsaminda) tek islemde siler: once iliskili tum
 //  izlenebilirlik baglarini temizler, sonra kayitlari siler, her biri icin
 //  DELETE audit kaydi yazar (silinen text_id kara listede kalir).
-async function batchDelete(pid, model, ids, entityType) {
+async function batchDelete(pid, model, ids, entityType, reason, actor) {
   if (!Array.isArray(ids) || ids.length === 0) throw bad('En az bir id zorunlu.');
   const allRows = await prisma[model].findMany({ where: { id: { in: ids }, projectId: pid } });
   if (allRows.length === 0) throw bad('Silinecek kayit bulunamadi.', 404);
@@ -213,23 +270,11 @@ async function batchDelete(pid, model, ids, entityType) {
       entityId: r.id,
       textId: r.text_id,
       message: `Toplu silme: "${r.title || r.term}" (${r.text_id}).`,
+      reason,
+      actor,
     });
   }
   return foundIds.length;
-}
-
-// --- Izin bileseni (permission component) eslemesi --------------------------
-//  Her gereksinim/test, izin panellerindeki 6 bilesenden birine dusurulur.
-//  Anahtarlar frontend REQ_PAGES / TEST_PAGES sayfa anahtarlariyla ayni.
-function componentKeyOf(entityType, type) {
-  if (entityType === 'requirement') {
-    if (type === 'User Requirement') return 'req-user';
-    if (type === 'System Requirement') return 'req-system';
-    return 'req-subsystem'; // Software / Hardware
-  }
-  if (type === 'Acceptance Test') return 'test-acceptance';
-  if (type === 'System Test') return 'test-system';
-  return 'test-subsystem';
 }
 
 // --- Issue #57: approve izni denetimi ---------------------------------------
@@ -295,11 +340,18 @@ async function recomputeApproval(pid, entityType, entityId) {
   const votedIds = new Set(approvals.map((a) => a.voterId));
   const allVoted = requiredVoterIds.every((v) => votedIds.has(v));
   const approved = allVoted;
-  await prisma[model].update({
-    where: { id: entityId },
-    data: { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved },
-  });
-  return { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved };
+  const data = { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved };
+  // Test SONUCU (Passed/Failed/In Review) artik elle duzenlenemez; yalnizca
+  // onay/red aksiyonlarindan turetilir. Tam konsensus -> 'Approved' (Passed).
+  // Aksi halde (oy geri cekildi / kilit acildi) -> 'In Review'e doner.
+  // 'Rejected' BURADAN degil, ayri /approvals/reject (tek yetkili) aksiyonundan
+  // gelir. Gereksinimler icin status bu fonksiyondan asla degistirilmez —
+  // onlarin durumu SADECE cascade.js ile bagli testlerden turetilir.
+  if (entityType === 'testcase') data.status = approved ? STATUS.APPROVED : STATUS.IN_REVIEW;
+  await prisma[model].update({ where: { id: entityId }, data });
+  // Test sonucu degistiyse bagli gereksinimlerin dogrulama durumu da tazelenmeli.
+  if (entityType === 'testcase') await cascade(pid);
+  return { approvalStatus: data.approvalStatus, locked: data.locked, status: data.status };
 }
 
 // ===========================================================================
@@ -652,11 +704,19 @@ app.delete(
   '/api/admin/users/:id',
   requireAdmin,
   wrap(async (req, res) => {
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { memberships: { select: { projectId: true } } },
+    });
     if (!target) throw bad('Kullanici bulunamadi.', 404);
     if (target.id === req.auth.userId) throw bad('Kendi hesabinizi silemezsiniz.');
     if (isAdminRole(target)) throw bad('Admin hesabi silinemez.');
+    const projectIds = (target.memberships || []).map((m) => m.projectId);
     await prisma.user.delete({ where: { id: target.id } });
+    // Issue #114/#115: atamalar USER'a baglidir. Silinen kisi bir kaydin ILK
+    // sorumlusuysa legacy `assigneeId` kolonu SetNull ile bosalir; siradaki
+    // sorumlu otomatik yerine gecsin diye kolon yeniden senkronlanir.
+    for (const projectId of projectIds) await resyncLegacyAssignee(prisma, projectId);
     await auditSystem('admin.user.delete', {
       userId: req.auth.userId,
       targetUserId: target.id,
@@ -944,6 +1004,30 @@ app.get(
   }),
 );
 
+// Atanabilir kisiler (Issue #97/A) — atama User tabanli oldugu icin picker ve
+// gosterimler bu listeden beslenir. Uyelik yonetiminden FARKLI olarak PM
+// sarti YOKTUR: projeye erisimi olan herkes (guard gecer) okuyabilir, cunku
+// ayni listeyi atama arayuzu da kullanir.
+app.get(
+  '/api/projects/:pid/assignees',
+  wrap(async (req, res) => {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId: req.params.pid },
+      include: { user: { select: { id: true, name: true, role: true, roleKey: true, isActive: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+    const people = rows
+      .filter((m) => m.user && m.user.isActive !== false)
+      .map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        role: m.user.role,
+        roleKey: m.user.roleKey || null,
+      }));
+    res.json(people);
+  }),
+);
+
 app.post(
   '/api/projects/:pid/members',
   requirePM,
@@ -1069,8 +1153,28 @@ app.delete(
   '/api/projects/:pid',
   requirePM,
   wrap(async (req, res) => {
+    const project = await prisma.project.findUnique({ where: { id: req.params.pid } });
+    if (!project) throw bad('Proje bulunamadi.', 404);
+    const reason = requireReason(req);
+    // Once (FK'siz, kalici) silme kaydini yaz: proje silinince AuditLog'u da
+    // CASCADE ile gider, bu tablo gitmez. Sonra projeyi sil.
+    await prisma.projectDeletionLog.create({
+      data: { projectId: project.id, projectName: project.name, reason, actor: actorOf(req) },
+    });
     await prisma.project.delete({ where: { id: req.params.pid } });
     res.json({ ok: true });
+  }),
+);
+
+// Silinen projelerin gerekce gecmisi — proje kapsaminda DEGIL (proje zaten
+// yok), o yuzden :pid parametresi ve projectAccessGuard'in disinda; requirePM
+// burada da gecerli (isPM disinda hicbir sey req.params.pid'e bakmiyor).
+app.get(
+  '/api/project-deletions',
+  requirePM,
+  wrap(async (req, res) => {
+    const rows = await prisma.projectDeletionLog.findMany({ orderBy: { deletedAt: 'desc' } });
+    res.json(rows);
   }),
 );
 
@@ -1104,7 +1208,16 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.projectField.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Alan bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.projectField.delete({ where: { id: req.params.id } });
+    await audit(pid, {
+      action: 'FIELD_DELETE',
+      entityType: 'field',
+      entityId: req.params.id,
+      message: `Alan silindi: "${before.name}".`,
+      reason,
+      actor: actorOf(req),
+    });
     res.json({ ok: true });
   }),
 );
@@ -1227,6 +1340,7 @@ app.post(
       pageKey: b.pageKey,
       label: b.label,
       fieldFilter: b.fieldFilter,
+      typeFilter: b.typeFilter,
     });
     await audit(pid, {
       action: 'CREATE',
@@ -1315,12 +1429,15 @@ app.delete(
     const before = await prisma.attributeDefinition.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Oznitelik bulunamadi.', 404);
     if (before.system) throw bad('Gomulu oznitelikler (Priority, DAL Level) silinemez.', 403);
+    const reason = requireReason(req);
     await prisma.attributeDefinition.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'ATTRIBUTE_DELETE',
       entityType: 'attribute',
       entityId: req.params.id,
       message: `Oznitelik silindi: "${before.label}".`,
+      reason,
+      actor: actorOf(req),
     });
     res.json({ ok: true });
   }),
@@ -1335,7 +1452,7 @@ app.get(
     const where = { projectId: req.params.pid, ...clearanceFilter(req) };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.requirement.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(flattenAll(rows));
+    res.json(await withAssigneeIdsAll(prisma, 'requirement', flattenAll(rows)));
   }),
 );
 
@@ -1348,6 +1465,9 @@ app.post(
     const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, b.type, false));
     const defs = await listDefs(prisma, pid, 'requirement');
     const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
+    const source = await resolveSource(pid, b);
+    // Coklu atama: gonderilmediyse bos liste (yeni kayit, onceki atama yok).
+    const assigneeIds = (await assigneeIdsFrom(b, pid)) ?? [];
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
     // ABAC (#87): ust (parentId) belirtilmisse seviye ustten miras alinir;
     // kullanici kendi seviyesinden yuksek bir seviyeye gereksinim olusturamaz.
@@ -1364,7 +1484,7 @@ app.post(
     // Issue #102: gereksinim seviyesi de 1..5 araliginda olmali (miras dahil).
     if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
     if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
-    const row = await prisma.requirement.create({
+    const created = await prisma.requirement.create({
       data: {
         projectId: pid,
         text_id,
@@ -1378,16 +1498,27 @@ app.post(
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
         parentId,
         clearanceLevel,
+        ...source,
       },
     });
+    const row = assigneeIds.length > 0 ? await setAssignees(prisma, 'requirement', created.id, assigneeIds) : created;
     await audit(pid, {
       action: 'CREATE',
       entityType: 'requirement',
       entityId: row.id,
       textId: row.text_id,
-      message: `Yeni gereksinim: "${row.title}" (${row.type}).`,
+      message: source.sourceDocumentId
+        ? `Yeni gereksinim: "${row.title}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
+        : `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
-    res.status(201).json(flatten(row));
+    await logAssignment(pid, {
+      entity: 'requirement',
+      row,
+      before: [],
+      after: assigneeIds,
+      actor: actorOf(req),
+    });
+    res.status(201).json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1423,7 +1554,7 @@ app.get(
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     assertRequirementVisible(req, row);
-    res.json(flatten(row));
+    res.json(withAssigneeIds(flatten(row), await getAssigneeIds(prisma, 'requirement', row.id)));
   }),
 );
 
@@ -1447,6 +1578,11 @@ app.put(
       const defs = await listDefs(prisma, pid, 'requirement');
       data.attributes = validateAndMergeAttributes(defs, attrInput, before.attributes || {});
     }
+    // Atama: alan gonderilmediyse dokunulmaz; bos gonderilirse kaldirilir.
+    // Icerik degisimi SAYILMAZ (history/suspect tetiklemez) — sorumlunun
+    // degismesi gereksinimin METNINI degistirmez.
+    const nextAssigneeIds = await assigneeIdsFrom(b, pid);
+    const prevAssigneeIds = await getAssigneeIds(prisma, 'requirement', before.id);
     // Issue #57: yalnizca ICERIK alanlari (title/description/field + attributes
     // icindeki priority/dal_level) degistiginde history + suspect tetiklenir.
     // Status/approvalStatus/locked/updatedAt otomatik cascade tarafindan
@@ -1456,7 +1592,10 @@ app.put(
     // Kopyalama + UPDATE + AuditLog tek $transaction (issue: kim neyi degistirdi
     // tek yerden; eski versiyon her zaman onceki durumu saklar).
     const row = await prisma.$transaction(async (tx) => {
-      const updated = await tx.requirement.update({ where: { id: req.params.id }, data });
+      let updated = await tx.requirement.update({ where: { id: req.params.id }, data });
+      if (nextAssigneeIds !== undefined) {
+        updated = await setAssignees(tx, 'requirement', updated.id, nextAssigneeIds);
+      }
       const auditRow = await tx.auditLog.create({
         data: {
           projectId: pid,
@@ -1501,7 +1640,15 @@ app.put(
       }
       return updated;
     });
-    res.json(flatten(row));
+    const assigneeIds = nextAssigneeIds ?? prevAssigneeIds;
+    await logAssignment(pid, {
+      entity: 'requirement',
+      row,
+      before: prevAssigneeIds,
+      after: assigneeIds,
+      actor,
+    });
+    res.json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1570,6 +1717,7 @@ app.delete(
     const before = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     if (before.locked) throw bad('Bu gereksinim onaylandi ve kilitli; silinemez.', 403);
+    const reason = requireReason(req);
     // Iliskili baglari temizle
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
@@ -1581,6 +1729,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Gereksinim silindi: "${before.title}".`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -1591,7 +1741,8 @@ app.post(
   '/api/projects/:pid/requirements/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'requirement', req.body?.ids, 'requirement');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'requirement', req.body?.ids, 'requirement', reason, actorOf(req));
     await cascade(pid);
     res.json({ ok: true, deleted: n });
   }),
@@ -1657,7 +1808,7 @@ app.get(
     const where = { projectId: req.params.pid };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.testCase.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(flattenAll(rows));
+    res.json(await withAssigneeIdsAll(prisma, 'testcase', flattenAll(rows)));
   }),
 );
 
@@ -1668,10 +1819,11 @@ app.post(
     const b = req.body || {};
     if (!b.type) throw bad('Test tipi zorunlu.');
     const text_id = (b.text_id && b.text_id.trim()) || (await nextTextId(pid, b.type, true));
-    // Alan/oncelik/dal ve test sonucu (durum) artik ELLE girilir; bir gereksinime
-    // baglanmak bu degerleri OTOMATIK doldurmaz (bir test coklu gereksinim dogrular).
-    const status = b.status || STATUS.IN_REVIEW;
-    if (![STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW].includes(status)) throw bad('Gecersiz test sonucu.');
+    // Alan/oncelik/dal artik ELLE girilir; bir gereksinime baglanmak bu
+    // degerleri OTOMATIK doldurmaz (bir test coklu gereksinim dogrular).
+    // Test SONUCU (Passed/Failed/In Review) ise ARTIK client'tan alinmaz:
+    // her yeni test 'In Review' baslar, sonucu SADECE onay/red aksiyonlari
+    // (bkz. /approvals/vote, /approvals/reject) belirler.
     const defs = await listDefs(prisma, pid, 'testcase');
     // Test senaryolarinda oznitelikler bos birakilabilir (zorunlu degil); yalnizca
     // gonderilenler dogrulanir, bos birakilanlar null kalir.
@@ -1682,7 +1834,8 @@ app.post(
       {},
       { isCreate: false },
     );
-    const row = await prisma.testCase.create({
+    const assigneeIds = (await assigneeIdsFrom(b, pid)) ?? [];
+    const created = await prisma.testCase.create({
       data: {
         projectId: pid,
         text_id,
@@ -1691,10 +1844,11 @@ app.post(
         type: b.type,
         field: b.field || null,
         attributes,
-        status,
+        status: STATUS.IN_REVIEW,
         author: b.author || 'ehsim.user',
       },
     });
+    const row = assigneeIds.length > 0 ? await setAssignees(prisma, 'testcase', created.id, assigneeIds) : created;
     await audit(pid, {
       action: 'CREATE',
       entityType: 'testcase',
@@ -1702,7 +1856,14 @@ app.post(
       textId: row.text_id,
       message: `Yeni test senaryosu: "${row.title}" (${row.type}).`,
     });
-    res.status(201).json(flatten(row));
+    await logAssignment(pid, {
+      entity: 'testcase',
+      row,
+      before: [],
+      after: assigneeIds,
+      actor: actorOf(req),
+    });
+    res.status(201).json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1728,22 +1889,31 @@ app.put(
         before.attributes || {},
       );
     }
-    // Durum elle degistirilebilir (test sonucu: Passed/Failed/In Review)
-    if (b.status != null) {
-      if (![STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW].includes(b.status)) throw bad('Gecersiz test durumu.');
-      data.status = b.status;
+    // Atama: alan gonderilmediyse dokunulmaz, bos gonderilirse kaldirilir.
+    const nextAssigneeIds = await assigneeIdsFrom(b, pid);
+    const prevAssigneeIds = await getAssigneeIds(prisma, 'testcase', before.id);
+    // Test SONUCU (status) bu route'tan ARTIK degistirilemez — yalnizca
+    // onay/red aksiyonlarindan turetilir (bkz. recomputeApproval, /approvals/reject).
+    let row = await prisma.testCase.update({ where: { id: req.params.id }, data });
+    if (nextAssigneeIds !== undefined) {
+      row = await setAssignees(prisma, 'testcase', row.id, nextAssigneeIds);
     }
-    const row = await prisma.testCase.update({ where: { id: req.params.id }, data });
     await audit(pid, {
       action: 'UPDATE',
       entityType: 'testcase',
       entityId: row.id,
       textId: row.text_id,
-      message: `Test guncellendi: "${row.title}" (durum: ${row.status}).`,
+      message: `Test guncellendi: "${row.title}".`,
     });
-    // Test durumu degistiyse cascade
-    await cascade(pid);
-    res.json(flatten(row));
+    const assigneeIds = nextAssigneeIds ?? prevAssigneeIds;
+    await logAssignment(pid, {
+      entity: 'testcase',
+      row,
+      before: prevAssigneeIds,
+      after: assigneeIds,
+      actor: actorOf(req),
+    });
+    res.json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1754,6 +1924,7 @@ app.delete(
     const before = await prisma.testCase.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Test bulunamadi.', 404);
     if (before.locked) throw bad('Bu test onaylandi ve kilitli; silinemez.', 403);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
@@ -1764,6 +1935,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Test silindi: "${before.title}".`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -1774,7 +1947,8 @@ app.post(
   '/api/projects/:pid/testcases/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'testCase', req.body?.ids, 'testcase');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'testCase', req.body?.ids, 'testcase', reason, actorOf(req));
     await cascade(pid);
     res.json({ ok: true, deleted: n });
   }),
@@ -1846,6 +2020,7 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.glossaryTerm.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Terim bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.deleteMany({
       where: { projectId: pid, OR: [{ fromId: req.params.id }, { toId: req.params.id }] },
     });
@@ -1856,6 +2031,8 @@ app.delete(
       entityId: req.params.id,
       textId: before.text_id,
       message: `Sozluk terimi silindi: "${before.term}".`,
+      reason,
+      actor: actorOf(req),
     });
     res.json({ ok: true });
   }),
@@ -1865,7 +2042,8 @@ app.post(
   '/api/projects/:pid/glossary/batch-delete',
   wrap(async (req, res) => {
     const pid = req.params.pid;
-    const n = await batchDelete(pid, 'glossaryTerm', req.body?.ids, 'glossary');
+    const reason = requireReason(req);
+    const n = await batchDelete(pid, 'glossaryTerm', req.body?.ids, 'glossary', reason, actorOf(req));
     res.json({ ok: true, deleted: n });
   }),
 );
@@ -1979,12 +2157,15 @@ app.delete(
     const pid = req.params.pid;
     const before = await prisma.traceabilityLink.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Bag bulunamadi.', 404);
+    const reason = requireReason(req);
     await prisma.traceabilityLink.delete({ where: { id: req.params.id } });
     await audit(pid, {
       action: 'UNLINK',
       entityType: 'link',
       entityId: req.params.id,
       message: `Bag koparildi (${before.type}).`,
+      reason,
+      actor: actorOf(req),
     });
     await cascade(pid);
     res.json({ ok: true });
@@ -2063,12 +2244,23 @@ app.post(
     const { name } = req.body || {};
     if (!name || !name.trim()) throw bad('Snapshot adı zorunlu.');
 
-    // Mevcut tüm varlıkları topla.
-    const [requirements, testCases, glossary, links] = await Promise.all([
+    // Mevcut tüm varlıkları topla. attributeDefs (modular öznitelik ŞEMASI —
+    // etiket/tip/sıra) ve nav düzeni (menü grupları/sayfaları) de dahil:
+    // ikisi de projeyle birlikte ZAMANLA değişebilir, snapshot'ın kendi
+    // başına (o anki şema/düzenle) yorumlanabilir kalması için an be an
+    // yakalanır — yalnızca CANLI şemaya bakılırsa eski snapshot'lar daha
+    // sonra silinen/yeniden adlandırılan öznitelikleri veya taşınan
+    // sayfaları doğru gösteremezdi.
+    const [requirements, testCases, glossary, links, attributeDefs, navLayout] = await Promise.all([
       prisma.requirement.findMany({ where: { projectId: pid } }),
       prisma.testCase.findMany({ where: { projectId: pid } }),
       prisma.glossaryTerm.findMany({ where: { projectId: pid } }),
       prisma.traceabilityLink.findMany({ where: { projectId: pid } }),
+      prisma.attributeDefinition.findMany({
+        where: { projectId: pid },
+        orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      }),
+      getNavLayout(prisma, pid),
     ]);
 
     // Link'ler için text_id'leri önceden çöz (fromId/toId -> text_id) - zaten çekilen verilerden
@@ -2110,6 +2302,18 @@ app.post(
         };
         items.push({ snapshotId: snap.id, entityType: 'link', entityId: l.id, data: linkData });
       }
+      // Modular öznitelik ŞEMASI: her tanım kendi satırı — görüntüleyici,
+      // o anki gereksinim/test verisindeki 'attributes' torbasını (zaten
+      // flatten() ile spread edilmiş) bu tanımlarla eşleştirerek dinamik
+      // sütun üretir (bkz. frontend Snapshots.jsx).
+      for (const d of attributeDefs) {
+        items.push({ snapshotId: snap.id, entityType: 'attributeDef', entityId: d.id, data: d });
+      }
+      // Menü düzeni: TEK satır, tüm grup/sayfa ağacını tasır (gruplar
+      // arasinda FK gerektirmez, ic ice items[] zaten hiyerarsiyi tasir).
+      // entityId=pid: bu satir bir varlik degil, proje-genelinde TEK bir
+      // yapilandirma anlik goruntusudur.
+      items.push({ snapshotId: snap.id, entityType: 'navLayout', entityId: pid, data: navLayout });
 
       if (items.length > 0) {
         await tx.snapshotItem.createMany({ data: items });
@@ -2157,6 +2361,7 @@ app.delete(
 
     const snapshot = await prisma.projectSnapshot.findUnique({ where: { id: snapshotId } });
     if (!snapshot || snapshot.projectId !== pid) throw bad('Snapshot bulunamadi.', 404);
+    const reason = requireReason(req);
 
     await prisma.snapshotItem.deleteMany({ where: { snapshotId } });
     await prisma.projectSnapshot.delete({ where: { id: snapshotId } });
@@ -2166,7 +2371,8 @@ app.delete(
       entityType: 'snapshot',
       entityId: snapshotId,
       textId: snapshot.name,
-      actor: req.auth?.userId || 'pm',
+      actor: actorOf(req),
+      reason,
       message: `Snapshot silindi: "${snapshot.name}".`,
     });
 
@@ -2294,6 +2500,40 @@ app.post(
   }),
 );
 
+// Test senaryosunu DERHAL "Failed" yapar. Onaylamanin aksine TAM konsensus
+// GEREKMEZ: onay yetkisi olan TEK kisi (PM dahil) bir hatayi isaretleyebilmeli.
+// Yalnizca testcase icin gecerlidir — gereksinimler artik kendi baslarina
+// onaylanmadigi/reddedilmedigi icin (durumlari bagli testten turetilir,
+// bkz. cascade.js).
+app.post(
+  '/api/projects/:pid/approvals/reject',
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const { entityId } = req.body || {};
+    if (!entityId) throw bad('entityId zorunlu.');
+    const entity = await prisma.testCase.findUnique({ where: { id: entityId } });
+    if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
+    if (entity.locked && req.auth?.roleKey !== 'pm')
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yöneticisi kilidi acabilir.', 403);
+    await assertApprovePermission(req, pid, 'testcase', entity);
+    const row = await prisma.testCase.update({
+      where: { id: entityId },
+      data: { status: STATUS.REJECTED, approvalStatus: 'Pending', locked: true },
+    });
+    await audit(pid, {
+      action: 'TEST_REJECT',
+      entityType: 'testcase',
+      entityId,
+      textId: entity.text_id,
+      actor: actorOf(req),
+      message: `Test reddedildi (Failed): "${entity.title}".`,
+    });
+    // Bagli gereksinim(ler)in dogrulama durumu 'Rejected'e donsun.
+    await cascade(pid);
+    res.json({ status: row.status, approvalStatus: row.approvalStatus, locked: row.locked });
+  }),
+);
+
 // PM kilit acar: PM'in onayini geri ceker -> durum Beklemede'ye doner.
 app.post(
   '/api/projects/:pid/approvals/unlock',
@@ -2389,6 +2629,15 @@ if (process.env.NODE_ENV !== 'test') {
         console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
       });
     });
+  // Coklu atamaya gecis: eski tek atamalari (assigneeId) ara tabloya tasi.
+  // Idempotenttir; zaten tasinmis kayitlara dokunmaz.
+  backfillAssignees(prisma)
+    .then(({ requirements, testCases }) => {
+      if (requirements + testCases > 0) {
+        console.log(`[api] Atama gecisi: ${requirements} gereksinim, ${testCases} test tasindi.`);
+      }
+    })
+    .catch((e) => console.error('[api] Atama gecisi basarisiz:', e?.message || e));
 }
 //reqIF Integration
 app.post(

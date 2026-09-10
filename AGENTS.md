@@ -37,6 +37,7 @@ FastAPI Bridge (ai-bridge:8008) ──► LM Studio + Gemma (:1234)
 │   ├── src/
 │   │   ├── server.js          # Main entry, route mounting, middleware
 │   │   ├── auth.js            # JWT, bcrypt, middleware (requireAuth, requirePM, projectAccessGuard)
+│   │   ├── assignees.js       # Multi-assignee (join tables + legacy assigneeId sync + ASSIGN audit)
 │   │   ├── cascade.js         # Bulk status/approval recomputation (Issue #15)
 │   │   ├── constants.js       # Taxonomy: REQ_TYPE, TEST_TYPE, LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES
 │   │   ├── logic.js           # Hierarchy validation, coverage calc
@@ -221,7 +222,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 | Task | Where to Look |
 |------|---------------|
 | Add new REST endpoint | `backend/src/server.js` (route pattern + `wrap`) |
-| Modify requirement hierarchy rules | `backend/src/constants.js` (`SATISFIES_PARENT_OF`, `VERIFIES_TARGET_TYPES`) |
+| Modify requirement hierarchy rules | `backend/src/constants.js` (`SATISFIES_PARENT_OF` for the PBS tree's single parent, `SATISFIES_ALLOWED_PARENTS` for Satisfies traceability links, `VERIFIES_TARGET_TYPES`) |
 | Change approval logic | `backend/src/cascade.js` (`recomputeApprovalsBulk`) |
 | Add frontend page | `frontend/src/pages/`, register in `App.jsx` |
 | Add new entity type | Prisma schema → backend routes → `dataService.js` → `AppContext.jsx` actions → UI |

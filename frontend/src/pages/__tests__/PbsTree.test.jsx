@@ -13,16 +13,27 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
-const { listTreeChildrenMock, getAncestorsMock, canMock } = vi.hoisted(() => ({
+const {
+  listTreeChildrenMock,
+  getAncestorsMock,
+  canMock,
+  attrDefsMock,
+  requirementsMock,
+  fieldsMock,
+} = vi.hoisted(() => ({
   listTreeChildrenMock: vi.fn(),
   getAncestorsMock: vi.fn(),
   canMock: vi.fn(() => true),
+  // Testler arasinda degistirilebilsin diye kutu icinde tutulur.
+  attrDefsMock: { value: [] },
+  requirementsMock: { value: [] },
+  fieldsMock: { value: [] },
 }))
 
 vi.mock('../../context/AppContext.jsx', () => ({
   useApp: () => ({
     projectId: 'p-1',
-    requirements: [],
+    requirements: requirementsMock.value,
     testCases: [],
     glossary: [],
     links: [],
@@ -30,18 +41,9 @@ vi.mock('../../context/AppContext.jsx', () => ({
     // Issue #97: personnel koleksiyonu kalkti (artik yok).
     personnel: [],
     roles: [],
-    fields: [],
+    fields: fieldsMock.value,
     // Modular oznitelikler (main): EntityTable sutunlari bundan turetilir.
-    attributeDefs: [
-      {
-        id: 'a1',
-        entityType: 'requirement',
-        key: 'priority',
-        label: 'Priority',
-        dataType: 'select',
-        order: 0,
-      },
-    ],
+    attributeDefs: attrDefsMock.value,
     createLink: vi.fn(),
     deleteLink: vi.fn(),
     addRequirement: vi.fn(),
@@ -77,6 +79,11 @@ vi.mock('../../services/dataService.js', () => ({
   setCodePrefix: vi.fn(),
 }))
 
+// AttributeManager'in kendi testi ayri; burada yalnizca ACILIP acilmadigi onemli.
+vi.mock('../../components/requirements/AttributeManager.jsx', () => ({
+  default: ({ open }) => (open ? <div data-testid="attr-manager-modal" /> : null),
+}))
+
 import PbsTree from '../PbsTree.jsx'
 
 const node = (over = {}) => ({
@@ -94,6 +101,9 @@ const node = (over = {}) => ({
   ...over,
 })
 
+// Filtre menusunu acar — cubukta yalnizca arama ve tek buton durur.
+const openFilters = () => fireEvent.click(screen.getByTestId('filter-toggle'))
+
 const renderPage = () =>
   render(
     <LanguageProvider>
@@ -107,6 +117,20 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     canMock.mockReturnValue(true)
+    // Filtreler sessionStorage'da kalicidir; testler birbirini etkilemesin.
+    sessionStorage.clear()
+    attrDefsMock.value = [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        order: 0,
+      },
+    ]
+    requirementsMock.value = []
+    fieldsMock.value = []
   })
 
   afterEach(() => {
@@ -262,5 +286,238 @@ describe('PbsTree — gereksinim tablosu + PBS hiyerarsisi', () => {
     await screen.findByText('EH-KAHVE-TİD-USR-001')
 
     expect(screen.queryByTestId('pbs-add-btn')).not.toBeInTheDocument()
+  })
+
+  it('sag ustte "Öznitelik Yönet" dugmesi bulunur ve modali acar', async () => {
+    listTreeChildrenMock.mockResolvedValue({ items: [node()] })
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+
+    const btn = screen.getByTestId('pbs-attr-btn')
+    expect(btn).toBeInTheDocument()
+    expect(screen.queryByTestId('attr-manager-modal')).not.toBeInTheDocument()
+
+    fireEvent.click(btn)
+    expect(await screen.findByTestId('attr-manager-modal')).toBeInTheDocument()
+  })
+
+  it("'manage_fields' izni olmayan kullanicida Öznitelik Yönet gorunmez", async () => {
+    canMock.mockImplementation((perm) => perm !== 'manage_fields')
+    listTreeChildrenMock.mockResolvedValue({ items: [node({ hasChildren: false })] })
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+
+    expect(screen.queryByTestId('pbs-attr-btn')).not.toBeInTheDocument()
+  })
+
+  it('tanimli her oznitelik icin tabloda sutun cikar (deger yoksa tire)', async () => {
+    attrDefsMock.value = [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        order: 0,
+      },
+      {
+        id: 'a2',
+        entityType: 'requirement',
+        key: 'risk',
+        label: 'Risk Skoru',
+        dataType: 'number',
+        order: 1,
+      },
+    ]
+    listTreeChildrenMock.mockResolvedValue({
+      items: [node({ attributes: { priority: 'High' } })], // risk degeri YOK
+    })
+    renderPage()
+    const row = (await screen.findByText('EH-KAHVE-TİD-USR-001')).closest('tr')
+
+    expect(screen.getByRole('columnheader', { name: /Risk Skoru/i })).toBeInTheDocument()
+    expect(within(row).getByText('High')).toBeInTheDocument()
+    // Degeri olmayan her sutun tire gosterir (risk + atanan kisi).
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('gereksinimler degisince agac satirlari YENIDEN cekilir (bayat deger kalmaz)', async () => {
+    listTreeChildrenMock.mockResolvedValue({ items: [node({ hasChildren: false })] })
+    const { rerender } = renderPage()
+    await waitFor(() => expect(listTreeChildrenMock).toHaveBeenCalledTimes(1))
+
+    // Baska bir yerden (form/onay) bir gereksinim guncellendi:
+    // AppContext listesinin imzasi degisir -> agac tazelenmeli.
+    requirementsMock.value = [{ id: 'r1', updatedAt: '2026-01-02T00:00:00Z' }]
+    rerender(
+      <LanguageProvider>
+        <PbsTree />
+      </LanguageProvider>,
+    )
+
+    await waitFor(() => expect(listTreeChildrenMock).toHaveBeenCalledTimes(2))
+  })
+})
+
+// ============================================================================
+//  Filtre cubugu — agac LAZY yuklendigi icin filtreleme tree.flatRows uzerinde
+//  yapilamaz: acilmamis alt agaclardaki eslesmeler gorulmez, elenen bir ustun
+//  cocuklari oksuz kalir. Filtre aktifken sayfa duz sonuc moduna gecer ve
+//  sonuclari AppContext'teki EKSIKSIZ `requirements` listesinden uretir.
+// ============================================================================
+describe('PbsTree — filtre cubugu', () => {
+  const flat = (over = {}) => ({
+    id: 'x',
+    text_id: 'EH-KAHVE-TİD-USR-001',
+    title: 'Kok',
+    description: '',
+    type: 'User Requirement',
+    field: 'Arayuz / HMI',
+    status: 'In Review',
+    attributes: { priority: 'High' },
+    locked: false,
+    updatedAt: '2026-01-01T00:00:00Z',
+    ...over,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    canMock.mockReturnValue(true)
+    sessionStorage.clear()
+    attrDefsMock.value = [
+      {
+        id: 'a1',
+        entityType: 'requirement',
+        key: 'priority',
+        label: 'Priority',
+        dataType: 'select',
+        options: [
+          { value: 'High', label: 'High' },
+          { value: 'Low', label: 'Low' },
+        ],
+        order: 0,
+      },
+    ]
+    fieldsMock.value = [
+      { id: 'f1', name: 'Arayuz / HMI' },
+      { id: 'f2', name: 'Yazilim / Kontrol' },
+    ]
+    // Agacta yalnizca KOK yuklu olacak; derin dugum (sw1) yalnizca duz
+    // listede vardir — filtrenin onu bulabilmesi gerekir.
+    requirementsMock.value = [
+      flat({ id: 'u1', text_id: 'EH-KAHVE-TİD-USR-001' }),
+      flat({
+        id: 'sw1',
+        text_id: 'EH-KAHVE-TİD-SW-007',
+        title: 'Derin dugum',
+        type: 'Software Requirement',
+        field: 'Yazilim / Kontrol',
+        attributes: { priority: 'Low' },
+      }),
+    ]
+    listTreeChildrenMock.mockResolvedValue({ items: [node({ id: 'u1' })] })
+  })
+
+  afterEach(() => cleanup())
+
+  it('ACILMAMIS alt agactaki eslesmeyi de bulur (yeni istek atmadan)', async () => {
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+    // Agac lazy: derin dugum henuz cekilmedigi icin gorunmez.
+    expect(screen.queryByText('EH-KAHVE-TİD-SW-007')).not.toBeInTheDocument()
+    const callsBefore = listTreeChildrenMock.mock.calls.length
+
+    openFilters()
+    fireEvent.change(screen.getByTestId('filter-type'), {
+      target: { value: 'Software Requirement' },
+    })
+
+    expect(screen.getByText('EH-KAHVE-TİD-SW-007')).toBeInTheDocument()
+    expect(screen.queryByText('EH-KAHVE-TİD-USR-001')).not.toBeInTheDocument()
+    expect(listTreeChildrenMock).toHaveBeenCalledTimes(callsBefore)
+  })
+
+  it('filtre aktifken duz sonuc moduna gecer: Bölüm sutunu kalkar, bilgi notu cikar', async () => {
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+    expect(screen.getByRole('columnheader', { name: /Bölüm/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('pbs-flat-notice')).not.toBeInTheDocument()
+
+    openFilters()
+    fireEvent.change(screen.getByTestId('filter-field'), {
+      target: { value: 'Yazilim / Kontrol' },
+    })
+
+    expect(screen.queryByRole('columnheader', { name: /Bölüm/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('pbs-flat-notice')).toBeInTheDocument()
+    expect(screen.getByTestId('filter-active-badge')).toHaveTextContent('1 filtre aktif')
+  })
+
+  it('filtre temizlenince agac, ACIK dugumleriyle birlikte geri gelir', async () => {
+    listTreeChildrenMock
+      .mockResolvedValueOnce({ items: [node({ id: 'u1' })] })
+      .mockResolvedValueOnce({
+        items: [
+          node({
+            id: 's1',
+            text_id: 'EH-KAHVE-TİD-SYS-001',
+            type: 'System Requirement',
+            hasChildren: false,
+          }),
+        ],
+      })
+      .mockResolvedValue({ items: [] })
+
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+    fireEvent.click(screen.getByRole('button', { name: /alt kırılımları aç/i }))
+    await screen.findByText('EH-KAHVE-TİD-SYS-001')
+    const callsAfterExpand = listTreeChildrenMock.mock.calls.length
+
+    openFilters()
+    fireEvent.change(screen.getByTestId('filter-search'), { target: { value: 'derin' } })
+    expect(screen.queryByText('EH-KAHVE-TİD-SYS-001')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('filter-clear'))
+
+    expect(screen.getByText('EH-KAHVE-TİD-USR-001')).toBeInTheDocument()
+    // Acik dugumun cocuklari hala goruntude ve yeniden cekilmedi.
+    expect(screen.getByText('EH-KAHVE-TİD-SYS-001')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Bölüm/i })).toBeInTheDocument()
+    expect(listTreeChildrenMock).toHaveBeenCalledTimes(callsAfterExpand)
+  })
+
+  it('olcutler AND ile birlesir (oznitelik + tip)', async () => {
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+
+    openFilters()
+    fireEvent.change(screen.getByTestId('filter-type'), {
+      target: { value: 'Software Requirement' },
+    })
+    fireEvent.change(screen.getByTestId('filter-attr-priority'), { target: { value: 'Low' } })
+    expect(screen.getByText('EH-KAHVE-TİD-SW-007')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByTestId('filter-attr-priority'), { target: { value: 'High' } })
+    expect(screen.getByText('Sonuç bulunamadı')).toBeInTheDocument()
+  })
+
+  it('filtreler sayfaya donuldugunde korunur (sessionStorage)', async () => {
+    renderPage()
+    await screen.findByText('EH-KAHVE-TİD-USR-001')
+    openFilters()
+    fireEvent.change(screen.getByTestId('filter-type'), {
+      target: { value: 'Software Requirement' },
+    })
+    expect(screen.getByText('EH-KAHVE-TİD-SW-007')).toBeInTheDocument()
+
+    cleanup() // baska bir sayfaya gidildi
+    renderPage()
+    await screen.findByTestId('filter-toggle')
+    openFilters()
+
+    expect(await screen.findByTestId('filter-type')).toHaveValue('Software Requirement')
+    expect(screen.getByText('EH-KAHVE-TİD-SW-007')).toBeInTheDocument()
+    expect(screen.getByTestId('pbs-flat-notice')).toBeInTheDocument()
   })
 })

@@ -18,7 +18,7 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 - `backend/` → API sunucusu (Express + Prisma) + veritabanı şeması
 - `scripts/` → Örnek proje yükleyici (espresso kahve otomatı)
 - `ai-bridge/` → Yapay Zeka motoru + köprü (Python, LM Studio/Gemma)
-- `compose.yaml` → Prod-benzeri base; `compose.dev.yaml` → Dev katmani (canli reload)
+- `compose.yaml` → Prod-benzeri base (hazır imajlar, yalnızca port 80); `compose.override.yaml` → Dev katmanı (build tanımları + ek portlar; `docker compose` tarafından **otomatik** uygulanır)
 - `README.md` → (bu dosya)
 - `ARCHITECTURE.md` → Mimari akış, Docker Compose, ortam değişkenleri ve demo veri standardı
 - `AI_KOPRU_ENTEGRASYON.md` → Yapay zeka köprüsünün ayrıntıları
@@ -27,35 +27,46 @@ modern, web tabanlı bir alternatif. Bu dosya sana **nasıl çalıştıracağın
 
 ## 2. Gerekli programlar
 
-- **Docker Desktop** (açık olmalı) — backend + PostgreSQL bunun üstünde çalışır.
-- **Node.js 18+** — frontend için.
+- **Docker Desktop** (açık olmalı) — tüm stack (PostgreSQL + backend + frontend/nginx) bunun üstünde çalışır.
+- **Node.js 18+** — yalnızca yerel geliştirme (Docker'sız) ve `seed-coffee-project.mjs` için.
 - (Yapay zeka özelliği istersen) **Python 3.12** + **LM Studio**.
 
 ---
 
-## 3. Çalıştırma — 3 terminal
+## 3. Çalıştırma
 
-### Terminal 1 — Backend + Veritabanı
-Prod-benzeri (tek komut):
+### Terminal 1 — Tüm stack (Docker, tek komut)
 ```
 cp .env.example .env    # sadece ilk sefer; icindeki sifreleri KENDI degerlerinle degistir
 docker compose up --build
 ```
-Dev + canli reload (bind-mount, vite dev server):
-```
-docker compose -f compose.yaml -f compose.dev.yaml up --build
-```
-Bu komut PostgreSQL'i acar, `migrate` servisi ile semayi uygular ve seed'i yukler; API nginx reverse proxy (`5173/api/`) arkasinda calisir. Backend dogrudan `localhost:4001` uzerinden acilmaz.
+`docker compose`, `compose.override.yaml` dosyasını **otomatik** uygular (ayrı `-f` bayrağı gerekmez). Bu komut:
+- PostgreSQL'i açar; GUI araçları (DBeaver, DataGrip) için `localhost:5433`
+- `migrate` servisi ile şemayı uygular ve seed'i yükler
+- Frontend'i nginx üzerinden servis eder: http://localhost:5173 (ek olarak http://localhost:80)
+- API'yi nginx reverse proxy (`/api/`) arkasında çalıştırır; backend host'a **hiç açılmaz** (`localhost:4001` dışarıdan erişilebilir değildir)
 
-### Terminal 2 — Frontend (site)
-Proje kökünde:
+Prod-benzeri mod (override'suz, hazır imajlarla, yalnızca port 80):
 ```
-cd frontend && pnpm install        # sadece ilk sefer
-pnpm run dev
+docker compose -f compose.yaml up
 ```
-Çıkan http://localhost:5173/ linkini tarayıcıda aç.
+Bu mod, dev modunda üretilen `ehsim-migrate/backend/frontend:latest` imajlarını kullanır; imajlar yoksa önce `docker compose build` çalıştır.
 
-### Terminal 3 — Yapay Zeka Köprüsü (opsiyonel)
+> **Not:** Docker'da frontend artık nginx ile servis edilen **derlenmiş** uygulamadır; canli reload (hot reload) yoktur. Frontend/backend üzerinde geliştirme yapacaksan aşağıdaki "Yerel geliştirme" akışını kullan.
+
+### Yerel geliştirme — Docker'sız (opsiyonel, hot reload)
+```
+# 1) Veritabanı: Docker'da sadece db (override 5433 portunu açar)
+docker compose up -d db
+
+# 2) Backend: backend/.env.example -> backend/.env (DATABASE_URL localhost:5433'e baksın)
+cd backend && pnpm install && pnpm run dev
+
+# 3) Frontend: Vite, /api isteklerini localhost:4001'e proxy'ler
+cd frontend && pnpm install && pnpm run dev
+```
+
+### Terminal 2 — Yapay Zeka Köprüsü (opsiyonel)
 LM Studio'yu aç (Local Server + bir Gemma modeli yüklü olsun). Sonra:
 ```
 cd ai-bridge
@@ -67,35 +78,26 @@ python -m uvicorn api_server:app --port 8008 --reload
 Kontrol: http://localhost:8008/health → "lmstudio_reachable": true görürsen hazır.
 Yapay zekayı kullanmayacaksan bu adımı atla; site yine tam çalışır ("Offline" motor mevcut).
 
-**Minimum çalıştırma:** Terminal 1 (docker compose up --build) + Terminal 2 (pnpm run dev) → localhost:5173.
+**Minimum çalıştırma:** Terminal 1 (`docker compose up --build`) → http://localhost:5173. Başka terminal gerekmez.
 
 ---
 
 ## Windows kullanıcıları için
 
-Tüm `scripts/*.sh` dosyalarının Windows `.bat` karşılıkları vardır. **PowerShell / cmd** içinde:
+`run-dev` ve `run-prod` betikleri `.bat` (cmd) ve `.ps1` (PowerShell) olarak mevcuttur. **PowerShell / cmd** içinde:
 
 ```
 # Pre-push kontrolu (format, lint, test)
-scripts\pre-push-check.bat
+scripts\pre-push-check.bat      # Git Bash/WSL: scripts/pre-push-check.sh
 
-# Dev stack (hot reload)
-scripts\run-dev.bat [--force]
+# Dev stack (build + tum portlar: 5173, 5433, 80)
+scripts\run-dev.bat [--force]   # PowerShell: scripts\run-dev.ps1 -Force
 
 # Prod-benzeri stack
-scripts\run-prod.bat [--force]
+scripts\run-prod.bat [--force]  # PowerShell: scripts\run-prod.ps1 -Force
 ```
 
-Alternatif: **Git Bash** veya **WSL** kullanıyorsanız mevcut `.sh` dosyaları doğrudan çalışır.
-
-Frontend/Backend bağımsız çalıştırma (Docker'sız):
-```
-# Backend
-cd backend && pnpm install && pnpm run dev
-
-# Frontend
-cd frontend && pnpm install && pnpm run dev
-```
+> `--force` / `-Force` önce `docker compose down -v` çalıştırır ve **tüm veriyi siler**.
 
 > Not: `seed-coffee-project.mjs` Node.js scriptidir, `node scripts/seed-coffee-project.mjs` ile her platformda çalışır.
 
@@ -136,17 +138,25 @@ Bu kopya varsayılan/nötr değerlerle geliyor. İstersen aşağıdakileri kendi
 
 Backend ayaktayken, örnek "Espresso Kahve Otomatı" projesini (58 gereksinim,
 32 test, %100 izlenebilirlik) yüklemek/onarmak için:
-```
-node scripts/seed-coffee-project.mjs
+
+> **Not:** Backend artık host'a açık değil; script'in nginx reverse proxy'si
+> üzerinden gitmesi için `API_BASE` belirtilmelidir.
+
+```bash
+# Docker stack ayaktayken (nginx /api proxy'si üzerinden):
+API_BASE=http://localhost:5173/api node scripts/seed-coffee-project.mjs
+
+# PowerShell:
+$env:API_BASE = "http://localhost:5173/api"; node scripts/seed-coffee-project.mjs
 ```
 
 ---
 
 ## 7. Özet akış
 
-1. `docker compose up --build` → backend + DB (4001)
-2. `pnpm install` + `pnpm run dev` → site (5173)
+1. `cp .env.example .env` (ilk sefer) + `docker compose up --build` → DB + migrate/seed + backend + frontend (nginx)
+2. Tarayıcı: http://localhost:5173 (override ile; prod-benzeri modda http://localhost)
 3. (opsiyonel) `ai-bridge`'da uvicorn → AI köprüsü (8008) + LM Studio
-4. Tarayıcı: http://localhost:5173
+4. (opsiyonel) Yerel geliştirme (hot reload): "Yerel geliştirme — Docker'sız" akışı
 
 Kolay gelsin! Teknik ayrıntılar için ARCHITECTURE.md ve AI_KOPRU_ENTEGRASYON.md dosyalarına bak.

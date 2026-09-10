@@ -19,12 +19,25 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
+import AssigneePicker from '../common/AssigneePicker.jsx'
+import { assigneeIdsOf } from '../../utils/assignees.js'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
 
-export default function RequirementForm({ open, onClose, editing, pageConfig }) {
-  const { addRequirement, editRequirement, fields, addField, attributeDefs } = useApp()
+export default function RequirementForm({
+  open,
+  onClose,
+  editing,
+  pageConfig,
+  // Dokumandan metin secilerek acildiginda: formu ON-DOLU baslatir ve olusan
+  // gereksinimi kaynak pasaja baglar. Kullanici kaydetmeden once metni
+  // SERBESTCE degistirebilir — kaydedilen, kullanicinin son hali olur.
+  //   { documentId, documentName, start, end, quote, duplicateOf }
+  source = null,
+  initialValues = null,
+}) {
+  const { addRequirement, editRequirement, fields, addField, attributeDefs, personnel } = useApp()
   const { t } = useLang()
 
   const typeOptions = pageConfig?.typeOptions || []
@@ -36,6 +49,8 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
     description: '',
     type: lockedType,
     field: '',
+    // Coklu atama: sirali personel id listesi (ilk eleman birincil sorumlu).
+    assigneeIds: [],
     relatedDocuments: '',
   }
 
@@ -54,11 +69,12 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         description: editing.description || '',
         type: editing.type,
         field: editing.field || '',
+        assigneeIds: assigneeIdsOf(editing),
         relatedDocuments: (editing.relatedDocuments || []).join(', '),
       })
       setCustomAttrs(editing.attributes || {})
     } else {
-      setForm({ ...EMPTY, type: lockedType })
+      setForm({ ...EMPTY, type: lockedType, ...(initialValues || {}) })
       setCustomAttrs(defaultAttributeValues(attributeDefs, 'requirement'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,6 +105,8 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         description: form.description,
         type: form.type,
         field: form.field || null,
+        // Bos liste = tum atamalari kaldir (bkz. backend/src/assignees.js).
+        assigneeIds: form.assigneeIds,
         attributes: customAttrs,
         relatedDocuments: form.relatedDocuments
           .split(',')
@@ -100,7 +118,19 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
         const { type: _lockedType, ...rest } = payload
         await editRequirement(editing.id, rest)
       } else {
-        await addRequirement(payload)
+        // Kayit MEVCUT addRequirement akisindan gecer (text_id uretimi, audit,
+        // cascade aynen calisir); kaynak yalnizca ek alan olarak tasinir.
+        await addRequirement(
+          source
+            ? {
+                ...payload,
+                sourceDocumentId: source.documentId,
+                sourceStart: source.start,
+                sourceEnd: source.end,
+                sourceQuote: source.quote,
+              }
+            : payload,
+        )
       }
       onClose()
     } catch (err) {
@@ -133,6 +163,23 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
       }
     >
       <form id="req-form" onSubmit={handleSubmit} className="space-y-4">
+        {source && (
+          <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs dark:border-brand-900/60 dark:bg-brand-950/40">
+            <div className="font-semibold text-brand-800 dark:text-brand-300">
+              {t('docsel.sourceLabel', { name: source.documentName })}
+            </div>
+            <div className="mt-1 line-clamp-3 italic text-slate-600 dark:text-slate-400">
+              “{source.quote}”
+            </div>
+          </div>
+        )}
+        {source?.duplicateOf && (
+          // UYARI, ENGEL DEGIL: ayni pasajdan turetilmis ikinci bir gereksinim
+          // mesrudur (orn. bir cumleden hem sistem hem yazilim gereksinimi).
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+            {t('docsel.duplicateWarn', { list: source.duplicateOf })}
+          </div>
+        )}
         {error && (
           <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
             {error}
@@ -214,6 +261,18 @@ export default function RequirementForm({ open, onClose, editing, pageConfig }) 
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Sorumlu personel(ler). Sozlukteki "Assigned To" BAGI ile
+              karistirilmamali: bu alan isin kimde oldugunu tutar. Bir
+              gereksinime BIRDEN FAZLA kisi atanabilir; sira anlamlidir. */}
+          <div>
+            <label className="label">{t('form.assignee')}</label>
+            <AssigneePicker
+              personnel={personnel}
+              value={form.assigneeIds}
+              onChange={(ids) => setForm((f) => ({ ...f, assigneeIds: ids }))}
+            />
           </div>
         </div>
 

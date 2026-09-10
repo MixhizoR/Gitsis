@@ -46,10 +46,19 @@ model User {
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime  @default(now()) @updatedAt
   // Issue #103: proje uyeligi User.projectId yerine coktan-coga ProjectMember
   // uzerinden modellenir. PM'ler uyelik kaydi OLMADAN tum projelere erisir.
   memberships    ProjectMember[]
+
+  // --- Sorumlu kullanici (is atama) ---------------------------------------
+  //  #114/#115'in coklu atama ozelligi Personel yerine USER tabanlidir
+  //  (#97 Personel'i kaldirdi). Atanabilmek icin kullanicinin projede
+  //  ProjectMember uyeligi olmalidir (bkz. src/assignees.js).
+  assignedRequirements   Requirement[]            @relation("RequirementAssignee")
+  assignedTestCases      TestCase[]               @relation("TestCaseAssignee")
+  requirementAssignments RequirementAssignee[]
+  testCaseAssignments    TestCaseAssignee[]
 
   refreshTokens  RefreshToken[]
 }
@@ -87,7 +96,7 @@ model SystemRole {
   isSystem    Boolean   @default(false)
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime  @default(now()) @updatedAt
 }
 
 // --- Refresh tokenlari (Issue #85) -----------------------------------------
@@ -129,7 +138,7 @@ model Project {
   // Proje bazlidir; bos birakilirsa DEFAULT_CODE_PREFIX kullanilir.
   codePrefix   String             @default("EH-KAHVE-TİD")
   createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  updatedAt    DateTime           @default(now()) @updatedAt
 
   fields       ProjectField[]
   attributeDefs AttributeDefinition[]
@@ -144,6 +153,24 @@ model Project {
   navGroups    NavGroup[]
   navItems     NavItem[]
   history      RequirementHistory[]
+  documents    ProjectDocument[]
+  comments     Comment[]
+}
+
+// --- Proje SILME gerekcesi (izlenebilirlik) ---------------------------------
+//  Proje silinince o projeye ait AuditLog kayitlari da CASCADE ile silinir
+//  (Project.audit FK, onDelete: Cascade) — yani "neden silindi" gerekcesini
+//  normal AuditLog'a yazmak anlamsizdir, o kayit projeyle BIRLIKTE yok olur.
+//  Bu tablo projeye FK ILE BAGLI DEGILDIR (duz string id + ad kopyasi) —
+//  proje silindikten SONRA da izlenebilir kalir. Yalnizca PM gorebilir
+//  (GET /api/project-deletions).
+model ProjectDeletionLog {
+  id          String   @id @default(uuid())
+  projectId   String
+  projectName String
+  reason      String
+  actor       String?
+  deletedAt   DateTime @default(now())
 }
 
 // --- Snaphotlar (baseline / sürüm) ----------------------------------------
@@ -175,6 +202,68 @@ model SnapshotItem {
 
   @@index([snapshotId])
   @@index([snapshotId, entityType])
+}
+
+// --- Yorumlar (ana varliklar uzerinde ekip ici iletisim) --------------------
+//  ONAY/REVIEW SURECINDEN BAGIMSIZDIR: yorum eklemek bir kaydin durumunu,
+//  onayini veya kilidini ETKILEMEZ; yalnizca ekip ici not/soru alanidir.
+//
+//  GENERIC: tek tablo tum ana varliklara hizmet eder (entityType + entityId).
+//  Bu yuzden entityId'ye foreign key KONULMAZ — hedef tablo satira gore
+//  degisir. Varligin gercekten ayni projede oldugu YAZMA aninda dogrulanir
+//  (bkz. src/comments.js assertEntityInProject).
+//
+//  authorName / authorRole ANLIK KOPYADIR: kullanici silinse ya da rolu
+//  degisse bile yorumun yazildigi andaki kimlik korunur (izlenebilirlik).
+model Comment {
+  id         String   @id @default(uuid())
+  projectId  String
+  entityType String // 'requirement' | 'testcase' | 'glossary'
+  entityId   String
+  // Issue #97: tek kimlik dunyasi — yazan her zaman User.id'dir.
+  authorId   String
+  authorName String
+  authorRole String?
+  text       String
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Bir varligin yorumlari kronolojik cekilir; sorgu deseni birebir bu index.
+  @@index([projectId, entityType, entityId, createdAt])
+  @@index([projectId])
+}
+
+// --- Proje Dokumanlari (Dokuman Kutuphanesi) -------------------------------
+//  Kullanicinin bilgisayarindan yukledigi PDF / Excel belgeleri. Dosya icerigi
+//  (bytea) veritabaninda saklanir; boylece backend konteyneri yeniden
+//  olusturulsa bile kutuphane kalici kalir (DB Docker volume uzerindedir).
+//  Listeleme sorgulari `content` alanini ASLA secmez (bkz. src/documents.js).
+model ProjectDocument {
+  id                  String        @id @default(uuid())
+  projectId           String
+  fileName            String
+  ext                 String // '.pdf' | '.xlsx' | '.xls'
+  mimeType            String
+  size                Int // bayt
+  description         String        @default("")
+  uploadedBy          String?
+  content             Bytes
+  // Issue: dokumandan metin secerek gereksinim olusturma. Yukleme aninda
+  // cikarilan duz metin; kullanici bunun uzerinde secim yapar ve secimin
+  // karakter araligi gereksinime kaynak olarak yazilir. Bu yuzden metnin
+  // KARARLI olmasi sart: bir kez cikarilir, bir daha degismez (aksi halde
+  // eski gereksinimlerin sourceStart/End araliklari kayar).
+  extractedText       String?
+  // 'pending' | 'ready' | 'unsupported' (orn. eski .xls) | 'failed'
+  textStatus          String        @default("pending")
+  createdAt           DateTime      @default(now())
+  project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Bu dokumandan turetilmis gereksinimler. Dokuman silinirse gereksinim
+  // SILINMEZ (SetNull) — bkz. Requirement.sourceDocument.
+  sourcedRequirements Requirement[] @relation("RequirementSource")
+
+  @@index([projectId])
+  @@index([projectId, createdAt])
 }
 
 // --- Onay oylari (consensus, Issue #97: tamamen User tabanli) ---------------
@@ -239,6 +328,12 @@ model NavItem {
   // Ozel sayfanin Alan (disiplin) filtresi. null => filtre yok, tam liste.
   // Tipler sabit kaldigi icin ayrisma bu filtre uzerinden saglanir.
   fieldFilter String?
+  // Ozel sayfanin gereksinim TIPI filtresi (yalnizca birden fazla tipi
+  // birlikte gosteren pageKey'lerde anlamlidir, orn. req-subsystem'in
+  // Software/Hardware Requirement'i birlikte gosterdigi durum). null =>
+  // filtre yok, o pageKey'in tum tipleri birlikte gosterilir. Gecerli
+  // degerler navDefaults.js PAGE_TYPE_OPTIONS ile sinirlidir.
+  typeFilter  String?
   order     Int       @default(0)
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -269,16 +364,38 @@ model Requirement {
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
   clearanceLevel Int    @default(1)         // Issue #85: ABAC (#87) icin — varsayilan 1
   relatedDocuments String[] @default([])    // Etki analizinde gosterilen ilgili dokuman/etiket listesi
+  // --- Kaynak izlenebilirligi (dokumandan metin secerek olusturma) --------
+  //  Gereksinim bir dokuman pasajindan turetildiyse burada baglanir.
+  //  ONEMLI: Dokuman silinince gereksinim SILINMEZ; yalnizca bag bosa duser
+  //  (onDelete: SetNull). Alinti ve dokuman adi ANLIK KOPYA olarak saklanir
+  //  ki bag koptuktan sonra da UI "kaynak dokuman silinmis: <ad>" diyebilsin.
+  sourceDocumentId   String?
+  sourceStart        Int?    // extractedText icindeki karakter araligi [start, end)
+  sourceEnd          Int?
+  sourceQuote        String? // secilen pasajin kopyasi (dokuman silinse de kalir)
+  sourceDocumentName String? // dokuman adinin anlik kopyasi
+  // --- Sorumlu kullanici (is atama) ---------------------------------------
+  //  #97/A karari: atama USER tabanlidir (eski Personnel degil); atanabilmek
+  //  icin kullanicinin projede ProjectMember uyeligi olmalidir. Kullanici
+  //  silinince gereksinim SILINMEZ, atama bosa duser (SetNull).
+  assigneeId  String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceDocument ProjectDocument? @relation("RequirementSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   parent      Requirement?  @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
   children    Requirement[] @relation("RequirementTree")
   history     RequirementHistory[]
+  assignee    User?     @relation("RequirementAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  // Coklu atama: bir gereksinim birden fazla kisiye verilebilir. assigneeId
+  // bu listenin ILK elemaninin kopyasidir (bkz. src/assignees.js).
+  assignees   RequirementAssignee[]
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
   @@index([projectId, parentId])
+  @@index([sourceDocumentId])
+  @@index([projectId, assigneeId])
 }
 
 // --- Gereksinim versiyon gecmisi (SCD Type 4) ------------------------------
@@ -333,12 +450,56 @@ model TestCase {
   author      String?
   approvalStatus String @default("Pending") // 'Pending' | 'Approved'
   locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  // Sorumlu kullanici — bkz. Requirement.assigneeId (#97/A: User tabanli).
+  assigneeId  String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?    @relation("TestCaseAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  // Coklu atama — bkz. Requirement.assignees.
+  assignees   TestCaseAssignee[]
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
+  @@index([projectId, assigneeId])
+}
+
+// --- Coklu sorumlu kullanici atamasi (Issue #114/#115) ---------------------
+//  Bir gereksinime/teste BIRDEN FAZLA sorumlu atanabilir. Sira ONEMLIDIR:
+//  atama sirasi `order` ile saklanir, UI atananlari bu sirayla gosterir
+//  (bkz. ViewModal "Atanan Kisiler" bolumu).
+//
+//  Geriye donuk uyumluluk: Requirement/TestCase.assigneeId KORUNUR ve daima
+//  bu listenin ILK elemanina esitlenir (eski istemciler ve raporlar tek
+//  atamayi okumaya devam eder). Tek dogruluk kaynagi bu tablodur.
+//
+//  Issue #97/A: eskiden Personnel'a baglanan bu tablolar artik User'a baglidir
+//  (tek kimlik dunyasi). Kullanici silinince YALNIZCA atama satiri silinir
+//  (Cascade); kaydin kendisi silinmez — kayit projeye aittir, kisiye degil.
+model RequirementAssignee {
+  requirementId String
+  userId        String
+  order         Int         @default(0)
+  createdAt     DateTime    @default(now())
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([requirementId, userId])
+  @@index([userId])
+  @@index([requirementId, order])
+}
+
+model TestCaseAssignee {
+  testCaseId String
+  userId     String
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  testCase   TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([testCaseId, userId])
+  @@index([userId])
+  @@index([testCaseId, order])
 }
 
 // --- Dinamik oznitelik tanimlari (Priority / DAL Level / ozel alanlar) -----
@@ -359,7 +520,7 @@ model AttributeDefinition {
   order        Int      @default(0)
   system       Boolean  @default(false) // gomulu (Priority/DAL Level) ise true; silinemez
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, entityType, key])
@@ -399,7 +560,7 @@ model GlossaryTerm {
   definition String   @default("")
   author     String?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, text_id])
@@ -418,6 +579,12 @@ model AuditLog {
   oldValue   String?
   newValue   String?
   message    String?
+  // Silme (ve ileride baska "geri alinamaz" islemler) icin ZORUNLU gerekce
+  // metni — izlenebilirlik: "neden silindi" DB degisikligiyle BIRLIKTE
+  // saklanir. Yalnizca DELETE/UNLINK/*_DELETE turu action'larda doldurulur;
+  // digerlerinde (CREATE/UPDATE) null kalir. Sunucu tarafinda zorunlu
+  // kilinir (bkz. server.js requireReason).
+  reason     String?
   actor      String?
   createdAt  DateTime @default(now())
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -17,7 +17,9 @@ const { navMock, actions } = vi.hoisted(() => ({
     materializeNav: vi.fn(),
     addNavGroup: vi.fn(),
     renameNavGroup: vi.fn(),
+    reorderNavGroups: vi.fn(),
     removeNavGroup: vi.fn(),
+    reorderNavItems: vi.fn(),
     assignNavItem: vi.fn(),
   },
 }))
@@ -168,5 +170,67 @@ describe('NavManager — grup yeniden adlandirma / silme', () => {
     const reqRow = screen.getByTestId('nav-group-Gereksinimler')
     expect(reqRow).toHaveTextContent('3 sayfa')
     expect(screen.getByTestId('nav-group-Testler')).toHaveTextContent('1 sayfa')
+  })
+
+  it('ilk grubun "yukari tasi" dugmesi devre disi, son grubun "asagi tasi" dugmesi devre disidir', () => {
+    renderMgr()
+    expect(screen.getByTestId('nav-group-moveup-Gereksinimler')).toBeDisabled()
+    expect(screen.getByTestId('nav-group-movedown-Gereksinimler')).not.toBeDisabled()
+    expect(screen.getByTestId('nav-group-moveup-Testler')).not.toBeDisabled()
+    expect(screen.getByTestId('nav-group-movedown-Testler')).toBeDisabled()
+  })
+
+  it('"asagi tasi" komsu grupla order degerlerini takas eder', async () => {
+    renderMgr()
+    fireEvent.click(screen.getByTestId('nav-group-movedown-Gereksinimler'))
+
+    await waitFor(() => expect(actions.reorderNavGroups).toHaveBeenCalledTimes(1))
+    expect(actions.reorderNavGroups).toHaveBeenCalledWith([
+      { id: 'g-req', order: 1 },
+      { id: 'g-test', order: 0 },
+    ])
+  })
+
+  it('"yukari tasi" komsu grupla order degerlerini takas eder', async () => {
+    renderMgr()
+    fireEvent.click(screen.getByTestId('nav-group-moveup-Testler'))
+
+    await waitFor(() => expect(actions.reorderNavGroups).toHaveBeenCalledTimes(1))
+    expect(actions.reorderNavGroups).toHaveBeenCalledWith([
+      { id: 'g-test', order: 0 },
+      { id: 'g-req', order: 1 },
+    ])
+  })
+
+  it('grup icindeki sayfalar da yukari/asagi tasinabilir', async () => {
+    navMock.value = {
+      materialized: true,
+      groups: [
+        {
+          id: 'g-req',
+          name: 'Gereksinimler',
+          nameKey: null,
+          order: 0,
+          items: [
+            { id: 'i-1', pageKey: 'req-user', order: 0 },
+            { id: 'i-2', pageKey: 'req-system', order: 1 },
+          ],
+        },
+      ],
+      ungrouped: [],
+    }
+    renderMgr()
+
+    expect(screen.getByTestId('nav-item-moveup-i-1')).toBeDisabled()
+    expect(screen.getByTestId('nav-item-movedown-i-2')).toBeDisabled()
+    expect(screen.getByTestId('nav-item-movedown-i-1')).not.toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('nav-item-movedown-i-1'))
+
+    await waitFor(() => expect(actions.reorderNavItems).toHaveBeenCalledTimes(1))
+    expect(actions.reorderNavItems).toHaveBeenCalledWith([
+      { id: 'i-1', order: 1 },
+      { id: 'i-2', order: 0 },
+    ])
   })
 })

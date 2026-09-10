@@ -282,12 +282,25 @@ test('status cascade ile degisince: history + suspect IKISI DE tetiklenmez', asy
     data: { projectId: proj.id, fromId: req.id, toId: tc.id, type: 'Verifies' },
   });
 
-  // Test sonucu Approved -> cascade, gereksinim durumunu updateMany ile degistirir.
+  // Test sonucu artik ELLE degil, onay aksiyonuyla belirlenir (bkz. server.js
+  // recomputeApproval). Issue #103: oy havuzu = PM'ler + projede o bilesende
+  // approve izni olan uyeler. Bu projede test-system icin approve izinli bir
+  // uye (system_engineer) VAR; konsensus icin onun oyu da sarttir. Once
+  // yalnizca PM oy verir -> henuz 'In Review'; uye de oy verince 'Approved'
+  // olur -> cascade gereksinimin durumunu ayni deger ile updateMany eder.
   const r = await request(app)
-    .put(`/api/projects/${proj.id}/testcases/${tc.id}`)
+    .post(`/api/projects/${proj.id}/approvals/vote`)
     .set('Authorization', `Bearer ${pmToken}`)
-    .send({ status: 'Approved' });
+    .send({ entityType: 'testcase', entityId: tc.id });
   assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'In Review', 'tek basina PM oyu konsensusa YETMEZ (approve izinli uye de oy vermeli)');
+
+  const r2 = await request(app)
+    .post(`/api/projects/${proj.id}/approvals/vote`)
+    .set('Authorization', `Bearer ${approveMemberToken}`)
+    .send({ entityType: 'testcase', entityId: tc.id });
+  assert.equal(r2.status, 200);
+  assert.equal(r2.body.status, 'Approved', 'tam konsensus -> test Approved olmali');
 
   const updated = await prisma.requirement.findUnique({ where: { id: req.id } });
   assert.equal(updated.status, 'Approved', 'cascade statusu guncellemeli');

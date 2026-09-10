@@ -148,9 +148,9 @@ export async function patch(path, body) {
     throw toError(err)
   }
 }
-export async function del(path) {
+export async function del(path, body) {
   try {
-    const { data } = await http.delete(path)
+    const { data } = await http.delete(path, body === undefined ? undefined : { data: body })
     return data
   } catch (err) {
     throw toError(err)
@@ -168,15 +168,31 @@ export async function ping() {
 }
 
 // TraceabilityImportPage.jsx icin dosya yukleme fonksiyonu. FormData ile multipart/form-data gonderir.
-export async function upload(path, formData) {
+export async function upload(path, formData, config = {}) {
   try {
     const { data } = await http.post(path, formData, {
+      ...config,
       headers: {
         // Axios multipart/form-data'yi kendisi ayarlar; biz Content-Type'i undefined yaparsak, Axios boundary'yi otomatik ekler.
         'Content-Type': undefined,
+        ...(config.headers || {}),
       },
     })
     return data
+  } catch (err) {
+    throw toError(err)
+  }
+}
+
+/**
+ * Dosya indirir (Blob). Authorization basligi interceptor ile eklendigi icin
+ * dogrudan <a href> kullanilamaz; icerik Blob olarak alinip cagiran tarafta
+ * object URL'e cevrilir.
+ */
+export async function downloadBlob(path, config = {}) {
+  try {
+    const res = await http.get(path, { ...config, responseType: 'blob' })
+    return res.data
   } catch (err) {
     throw toError(err)
   }

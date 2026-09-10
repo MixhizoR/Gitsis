@@ -1,6 +1,12 @@
 // ============================================================================
 //  EntityTable.jsx  —  Gereksinim / Test / Sozluk icin ortak liste tablosu.
-//  Sutunlar `columns` ile yapilandirilir. Yeni ozellikler:
+//  Sutunlar `columns` ile yapilandirilir.
+//
+//  ATANAN KISI SUTUNU YOKTUR: atama artik COKLUDUR (bir kayda birden fazla
+//  sorumlu), bu da satiri sisirir. Atananlar goz (Read) ikonuyla acilan
+//  ViewModal'in "Atanan Kisiler" bolumunde, atama sirasiyla gosterilir.
+//
+//  Diger ozellikler:
 //    - Goz ikonu (Read): detay + zengin metin editorlu aciklama modalini acar.
 //    - Onay sutunu (Check Circle): "Baglantilar" ile "Eylemler" arasinda.
 //    - Onay Durumu sutunu: PM'e ozel "Onay Detayi" butonu + durum rozeti.
@@ -14,6 +20,7 @@ import {
   IconLink,
   IconEye,
   IconCheckCircle,
+  IconXCircle,
   IconLock,
   IconTarget,
   IconAlert,
@@ -44,6 +51,12 @@ export default function EntityTable({
   onImpact,
   titleKey = 'title',
   statusLabel,
+  // Gereksinim sayfalarinda durum kendi basina degil, DOGRULAYAN (Verifies)
+  // test senaryosundan turetilir. Verilirse: false donerse "Dogrulanamaz"
+  // rozeti gosterilir (bagli test yok); true ise r.status normal sekilde
+  // gosterilir (r.status zaten backend cascade'i ile test sonuclarindan
+  // hesaplanir — bkz. backend/src/cascade.js). Verilmezse eski davranis.
+  verifiedFor,
   // --- Izin/onay entegrasyonu ---
   showApproval = false,
   canEditRow = T,
@@ -54,6 +67,10 @@ export default function EntityTable({
   approvalInfoFor, // (row) => { approved, voted }
   onToggleApprove = noop,
   onApprovalDetail = noop,
+  // Testi DERHAL "Failed" yapar (tek yetkili yeterli, tam konsensus gerekmez).
+  // Verilmezse (ornegin gereksinim sayfalarinda showApproval zaten kapali)
+  // reddet butonu gosterilmez.
+  onReject,
   // --- Geriye donuk uyumluluk (eski cagiranlar) ---
   canManageLinks = true,
   canDelete = true,
@@ -287,7 +304,18 @@ export default function EntityTable({
                   )}
                   {has('status') && (
                     <td className="px-4 py-3 align-top">
-                      {r.status ? <StatusBadge value={r.status} /> : dash}
+                      {verifiedFor && !verifiedFor(r) ? (
+                        <span
+                          className="inline-flex items-center whitespace-nowrap rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 ring-1 ring-inset ring-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700"
+                          title={t('tbl.unverifiableHint')}
+                        >
+                          {t('tbl.unverifiable')}
+                        </span>
+                      ) : r.status ? (
+                        <StatusBadge value={r.status} />
+                      ) : (
+                        dash
+                      )}
                     </td>
                   )}
                   {attrDefs.map((d) => (
@@ -307,32 +335,51 @@ export default function EntityTable({
                     </td>
                   )}
 
-                  {/* --- Onay (Check Circle) --- */}
+                  {/* --- Onay (Check Circle) + Reddet (X Circle) --- */}
                   {showApproval && (
-                    <td className="px-4 py-3 text-center align-top">
-                      <button
-                        onClick={() => canApprove && onToggleApprove(r)}
-                        disabled={!canApprove}
-                        title={
-                          info.approved
-                            ? t('tbl.approvedTitle')
-                            : info.voted
-                              ? t('tbl.votedTitle')
-                              : t('tbl.approveTitle')
-                        }
-                        className={`inline-flex items-center justify-center rounded-full p-0.5 transition-colors ${
-                          info.approved
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : info.voted
-                              ? 'text-brand-600 dark:text-brand-400'
-                              : 'text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400'
-                        } ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
-                      >
-                        <IconCheckCircle
-                          size={20}
-                          className={info.approved || info.voted ? 'fill-current/10' : ''}
-                        />
-                      </button>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => canApprove && onToggleApprove(r)}
+                          disabled={!canApprove}
+                          title={
+                            info.approved
+                              ? t('tbl.approvedTitle')
+                              : info.voted
+                                ? t('tbl.votedTitle')
+                                : t('tbl.approveTitle')
+                          }
+                          className={`inline-flex items-center justify-center rounded-full p-0.5 transition-colors ${
+                            info.approved
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : info.voted
+                                ? 'text-brand-600 dark:text-brand-400'
+                                : 'text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400'
+                          } ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                        >
+                          <IconCheckCircle
+                            size={20}
+                            className={info.approved || info.voted ? 'fill-current/10' : ''}
+                          />
+                        </button>
+                        {onReject && (
+                          <button
+                            onClick={() => canApprove && onReject(r)}
+                            disabled={!canApprove}
+                            title={t('tbl.rejectTitle')}
+                            className={`inline-flex items-center justify-center rounded-full p-0.5 transition-colors ${
+                              r.status === 'Rejected'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-slate-300 hover:text-rose-500 dark:text-slate-600 dark:hover:text-rose-400'
+                            } ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                          >
+                            <IconXCircle
+                              size={20}
+                              className={r.status === 'Rejected' ? 'fill-current/10' : ''}
+                            />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
 

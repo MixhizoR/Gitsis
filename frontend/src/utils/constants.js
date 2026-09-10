@@ -35,10 +35,25 @@ export const TEST_TYPES = Object.values(TEST_TYPE)
 
 // --- Bag mantigi (frontend dogrulamasi; backend de ayni kurali uygular) -----
 //  Satisfies: to = ALT gereksinim, from = UST gereksinim.
+//  Bu, PBS AGACININ (Requirement.parentId, tek-ebeveynli) TEK gecerli ust
+//  tipidir — bir agac dugumunun birden fazla ebeveyni olamaz. LinkManager'daki
+//  izlenebilirlik BAGI icin bkz. asagidaki SATISFIES_ALLOWED_PARENTS.
 export const SATISFIES_PARENT_OF = {
   [REQ_TYPE.SYSTEM]: REQ_TYPE.USER,
   [REQ_TYPE.SOFTWARE]: REQ_TYPE.SYSTEM,
   [REQ_TYPE.HARDWARE]: REQ_TYPE.SYSTEM,
+}
+
+// --- Satisfies IZLENEBILIRLIK BAGI kurallari (TraceabilityLink, LinkManager) -
+//  PBS agacinin aksine bir gereksinimin TraceabilityLink grafiginde birden
+//  fazla gecerli ust TIPI olabilir: Software/Hardware normalde bir System
+//  Requirement'i karsilar, ama arada ayri bir System Requirement
+//  tanimlanmamissa DOGRUDAN bir User Requirement'i da karsilayabilir
+//  ("skip-level" bag). System'in tek gecerli ustu hala User'dir.
+export const SATISFIES_ALLOWED_PARENTS = {
+  [REQ_TYPE.SYSTEM]: [REQ_TYPE.USER],
+  [REQ_TYPE.SOFTWARE]: [REQ_TYPE.SYSTEM, REQ_TYPE.USER],
+  [REQ_TYPE.HARDWARE]: [REQ_TYPE.SYSTEM, REQ_TYPE.USER],
 }
 //  Verifies: her test tipi SADECE su gereksinim tipini dogrular.
 export const VERIFIES_TARGET_TYPES = {
@@ -127,14 +142,18 @@ export const DAL_WEIGHT = {
 //    fromId = UST seviye / dogrulanan gereksinim   (parent)
 //    toId   = ALT seviye nesne (satisfier / test)  (child)
 //
-//  SATISFIES : (ust) System Requirement  <- (alt) Software / Hardware Requirement
-//              "Yazilim/Donanim gereksinimi, sistem gereksinimini KARSILAR."
-//  VERIFIES  : (ust) System/Software/Hardware Req <- (alt) Test Case
+//  SATISFIES : (ust) User Requirement <- (alt) System Requirement, VE
+//              (ust) System Requirement <- (alt) Software / Hardware Requirement.
+//              Software/Hardware, System'i ATLAYIP dogrudan User'i da
+//              karsilayabilir ("skip-level" bag, bkz. SATISFIES_ALLOWED_PARENTS).
+//              "Alt gereksinim, ust gereksinimi KARSILAR."
+//  VERIFIES  : (ust) User/System/Software/Hardware Req <- (alt) Test Case
 //              "Test senaryosu, gereksinimi DOGRULAR."
 //
-//  ONEMLI: Bag her zaman ALTTAKI bilesenden (SW/HW veya TC) baslatilir; ust
-//  seviye System gereksinimi hicbir bagi yukari dogru baslatamaz (tepe seviye).
-//  Baslatma kurallari icin asagidaki LINK_INITIATION tablosuna bakiniz.
+//  Bag HER IKI ucdan da baslatilabilir (LinkManager.jsx): ust seviyeden
+//  "bunu karsilayan bir alt gereksinim ekle" ile, ya da alt seviyeden
+//  "karsiladigi ust gereksinimi sec" ile — depolama yonu (fromId=ust,
+//  toId=alt) hangi tarafin baslattigindan BAGIMSIZ sabit kalir.
 export const LINK_TYPE = {
   SATISFIES: 'Satisfies',
   VERIFIES: 'Verifies',
@@ -167,46 +186,6 @@ export const LINK_RULES = {
     fromLabel: 'User / System / Sub-system Requirement',
     toLabel: 'Glossary Term',
   },
-}
-
-// ---------------------------------------------------------------------------
-//  BAG BASLATMA TABLOSU (bottom-up).
-//  Anahtar = bagi BASLATAN (modali acik olan) gereksinimin tipi.
-//  Her secenek, kullanicinin secebilecegi HEDEF tipleri ve olusacak bagin
-//  depolama yonunu tanimlar:
-//     storeAs: 'child'    -> link(target=UST, open=ALT)  (Satisfies)
-//     storeAs: 'verifier' -> link(target=UST, open=ALT)  (Verifies; open = TC)
-//  Her iki durumda da DEPOLAMA: fromId = hedef (ust), toId = acik gereksinim (alt).
-// ---------------------------------------------------------------------------
-export const LINK_INITIATION = {
-  [REQ_TYPE.SYSTEM]: [], // tepe seviye: yukari bag baslatmaz
-  [REQ_TYPE.SOFTWARE]: [
-    {
-      type: LINK_TYPE.SATISFIES,
-      targetTypes: [REQ_TYPE.SYSTEM],
-      storeAs: 'child',
-      label: 'Karsiladigi Sistem Gereksinimi (Satisfies ↑)',
-      targetLabel: 'System Requirement',
-    },
-  ],
-  [REQ_TYPE.HARDWARE]: [
-    {
-      type: LINK_TYPE.SATISFIES,
-      targetTypes: [REQ_TYPE.SYSTEM],
-      storeAs: 'child',
-      label: 'Karsiladigi Sistem Gereksinimi (Satisfies ↑)',
-      targetLabel: 'System Requirement',
-    },
-  ],
-  [REQ_TYPE.TEST_CASE]: [
-    {
-      type: LINK_TYPE.VERIFIES,
-      targetTypes: [REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE],
-      storeAs: 'verifier',
-      label: 'Dogruladigi Gereksinim (Verifies ↑)',
-      targetLabel: 'System / Software / Hardware Requirement',
-    },
-  ],
 }
 
 // Kapsam (coverage) analizine dahil edilen gereksinim tipleri.
@@ -369,16 +348,6 @@ export const TEST_PAGES = {
     verifiesTypes: VERIFIES_TARGET_TYPES[TEST_TYPE.SUBSYSTEM], // [Software, Hardware]
     addLabel: 'Test Senaryosu Ekle',
   },
-}
-
-// Test durumu icin izin verilen elle secilebilir degerler (bag kurulurken).
-// Persist edilen degerler cevrilmez.
-export const TEST_STATUS_OPTIONS = [STATUS.APPROVED, STATUS.REJECTED, STATUS.IN_REVIEW]
-// Kullaniciya gosterilen Turkce etiketler (deger degismez).
-export const TEST_STATUS_LABELS = {
-  [STATUS.APPROVED]: 'Passed (Basarili)',
-  [STATUS.REJECTED]: 'Failed (Basarisiz)',
-  [STATUS.IN_REVIEW]: 'In Review (Incelemede)',
 }
 
 // Oturum acan kullanici (auth katmani MVP'de yok; tek kullanici simulasyonu).

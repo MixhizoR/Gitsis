@@ -4,6 +4,7 @@
 // ============================================================================
 import { useState } from 'react'
 import Modal from '../common/Modal.jsx'
+import ReasonModal from '../common/ReasonModal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { IconPlus, IconTrash } from '../common/Icons.jsx'
@@ -14,6 +15,8 @@ export default function FieldManager({ open, onClose }) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -30,17 +33,9 @@ export default function FieldManager({ open, onClose }) {
     }
   }
 
-  const handleRemove = async (f) => {
-    if (!window.confirm(t('field.deleteConfirm', { name: f.name }))) return
-    setBusy(true)
-    setError('')
-    try {
-      await removeField(f.id)
-    } catch (err) {
-      setError(err.message || t('form.saveError'))
-    } finally {
-      setBusy(false)
-    }
+  const confirmDelete = async (reason) => {
+    await removeField(deleteTarget.id, reason)
+    setDeleteTarget(null)
   }
 
   return (
@@ -95,7 +90,7 @@ export default function FieldManager({ open, onClose }) {
                   {f.name}
                 </span>
                 <button
-                  onClick={() => handleRemove(f)}
+                  onClick={() => setDeleteTarget(f)}
                   disabled={busy}
                   className="btn-ghost !px-2 !py-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                   title={t('tbl.delete')}
@@ -107,6 +102,12 @@ export default function FieldManager({ open, onClose }) {
           </ul>
         )}
       </div>
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.name}
+      />
     </Modal>
   )
 }

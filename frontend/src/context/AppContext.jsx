@@ -30,6 +30,8 @@ export function AppProvider({ children }) {
   const [attributeDefs, setAttributeDefs] = useState(EMPTY)
   const [auditLog, setAuditLog] = useState(EMPTY)
   const [approvals, setApprovals] = useState(EMPTY)
+  // Atanabilir kisiler (proje uyeleri) — Issue #97/A: Personnel yerine User.
+  const [assignees, setAssignees] = useState(EMPTY)
   const [snapshots, setSnapshots] = useState(EMPTY)
   // Sol menu duzeni (gruplar + sayfa yerlesimi) — Issue #9 / Adim 6
   const [nav, setNav] = useState(null)
@@ -66,13 +68,14 @@ export function AppProvider({ children }) {
       setAttributeDefs(EMPTY)
       setAuditLog(EMPTY)
       setApprovals(EMPTY)
+      setAssignees(EMPTY)
       setSnapshots(EMPTY)
       setNav(null)
       return
     }
     const pid = activeProjectId
-    const [reqs, tcs, lnks, glo, flds, attrDefs, audit, apps, snaps, navLayout] = await Promise.all(
-      [
+    const [reqs, tcs, lnks, glo, flds, attrDefs, audit, apps, people, snaps, navLayout] =
+      await Promise.all([
         data.listRequirements(pid),
         data.listTestCases(pid),
         data.listLinks(pid),
@@ -81,10 +84,10 @@ export function AppProvider({ children }) {
         data.listAttributes(pid),
         data.listAudit(pid),
         data.listApprovals(pid),
+        data.listAssignees(pid),
         data.listSnapshots(pid),
         data.getNav(pid),
-      ],
-    )
+      ])
     setRequirements(reqs)
     setTestCases(tcs)
     setLinks(lnks)
@@ -93,6 +96,7 @@ export function AppProvider({ children }) {
     setAttributeDefs(attrDefs)
     setAuditLog(audit)
     setApprovals(apps)
+    setAssignees(people)
     // Snapshots endpoint paginated: { data, total, take, skip }
     setSnapshots(snaps?.data || EMPTY)
     setNav(navLayout)
@@ -138,13 +142,13 @@ export function AppProvider({ children }) {
       await refresh()
       return r
     },
-    async removeRequirement(id) {
-      await data.deleteRequirement(pid, id)
+    async removeRequirement(id, reason) {
+      await data.deleteRequirement(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveRequirements(ids) {
+    async bulkRemoveRequirements(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteRequirements(pid, ids)
+      await data.bulkDeleteRequirements(pid, ids, reason)
       await refresh()
     },
 
@@ -159,13 +163,13 @@ export function AppProvider({ children }) {
       await refresh()
       return t
     },
-    async removeTestCase(id) {
-      await data.deleteTestCase(pid, id)
+    async removeTestCase(id, reason) {
+      await data.deleteTestCase(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveTestCases(ids) {
+    async bulkRemoveTestCases(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteTestCases(pid, ids)
+      await data.bulkDeleteTestCases(pid, ids, reason)
       await refresh()
     },
 
@@ -180,13 +184,13 @@ export function AppProvider({ children }) {
       await refresh()
       return g
     },
-    async removeGlossary(id) {
-      await data.deleteGlossary(pid, id)
+    async removeGlossary(id, reason) {
+      await data.deleteGlossary(pid, id, reason)
       await refresh()
     },
-    async bulkRemoveGlossary(ids) {
+    async bulkRemoveGlossary(ids, reason) {
       if (!ids || ids.length === 0) return
-      await data.bulkDeleteGlossary(pid, ids)
+      await data.bulkDeleteGlossary(pid, ids, reason)
       await refresh()
     },
 
@@ -196,8 +200,8 @@ export function AppProvider({ children }) {
       await refresh()
       return f
     },
-    async removeField(id) {
-      await data.deleteField(pid, id)
+    async removeField(id, reason) {
+      await data.deleteField(pid, id, reason)
       await refresh()
     },
 
@@ -206,8 +210,9 @@ export function AppProvider({ children }) {
     // PM "Menuyu duzenle"yi actiginda: varsayilan duzeni DB'ye yazar ki
     // varsayilan gruplar da id kazanip hedef olarak secilebilsin (idempotent).
     async materializeNav() {
-      await data.materializeNav(pid)
+      const layout = await data.materializeNav(pid)
       await refresh()
+      return layout
     },
     async addNavGroup(name) {
       const g = await data.createNavGroup(pid, name)
@@ -216,6 +221,12 @@ export function AppProvider({ children }) {
     },
     async renameNavGroup(id, name) {
       await data.updateNavGroup(pid, id, { name })
+      await refresh()
+    },
+    // Grup SIRASINI degistirir (yukari/asagi tasima). `updates`: [{ id, order }, ...]
+    // — genelde iki grubun order degerlerini takas eder, tek refresh ile biter.
+    async reorderNavGroups(updates) {
+      await Promise.all(updates.map((u) => data.updateNavGroup(pid, u.id, { order: u.order })))
       await refresh()
     },
     async removeNavGroup(id) {
@@ -237,6 +248,13 @@ export function AppProvider({ children }) {
       await data.deleteNavItem(pid, id)
       await refresh()
     },
+    // Bir grup icindeki sayfalarin SIRASINI degistirir (yukari/asagi tasima).
+    // `updates`: [{ id, order }, ...] — genelde iki sayfanin order degerlerini
+    // takas eder, tek refresh ile biter.
+    async reorderNavItems(updates) {
+      await Promise.all(updates.map((u) => data.updateNavItem(pid, u.id, { order: u.order })))
+      await refresh()
+    },
 
     // Modular Oznitelikler (Priority / DAL Level / ozel alanlar) -----------
     async addAttribute(payload) {
@@ -249,8 +267,8 @@ export function AppProvider({ children }) {
       await refresh()
       return a
     },
-    async removeAttribute(id) {
-      await data.deleteAttribute(pid, id)
+    async removeAttribute(id, reason) {
+      await data.deleteAttribute(pid, id, reason)
       await refresh()
     },
 
@@ -261,8 +279,8 @@ export function AppProvider({ children }) {
       await refresh()
       return l
     },
-    async unlink(linkId) {
-      await data.deleteLink(pid, linkId)
+    async unlink(linkId, reason) {
+      await data.deleteLink(pid, linkId, reason)
       await refresh()
     },
     // Toplu bag: { type, targetId, sourceIds, testStatus? }
@@ -281,6 +299,12 @@ export function AppProvider({ children }) {
     },
     async unlockApproval(body) {
       const r = await data.unlockApproval(pid, body)
+      await refresh()
+      return r
+    },
+    //  body: { entityId } — yalnizca test senaryosu icin; tek yetkili yeterli.
+    async rejectApproval(body) {
+      const r = await data.rejectApproval(pid, body)
       await refresh()
       return r
     },
@@ -323,9 +347,9 @@ export function AppProvider({ children }) {
       await refresh()
       return s
     },
-    async deleteSnapshot(snapshotId) {
+    async deleteSnapshot(snapshotId, reason) {
       if (!pid) throw new Error('Aktif proje yok')
-      await data.deleteSnapshot(pid, snapshotId)
+      await data.deleteSnapshot(pid, snapshotId, reason)
       await refresh()
     },
 
@@ -344,6 +368,11 @@ export function AppProvider({ children }) {
     attributeDefs,
     auditLog,
     approvals,
+    // Issue #97/A: atanabilir kisiler = proje UYELERI (User). Personnel kalkti;
+    // picker/gorunum/etiketler bu listeden beslenir. `personnel` adi eski
+    // bilesenlerle uyumluluk icin ayni listeye baglanmistir (alias).
+    assignees,
+    personnel: assignees,
     snapshots,
     nav,
     // durum

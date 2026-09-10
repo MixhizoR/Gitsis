@@ -24,6 +24,7 @@ repomix-output.txt
 VISURE_SPREADSHEET_UI.md
 ISSUE85_AUTH_INFRA_PLAN.md
 repomix-output.md
+ATTRIBUTES_MIGRATION.md
 .reasonix/
 reasonix.toml
 pre-push-log.txt

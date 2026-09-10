@@ -252,6 +252,43 @@ test('vote: kilitli kayit icin PM token ile oy geri cekilebilir (unlock kilit yo
 });
 
 // ============================================================================
+//  Regresyon: GET /approvals/matrix icinde PM satiri 'PM' sabit dizgesiyle
+//  degil, PM'in GERCEK userId'siyle eslesmeliydi. Matris ucu bu duzeltmeyi
+//  (Issue #53'te vote/cascade tarafinda yapilan) hic almamisti; PM oy verse
+//  bile matriste HICBIR ZAMAN "oy verildi" gorunmuyordu.
+// ============================================================================
+
+test('matrix: PM oy verince matriste GERCEK userId ile "oy verildi" gorunur (\'PM\' sabiti degil)', async () => {
+  const r7 = await prisma.requirement.create({
+    data: {
+      projectId: projA.id,
+      text_id: 'REQ-SYS-A07',
+      title: 'Matrix test gereksinim',
+      type: 'System Requirement',
+    },
+  });
+  const vote = await request(app)
+    .post(`/api/projects/${projA.id}/approvals/vote`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ entityType: 'requirement', entityId: r7.id });
+  assert.equal(vote.status, 200);
+
+  const matrix = await request(app)
+    .get(`/api/projects/${projA.id}/approvals/matrix`)
+    .query({ entityType: 'requirement', entityId: r7.id })
+    .set('Authorization', `Bearer ${pmToken}`);
+  assert.equal(matrix.status, 200);
+
+  assert.ok(
+    !matrix.body.voters.some((v) => v.voterId === 'PM'),
+    "'PM' sabiti sentinel voterId olarak listede olmamali",
+  );
+  const pmRow = matrix.body.voters.find((v) => v.voterId === pmUserId);
+  assert.ok(pmRow, 'PM satiri gercek userId ile listelenmeli');
+  assert.equal(pmRow.voted, true, 'PM oy verdikten sonra matriste "oy verildi" gorunmeli');
+});
+
+// ============================================================================
 //  Bug 2: impact.js findUnique → 500
 // ============================================================================
 
@@ -325,12 +362,14 @@ test('glossary DELETE: audit DELETE kaydi yazilir', async () => {
   });
   const r = await request(app)
     .delete(`/api/projects/${projA.id}/glossary/${created.id}`)
-    .set('Authorization', `Bearer ${pmToken}`);
+    .set('Authorization', `Bearer ${pmToken}`)
+    .send({ reason: 'Test verisi temizligi.' });
   assert.equal(r.status, 200);
   const audit = await prisma.auditLog.findFirst({
     where: { projectId: projA.id, action: 'DELETE', entityType: 'glossary', entityId: created.id },
   });
   assert.ok(audit, 'DELETE audit kaydi olmali');
+  assert.equal(audit.reason, 'Test verisi temizligi.');
 });
 
 // ============================================================================

@@ -13,7 +13,15 @@ import LinkManager from '../components/traceability/LinkManager.jsx'
 import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
-import { IconPlus, IconEdit, IconTrash, IconLink } from '../components/common/Icons.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
+import {
+  IconPlus,
+  IconEdit,
+  IconTrash,
+  IconLink,
+  IconComment,
+} from '../components/common/Icons.jsx'
+import CommentsModal from '../components/comments/CommentsModal.jsx'
 import { LINK_TYPE } from '../utils/constants.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
@@ -28,6 +36,10 @@ export default function Glossary() {
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
+  // Yorumlari acilan sozluk terimi (gereksinim/test ile AYNI bilesen).
+  const [commentTarget, setCommentTarget] = useState(null)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const del = useUndoableDelete(bulkRemoveGlossary)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
@@ -58,13 +70,17 @@ export default function Glossary() {
   }
 
   const handleDelete = (g) => {
-    del.schedule([g.id])
+    setDeleteTarget({ ids: [g.id], label: `${g.text_id} — ${g.term}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
-    const ids = sel.selectedIds
+    setDeleteTarget({ ids: sel.selectedIds, label: `${sel.count} ${t('glo.records')}` })
+  }
+  const confirmDelete = async (reason) => {
+    const { ids } = deleteTarget
     sel.clear()
-    del.schedule(ids)
+    await del.schedule(ids, reason)
+    setDeleteTarget(null)
   }
 
   const selectedRows = useMemo(
@@ -173,6 +189,14 @@ export default function Glossary() {
                     </button>
                   )}
                   <button
+                    onClick={() => setCommentTarget(g)}
+                    className="btn-ghost !px-2 !py-1.5"
+                    title={t('view.tab.comments')}
+                    data-testid={`glossary-comments-${g.id}`}
+                  >
+                    <IconComment size={16} />
+                  </button>
+                  <button
                     onClick={() => openEdit(g)}
                     className="btn-ghost !px-2 !py-1.5"
                     title={t('tbl.edit')}
@@ -212,6 +236,18 @@ export default function Glossary() {
         count={del.pendingIds.length}
         secondsLeft={del.secondsLeft}
         onUndo={del.undo}
+      />
+      <CommentsModal
+        entityType="glossary"
+        row={commentTarget}
+        title={commentTarget ? `${commentTarget.text_id} — ${commentTarget.term}` : ''}
+        onClose={() => setCommentTarget(null)}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
     </div>
   )
