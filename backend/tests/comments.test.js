@@ -38,7 +38,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Yorum Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -84,7 +84,7 @@ before(async () => {
   });
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  pmToken = login.body.token;
+  pmToken = login.body.accessToken;
   const pass = await request(app).post('/api/auth/passcode').send({ passcode: 'CMT12' });
   personnelToken = pass.body.token;
 });
@@ -123,7 +123,7 @@ test('POST /comments — PM yorum ekler; yazar SUNUCUDA belirlenir', async () =>
   // Yazar istemciden DEGIL, oturumdan gelir.
   assert.notEqual(res.body.authorId, 'sahte-kullanici');
   assert.equal(res.body.authorName, 'Yorum Test PM');
-  assert.equal(res.body.authorRole, 'Proje Yoneticisi');
+  assert.equal(res.body.authorRole, 'Proje Yöneticisi');
 });
 
 test('POST /comments — okuma yetkisi olan personel yorum ekleyebilir (rolu ile)', async () => {

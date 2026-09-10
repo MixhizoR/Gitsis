@@ -63,7 +63,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Atama Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -75,7 +75,7 @@ before(async () => {
   personB = await createPersonnel(projB.id, 'Zeynep', 'Ak', 'ASG03');
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  pmToken = login.body.token;
+  pmToken = login.body.accessToken;
   const pass = await request(app).post('/api/auth/passcode').send({ passcode: 'ASG01' });
   personnelToken = pass.body.token;
 });

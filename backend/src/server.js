@@ -18,10 +18,24 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS, componentKeyOf } from './constants.js';
+import { STATUS, PM_ROLE, componentKeyOf } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
-import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
+import {
+  requireAuth,
+  requirePM,
+  requireAdmin,
+  projectAccessGuard,
+  hashPassword,
+  signToken,
+  generateRefreshToken,
+  hashRefreshToken,
+  configurePassport,
+  passport,
+  MAX_LOGIN_ATTEMPTS,
+  LOCK_DURATION_MS,
+  REFRESH_TOKEN_TTL_MS,
+} from './auth.js';
 import { cleanRichText } from './sanitize.js';
 import { requireReason } from './reason.js';
 import traceabilityRoutes from './traceability.js';
@@ -71,18 +85,31 @@ const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
+// --- Passport.js kurulumu (Issue #86) --------------------------------------
+//  Stratejiler tek paylasilan PrismaClient'i kullanir (server.js'teki prisma).
+configurePassport(prisma);
+app.use(passport.initialize());
+
 // --- Guvenlik: kimlik dogrulama + proje sinirlama --------------------------
-//  Girisin kendisi (login/passcode/register) haric TUM /api yollari gecerli
-//  bir JWT ister (bkz. auth.js). Deneme-yanilma saldirilarina karsi auth
-//  yollarina ayrica hiz siniri uygulanir.
-const authLimiter = rateLimit({
+//  Girisin kendisi (login/passcode/refresh/logout/register) haric TUM /api
+//  yollari gecerli bir JWT ister (bkz. auth.js). Deneme-yanilma saldirilarina
+//  karsi auth uclarina ayrica hiz siniri uygulanir. Login/register/passcode
+//  (bilgi dogrulama) 20 istek/15dk; refresh/logout (legit frontend refresh'i
+//  etkilenmesin) ayri ve daha yuksek bir limit kullanir.
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Cok fazla deneme yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
-app.use('/api/auth', authLimiter);
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Cok fazla istek yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
+});
 
 // --- Issue #85: istek loglayici (XFF duzeltmesi AC'si) ----------------------
 //  Backend nginx arkasinda calistigi icin tum istemciler tek IP gibi gorunur.
@@ -162,6 +189,37 @@ async function audit(projectId, entry) {
     await prisma.auditLog.create({ data: { projectId, ...entry } });
   } catch (e) {
     console.error('[audit] yazilamadi:', e?.message || e);
+  }
+}
+
+// --- Sistem geneli (proje-bagimsiz) denetim (Issue #86) --------------------
+//  Auth olaylari (login/refresh/logout/lock) proje-ceperli AuditLog'dan AYRI,
+//  global SystemAuditLog tablosuna yazilir. Kimlik dogrulanamadiginda userId
+//  null olabilir (orn. basarisiz login — kullanici henuz bilinmiyor).
+async function auditSystem(action, { userId = null, ...metadata } = {}) {
+  try {
+    await prisma.systemAuditLog.create({ data: { userId, action, metadata } });
+  } catch (e) {
+    console.error('[audit-system] yazilamadi:', e?.message || e);
+  }
+}
+
+// --- ABAC (Issue #87): clearance seviyesi erisim yardimcilari ---------------
+//  Kullanici yalnizca kendi clearanceLevel'ina esit veya ondan dusuk
+//  gereksinimleri gorur. Filtreleme Express array'i uzerinde DEGIL, Prisma
+//  WHERE kosuluna enjekte edilir (performans, AC). Filtre role'den bagimsizdir:
+//  PM (en yuksek clearance) dogal olarak hepsini gorur; ADMIN ayri bir
+//  kullanici-yonetimi roludur (#88) ve gereksinim erisimini etkilemez.
+//  Token'da clearanceLevel yoksa (personel/passcode) guvenli varsayilan = 1.
+function clearanceFilter(req) {
+  const level = req.auth?.clearanceLevel ?? 1;
+  return { clearanceLevel: { lte: level } };
+}
+
+function assertRequirementVisible(req, row) {
+  const level = req.auth?.clearanceLevel ?? 1;
+  if (row && row.clearanceLevel != null && row.clearanceLevel > level) {
+    throw bad('Bu gereksinime erisim yetkiniz yok.', 403);
   }
 }
 
@@ -278,7 +336,7 @@ async function recomputeApproval(pid, entityType, entityId) {
   // ile ayni tanim: req.auth.isPM, kullaniciadi/sifre ile giren HERKESE
   // kosulsuz verilir — bkz. /auth/login). User.role SADECE gorsel bir unvan
   // (varsayilan "System Engineer") ve erisim kontrolu icin KULLANILMAZ. Bu
-  // satir eskiden role==='Proje Yoneticisi' filtreliyordu; varsayilan admin
+  // satir eskiden role==='Proje Yöneticisi' filtreliyordu; varsayilan admin
   // hesabi (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin PM
   // oyu HICBIR ZAMAN sayilmiyor, konsensus asla tamamlanamiyordu.
   const pmUsers = await prisma.user.findMany({
@@ -320,6 +378,7 @@ app.get(
 // degeri 'x-registration-key' basligiyla gondermek gerekir.
 app.post(
   '/api/auth/register',
+  loginLimiter,
   requirePM,
   wrap(async (req, res) => {
     const expected = process.env.PM_REGISTRATION_KEY;
@@ -348,28 +407,320 @@ app.post(
   }),
 );
 
+app.post('/api/auth/login', loginLimiter, (req, res) => {
+  passport.authenticate('local', { session: false }, (err, user, info) => {
+    if (err) return fail(res, err);
+    handleLogin(req, res, user, info).catch((e) => fail(res, e));
+  })(req, res);
+});
+
+// --- Basarili/basarisiz login sonucunu isle (Issue #86) ---------------------
+//  Passport local stratejisi SADECE dogrulama yapar (bkz. auth.js). Basarisiz
+//  deneme sayaci, hesap kilidi, refresh token uretimi ve audit burada yapilir.
+async function handleLogin(req, res, user, info) {
+  if (!user) {
+    const reason = info?.message;
+    if (reason === 'locked') {
+      await auditSystem('login.rejected_locked', {
+        userId: info.user?.id ?? null,
+        username: info.username,
+        ip: info.ip,
+      });
+      return res
+        .status(423)
+        .json({ error: 'Hesap gecici olarak kilitlendi. 15 dakika sonra tekrar deneyin.', code: 'account_locked' });
+    }
+    if (reason === 'inactive') {
+      await auditSystem('login.rejected_inactive', {
+        userId: info.user?.id ?? null,
+        username: info.username,
+        ip: info.ip,
+      });
+      return res.status(403).json({ error: 'Bu hesap devre disi birakilmis.' });
+    }
+    // Basarisiz deneme (yanlis sifre veya bilinmeyen kullanici).
+    const target =
+      info?.user || (info?.username ? await prisma.user.findUnique({ where: { username: info.username } }) : null);
+    const metadata = { username: info?.username, ip: info.ip };
+    if (target) {
+      metadata.userId = target.id;
+      const failed = (target.failedAttempts || 0) + 1;
+      if (failed >= MAX_LOGIN_ATTEMPTS) {
+        await prisma.user.update({
+          where: { id: target.id },
+          data: { failedAttempts: failed, lockedUntil: new Date(Date.now() + LOCK_DURATION_MS) },
+        });
+        await auditSystem('login.locked', metadata);
+      } else {
+        await prisma.user.update({ where: { id: target.id }, data: { failedAttempts: failed } });
+        await auditSystem('login.failed', metadata);
+      }
+    } else {
+      await auditSystem('login.failed', metadata);
+    }
+    return res.status(401).json({ error: 'Kullanici adi veya sifre yanlis.' });
+  }
+
+  // Basarili giris.
+  if (info?.migrated) {
+    const newHash = await hashPassword(req.body.password);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+    user.passwordHash = newHash;
+  }
+  if (user.failedAttempts) {
+    await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
+  }
+  const isPM = user.role === PM_ROLE;
+  const accessToken = signToken({
+    kind: isPM ? 'pm' : 'user',
+    isPM,
+    userId: user.id,
+    systemRole: user.systemRole,
+    clearanceLevel: user.clearanceLevel,
+    ...(user.projectId ? { projectId: user.projectId } : {}),
+  });
+  const refreshToken = generateRefreshToken();
+  await prisma.refreshToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashRefreshToken(refreshToken),
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+    },
+  });
+  await auditSystem('login.success', { userId: user.id, username: user.username, ip: req.ip });
+  res.json({ accessToken, refreshToken, user: safeUser(user) });
+}
+
+// --- Refresh (rotasyon) + Logout (Issue #86) -------------------------------
+//  Refresh token, body'deki opak belirtec uzerinden dogrulanir (Bearer degil);
+//  bu yuzden bu uclar requireAuth'un PUBLIC_PATHS listesindedir (bkz. auth.js).
 app.post(
-  '/api/auth/login',
+  '/api/auth/refresh',
+  refreshLimiter,
   wrap(async (req, res) => {
-    const { username, password } = req.body || {};
-    const user = await prisma.user.findUnique({ where: { username: (username || '').trim() } });
-    if (!user) throw bad('Kullanici adi veya sifre yanlis.', 401);
-    const { ok, migrated } = await verifyPassword(password, user.passwordHash);
-    if (!ok) throw bad('Kullanici adi veya sifre yanlis.', 401);
-    // Eski duz-metin kayit basariyla dogrulandi -> sessizce hash'e tasi.
-    if (migrated)
-      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password) } });
-    const token = signToken({ kind: 'pm', isPM: true, userId: user.id });
-    res.json({ token, user: safeUser(user) });
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) throw bad('refreshToken zorunlu.', 400);
+    const tokenHash = hashRefreshToken(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
+    if (!stored || stored.revokedAt || stored.expiresAt <= new Date()) {
+      await auditSystem('refresh.failed', { userId: stored?.userId ?? null, ip: req.ip });
+      throw bad('Gecersiz veya suresi dolmus refresh token.', 401);
+    }
+    if (!stored.user || !stored.user.isActive) {
+      await auditSystem('refresh.failed', { userId: stored.userId, ip: req.ip });
+      throw bad('Hesap devre disi.', 403);
+    }
+    // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
+    await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    const isPM = stored.user.role === PM_ROLE;
+    const accessToken = signToken({
+      kind: isPM ? 'pm' : 'user',
+      isPM,
+      userId: stored.user.id,
+      systemRole: stored.user.systemRole,
+      clearanceLevel: stored.user.clearanceLevel,
+      ...(stored.user.projectId ? { projectId: stored.user.projectId } : {}),
+    });
+    const newRefresh = generateRefreshToken();
+    await prisma.refreshToken.create({
+      data: {
+        userId: stored.user.id,
+        tokenHash: hashRefreshToken(newRefresh),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    });
+    await auditSystem('refresh.success', { userId: stored.user.id, ip: req.ip });
+    res.json({ accessToken, refreshToken: newRefresh, user: safeUser(stored.user) });
   }),
 );
 
+app.post(
+  '/api/auth/logout',
+  refreshLimiter,
+  wrap(async (req, res) => {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) throw bad('refreshToken zorunlu.', 400);
+    const tokenHash = hashRefreshToken(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+    if (stored) {
+      await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      await auditSystem('logout', { userId: stored.userId, ip: req.ip });
+    } else {
+      await auditSystem('logout', { userId: null, ip: req.ip });
+    }
+    res.status(204).end();
+  }),
+);
+
+// --- Issue #88: Admin kullanici yonetimi (yalnizca systemRole='ADMIN') ------
+//  API yuzeyi /api/admin/* altinda IZOLEDIR (admin konsolu ayrik UI): kullanici
+//  yonetimi proje kaynaklarindan tamamen ayriktir. Signup kapali; kullanicilari
+//  yalnizca admin olusturur/yonetir. Admin islemleri de SystemAuditLog'a yazilir
+//  (sifre/token ASLA loglanmaz).
 app.get(
-  '/api/users',
-  requirePM,
+  '/api/admin/users',
+  requireAdmin,
   wrap(async (_req, res) => {
     const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-    res.json(users.map(safeUser));
+    res.json(users.map(adminUser));
+  }),
+);
+
+app.post(
+  '/api/admin/users',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const username = String(b.username || '').trim();
+    const password = String(b.password || '');
+    const name = String(b.name || '').trim();
+    if (!username || !password || !name) throw bad('username, password, name zorunlu.');
+    const role = b.role ? String(b.role) : 'System Engineer';
+    const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
+    if (!Number.isInteger(clearanceLevel) || clearanceLevel < 1) throw bad('clearanceLevel gecersiz.');
+    let projectId = b.projectId ? String(b.projectId) : null;
+    if (projectId) {
+      const proj = await prisma.project.findUnique({ where: { id: projectId } });
+      if (!proj) throw bad('Proje bulunamadi.', 404);
+    }
+    const initials = name
+      .trim()
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+    const user = await prisma.user.create({
+      data: {
+        username,
+        passwordHash: await hashPassword(password),
+        name,
+        initials,
+        role,
+        systemRole,
+        clearanceLevel,
+        projectId,
+      },
+    });
+    await auditSystem('admin.user.create', {
+      userId: req.auth.userId,
+      targetUserId: user.id,
+      targetUsername: user.username,
+    });
+    res.status(201).json(adminUser(user));
+  }),
+);
+
+app.patch(
+  '/api/admin/users/:id',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw bad('Kullanici bulunamadi.', 404);
+    const data = {};
+    if (b.role != null) data.role = String(b.role);
+    if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    if (b.clearanceLevel != null) {
+      const cl = Number(b.clearanceLevel);
+      if (!Number.isInteger(cl) || cl < 1) throw bad('clearanceLevel gecersiz.');
+      data.clearanceLevel = cl;
+    }
+    if (b.isActive != null) {
+      // Admin kendi hesabini devre disi birakamaz (kilitlenme korumasi).
+      if (req.params.id === req.auth.userId && b.isActive === false) {
+        throw bad('Kendi hesabinizi devre disi birakamazsiniz.');
+      }
+      data.isActive = Boolean(b.isActive);
+    }
+    if (b.projectId !== undefined) {
+      if (b.projectId === null) data.projectId = null;
+      else {
+        const proj = await prisma.project.findUnique({ where: { id: String(b.projectId) } });
+        if (!proj) throw bad('Proje bulunamadi.', 404);
+        data.projectId = String(b.projectId);
+      }
+    }
+    if (b.password != null) {
+      const pw = String(b.password);
+      if (pw.length < 1) throw bad('Sifre bos olamaz.');
+      data.passwordHash = await hashPassword(pw);
+    }
+    if (Object.keys(data).length === 0) throw bad('Guncellenecek alan yok.');
+    const user = await prisma.user.update({ where: { id: req.params.id }, data });
+    await auditSystem('admin.user.update', {
+      userId: req.auth.userId,
+      targetUserId: user.id,
+      fields: Object.keys(data),
+    });
+    res.json(adminUser(user));
+  }),
+);
+
+app.post(
+  '/api/admin/users/:id/unlock',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw bad('Kullanici bulunamadi.', 404);
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { failedAttempts: 0, lockedUntil: null },
+    });
+    await auditSystem('admin.user.unlock', { userId: req.auth.userId, targetUserId: user.id });
+    res.json(adminUser(user));
+  }),
+);
+
+// --- Kullanici silme (Issue: admin paneli feedback) ------------------------
+//  Guvenlik kuralari:
+//    - Admin KENDI hesabini silemez (kilitlenme korumasi).
+//    - ADMIN systemRole'lu baska bir hesap silinemez (son admin kalmasin).
+//  User silinince refreshToken'lari Cascade ile temizlenir; proje verisine
+//  dokunulmaz (User yalnizca kimlik/giris kaydidir).
+app.delete(
+  '/api/admin/users/:id',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!target) throw bad('Kullanici bulunamadi.', 404);
+    if (target.id === req.auth.userId) throw bad('Kendi hesabinizi silemezsiniz.');
+    if (target.systemRole === 'ADMIN') throw bad('Admin hesabi silinemez.');
+    await prisma.user.delete({ where: { id: target.id } });
+    await auditSystem('admin.user.delete', {
+      userId: req.auth.userId,
+      targetUserId: target.id,
+      targetUsername: target.username,
+    });
+    res.status(204).end();
+  }),
+);
+
+// --- Issue #88: auth/admin denetim kayitlari (yalnizca ADMIN) ---------------
+//  Sifre/token ASLA loglanmaz; metadata yalnizca username/ip gibi guvenli alanlar.
+app.get(
+  '/api/admin/audit-logs',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const where = {};
+    if (req.query.action) where.action = String(req.query.action);
+    if (req.query.userId) where.userId = String(req.query.userId);
+    const rows = await prisma.systemAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        action: r.action,
+        metadata: r.metadata,
+        createdAt: r.createdAt,
+      })),
+    );
   }),
 );
 
@@ -377,6 +728,7 @@ app.get(
 //  Personel passcode'unu girer -> dogrudan atandigi projeye + rolune duser.
 app.post(
   '/api/auth/passcode',
+  loginLimiter,
   wrap(async (req, res) => {
     const raw = (req.body?.passcode || '').trim().toUpperCase();
     if (!raw) throw bad('Passcode zorunlu.');
@@ -410,6 +762,22 @@ const safeUser = (u) => ({
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
   systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
+});
+
+// Issue #88: admin panelinde gosterilen genis kullanici gorunumu (passwordHash ASLA).
+const adminUser = (u) => ({
+  id: u.id,
+  username: u.username,
+  name: u.name,
+  initials: u.initials,
+  role: u.role,
+  systemRole: u.systemRole,
+  clearanceLevel: u.clearanceLevel,
+  isActive: u.isActive,
+  failedAttempts: u.failedAttempts,
+  lockedUntil: u.lockedUntil,
+  projectId: u.projectId,
+  createdAt: u.createdAt,
 });
 
 // ===========================================================================
@@ -809,7 +1177,7 @@ app.delete(
 app.get(
   '/api/projects/:pid/requirements',
   wrap(async (req, res) => {
-    const where = { projectId: req.params.pid };
+    const where = { projectId: req.params.pid, ...clearanceFilter(req) };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.requirement.findMany({ where, orderBy: { text_id: 'asc' } });
     res.json(await withAssigneeIdsAll(prisma, 'requirement', flattenAll(rows)));
@@ -829,6 +1197,19 @@ app.post(
     // Coklu atama: gonderilmediyse bos liste (yeni kayit, onceki atama yok).
     const assigneeIds = (await assigneeIdsFrom(b, pid)) ?? [];
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
+    // ABAC (#87): ust (parentId) belirtilmisse seviye ustten miras alinir;
+    // kullanici kendi seviyesinden yuksek bir seviyeye gereksinim olusturamaz.
+    const userLevel = req.auth?.clearanceLevel ?? 1;
+    const parentId = b.parentId ? String(b.parentId).trim() : null;
+    let clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : null;
+    if (parentId) {
+      const parent = await prisma.requirement.findUnique({ where: { id: parentId } });
+      if (!parent || parent.projectId !== pid) throw bad('Ust gereksinim bulunamadi.', 404);
+      assertRequirementVisible(req, parent);
+      clearanceLevel = parent.clearanceLevel; // miras
+    }
+    if (clearanceLevel == null) clearanceLevel = 1;
+    if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
     const created = await prisma.requirement.create({
       data: {
         projectId: pid,
@@ -841,6 +1222,8 @@ app.post(
         attributes,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
+        parentId,
+        clearanceLevel,
         ...source,
       },
     });
@@ -872,7 +1255,7 @@ app.get(
   '/api/projects/:pid/requirements/tree',
   wrap(async (req, res) => {
     const parentId = req.query.parentId ? String(req.query.parentId).trim() : null;
-    const items = await getTreeChildren(req.params.pid, parentId);
+    const items = await getTreeChildren(req.params.pid, parentId, req.auth?.clearanceLevel);
     res.json({ items });
   }),
 );
@@ -880,7 +1263,11 @@ app.get(
 app.get(
   '/api/projects/:pid/requirements/:id/ancestors',
   wrap(async (req, res) => {
-    const path = await getTreeAncestorPath(req.params.pid, req.params.id);
+    const pid = req.params.pid;
+    const target = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!target || target.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, target);
+    const path = await getTreeAncestorPath(pid, req.params.id, req.auth?.clearanceLevel);
     if (!path) throw bad('Gereksinim bulunamadi.', 404);
     res.json({ path });
   }),
@@ -892,6 +1279,7 @@ app.get(
     const pid = req.params.pid;
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, row);
     res.json(withAssigneeIds(flatten(row), await getAssigneeIds(prisma, 'requirement', row.id)));
   }),
 );
@@ -903,6 +1291,7 @@ app.put(
     const b = req.body || {};
     const before = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!before || before.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, before);
     if (before.locked) throw bad('Bu gereksinim onaylandi ve kilitli. Duzenlemek icin once PM kilidi acmalidir.', 403);
     const data = {};
     for (const k of ['text_id', 'title', 'description', 'field']) {
@@ -1083,7 +1472,23 @@ app.patch(
     const pid = req.params.pid;
     const newParentId = req.body?.parentId ?? null;
     const actor = req.auth?.userId || 'ehsim.user';
+    // ABAC (#87): tasinan gereksinim + yeni ust, kullanicinin gorebildigi
+    // bir seviyede olmali; tasima sonrasi yeni usten seviye miras alinir.
+    const source = await prisma.requirement.findUnique({ where: { id: req.params.id } });
+    if (!source || source.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
+    assertRequirementVisible(req, source);
+    let newLevel = null;
+    if (newParentId) {
+      const parent = await prisma.requirement.findUnique({ where: { id: newParentId } });
+      if (!parent || parent.projectId !== pid) throw bad('Ust gereksinim bulunamadi.', 404);
+      assertRequirementVisible(req, parent);
+      newLevel = parent.clearanceLevel;
+    }
     const row = await moveRequirement(prisma, pid, req.params.id, newParentId, actor);
+    if (newLevel != null) {
+      await prisma.requirement.update({ where: { id: row.id }, data: { clearanceLevel: newLevel } });
+      row.clearanceLevel = newLevel;
+    }
     res.json(row);
   }),
 );
@@ -1893,7 +2298,7 @@ app.post(
     let voterId, voterName, personnelId, personnelPermissions;
     if (req.auth.isPM) {
       voterId = req.auth.userId;
-      voterName = req.auth.name || 'Proje Yoneticisi';
+      voterName = req.auth.name || 'Proje Yöneticisi';
       personnelId = null;
     } else if (req.auth.kind === 'personnel') {
       voterId = req.auth.personnelId;
@@ -1907,7 +2312,7 @@ app.post(
       personnelPermissions = pers.role ? pers.role.permissions || {} : {};
     } else throw bad('Gecersiz kimlik.', 401);
     if (entity.locked && !req.auth.isPM)
-      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yöneticisi kilidi acabilir.', 403);
     if (!req.auth.isPM) {
       const compKey = componentKeyOf(entityType, entity.type);
       const perm = personnelPermissions ? personnelPermissions.approve || {} : {};
@@ -1964,7 +2369,7 @@ app.post(
     const entity = await prisma.testCase.findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
     if (entity.locked && !req.auth.isPM)
-      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yöneticisi kilidi acabilir.', 403);
     await assertApprovePermission(req, pid, 'testcase', entity);
     const row = await prisma.testCase.update({
       where: { id: entityId },
@@ -2023,7 +2428,7 @@ app.get(
     // voterId = req.auth.userId), 'PM' sabit dizgesiyle degil — bu satir 'PM' sabiti
     // kullaniyordu ve PM asla oy vermis GORUNMUYORDU (Issue #53'te cascade.js'te
     // duzeltilen ayni sinif hata; matris ucundan atlanmisti). "PM" User
-    // tablosundaki HERHANGI bir hesaptir (role='Proje Yoneticisi' degil —
+    // tablosundaki HERHANGI bir hesaptir (role='Proje Yöneticisi' degil —
     // bkz. recomputeApproval'daki ayni sinif duzeltme); birden fazla PM
     // olabilir (co-PM kurulumlar), hepsi ayri satir olarak listelenir.
     const [approvals, pmUsers] = await Promise.all([
@@ -2034,8 +2439,8 @@ app.get(
     const voters = [
       ...pmUsers.map((u) => ({
         voterId: u.id,
-        name: u.name || 'Proje Yoneticisi',
-        role: 'Proje Yoneticisi',
+        name: u.name || 'Proje Yöneticisi',
+        role: 'Proje Yöneticisi',
         voted: votedIds.has(u.id),
       })),
       ...requiredPersonnel.map((p) => ({

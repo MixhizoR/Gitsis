@@ -141,7 +141,7 @@ export default function TestCases({
       entityType: 'testcase',
       entityId: r.id,
       voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
+      voterName: currentUser?.name || (isPM ? 'Proje Yöneticisi' : ''),
       personnelId: isPM ? null : currentUser?.personnelId,
     })
   }

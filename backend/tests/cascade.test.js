@@ -31,7 +31,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Cascade Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -70,7 +70,7 @@ before(async () => {
 
   // PM login
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  pmToken = res.body.token;
+  pmToken = res.body.accessToken;
   pmUserId = res.body.user.id;
   assert.ok(pmToken);
   assert.ok(pmUserId);

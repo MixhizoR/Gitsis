@@ -24,7 +24,7 @@ before(async () => {
 
   const { hashPassword, signToken } = await import('../src/auth.js');
   const user = await prisma.user.create({
-    data: { username: 'pm-prefix', passwordHash: await hashPassword('p'), name: 'PM', role: 'Proje Yoneticisi' },
+    data: { username: 'pm-prefix', passwordHash: await hashPassword('p'), name: 'PM', role: 'Proje Yöneticisi' },
   });
   pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
   proj = await prisma.project.create({ data: { name: 'Prefix Proje' } });

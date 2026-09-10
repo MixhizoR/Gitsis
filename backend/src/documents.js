@@ -93,7 +93,7 @@ async function uploaderName(req) {
   try {
     if (req.auth?.isPM && req.auth.userId) {
       const u = await prisma.user.findUnique({ where: { id: req.auth.userId }, select: { name: true } });
-      return u?.name || 'Proje Yoneticisi';
+      return u?.name || 'Proje Yöneticisi';
     }
     if (req.auth?.kind === 'personnel' && req.auth.personnelId) {
       const p = await prisma.personnel.findUnique({

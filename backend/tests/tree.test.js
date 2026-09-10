@@ -30,7 +30,7 @@ before(async () => {
       username: 'pm-tree',
       passwordHash: await hashPassword('pm-pass'),
       name: 'Tree PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });

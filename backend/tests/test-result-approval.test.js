@@ -42,13 +42,14 @@ before(async () => {
   const { hashPassword } = await import('../src/auth.js');
   // Bilerek role belirtilmiyor: sema varsayilani 'System Engineer' devreye
   // girer — TAM OLARAK gercek bootstrap admin hesabinin (seed-admin.mjs)
-  // rolu. 'Proje Yoneticisi' string'ini elle yazmak, bu suit'in tam da
-  // yakalamak istedigi hatayi (role=='Proje Yoneticisi' filtresi) gizlerdi.
+  // rolu. 'Proje Yöneticisi' string'ini elle yazmak, bu suit'in tam da
+  // yakalamak istedigi hatayi (role=='Proje Yöneticisi' filtresi) gizlerdi.
   await prisma.user.create({
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'TestResult PM',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -85,7 +86,7 @@ before(async () => {
 
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200);
-  pmToken = t0.body.token;
+  pmToken = t0.body.accessToken;
 
   const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'TRA01' });
   assert.equal(t1.status, 200);

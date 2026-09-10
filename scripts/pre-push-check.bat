@@ -30,4 +30,8 @@ echo ==^> Pre-push: test (frontend)...
 cd /d "%~dp0..\frontend" && pnpm test
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
+echo ==^> Pre-push: build (frontend)...
+cd /d "%~dp0..\frontend" && pnpm run build
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+
 echo ==^> Tum kontroller basarili. Push devam edebilir.

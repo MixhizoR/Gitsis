@@ -16,36 +16,87 @@ export const http = axios.create({
 // AuthContext.jsx'teki oturum anahtariyla AYNI olmali.
 const SESSION_KEY = 'ehsim_auth_session'
 
-// Her istege, varsa oturum token'ini Authorization basligi olarak ekler.
-http.interceptors.request.use((config) => {
+function readSession() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY)
-    const token = raw ? JSON.parse(raw)?.token : null
-    if (token) config.headers.Authorization = `Bearer ${token}`
+    return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')
   } catch {
-    /* yoksay */
+    return null
   }
+}
+
+function writeSession(s) {
+  if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s))
+  else localStorage.removeItem(SESSION_KEY)
+}
+
+// Oturum gecersizlesince tum uygulamaya bildir (AuthContext dinler -> Login).
+function emitSessionExpired() {
+  window.dispatchEvent(new CustomEvent('ehsim:auth-expired'))
+}
+
+// --- Tek-seferlik (single-flight) sessiz yenileme (Issue #89) --------------
+//  Ayni anda birden fazla 401 gelirse yalnizca 1 refresh istegi gider; digerleri
+//  ayni promise'i bekler (AC). Refresh cagrisi AYRI bir Axios cagrisi kullanir
+//  ki kendi 401'i yeniden refresh'i tetiklemesin (sonsuz dongu yok).
+let refreshPromise = null
+
+async function doRefresh() {
+  const s = readSession()
+  if (!s?.refreshToken) {
+    writeSession(null)
+    emitSessionExpired()
+    throw new Error('refresh token yok')
+  }
+  const res = await axios.post('/api/auth/refresh', { refreshToken: s.refreshToken })
+  const { accessToken, refreshToken } = res.data || {}
+  if (!accessToken || !refreshToken) {
+    writeSession(null)
+    emitSessionExpired()
+    throw new Error('refresh yaniti gecersiz')
+  }
+  writeSession({ ...s, accessToken, refreshToken })
+  return { accessToken, refreshToken }
+}
+
+function ensureRefresh() {
+  if (!refreshPromise) {
+    refreshPromise = doRefresh().finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
+}
+
+// Her istege, varsa oturum access token'ini Authorization basligi olarak ekler.
+http.interceptors.request.use((config) => {
+  const s = readSession()
+  if (s?.accessToken) config.headers.Authorization = `Bearer ${s.accessToken}`
   return config
 })
 
-// Token gecersiz/suresi dolmussa (ya da bu guvenlik guncellemesinden ONCE
-// alinmis, token'siz eski bir oturumsa) oturumu temizleyip giris ekranina
-// don. (Giristen ONCE atilan, hic oturumu olmayan istekler icin sessizce
-// hata firlat — aksi halde Login ekraninda sonsuz yenileme dongusune girer.)
+// Token gecersiz/suresi dolduysa: sessizce yenile (_retried ile tek deneme),
+// basarisizsa oturumu temizle -> Login ekranina don. Oturumsuz istekler (Login
+// sayfasindaki giris denemesi) icin sessizce hata firlat — sonsuz dongu yok.
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err?.response?.status === 401) {
-      let hadSession = false
+  async (err) => {
+    const status = err?.response?.status
+    const cfg = err?.config
+    const hadSession = readSession()?.refreshToken
+    if (status === 401 && hadSession && cfg && !cfg._retried) {
+      cfg._retried = true
       try {
-        hadSession = Boolean(JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'))
-      } catch {
-        /* yoksay */
+        await ensureRefresh()
+        return http(cfg)
+      } catch (refreshErr) {
+        writeSession(null)
+        emitSessionExpired()
+        return Promise.reject(refreshErr)
       }
-      if (hadSession) {
-        localStorage.removeItem(SESSION_KEY)
-        window.location.reload()
-      }
+    }
+    if (status === 401 && hadSession) {
+      writeSession(null)
+      emitSessionExpired()
     }
     return Promise.reject(err)
   },

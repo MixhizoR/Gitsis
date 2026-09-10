@@ -28,7 +28,7 @@ before(async () => {
       username: PM_CREDS.username,
       passwordHash: await hashPassword(PM_CREDS.password),
       name: 'Import Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -48,7 +48,7 @@ before(async () => {
   });
 
   const res = await request(app).post('/api/auth/login').send(PM_CREDS);
-  pmToken = res.body.token;
+  pmToken = res.body.accessToken;
   assert.ok(pmToken);
 });
 
