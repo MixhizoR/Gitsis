@@ -44,6 +44,7 @@ export async function getTreeChildren(projectId, parentId, clearanceLevel) {
     parentId === null
       ? await prisma.$queryRaw`
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId", r."clearanceLevel",
+                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id
@@ -55,6 +56,7 @@ export async function getTreeChildren(projectId, parentId, clearanceLevel) {
         `
       : await prisma.$queryRaw`
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId", r."clearanceLevel",
+                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id

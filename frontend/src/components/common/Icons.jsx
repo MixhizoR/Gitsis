@@ -207,6 +207,13 @@ export const IconCheckCircle = (p) => (
   </Svg>
 )
 
+export const IconXCircle = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.5l5 5M14.5 9.5l-5 5" />
+  </Svg>
+)
+
 export const IconLock = (p) => (
   <Svg {...p}>
     <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -264,5 +271,12 @@ export const IconLoader = (p) => (
     <line x1="18" y1="12" x2="22" y2="12" />
     <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
     <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
+  </Svg>
+)
+
+// Yorum balonu — ana varliklarin yorum sekmesi/dugmesi icin.
+export const IconComment = (p) => (
+  <Svg {...p}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
   </Svg>
 )

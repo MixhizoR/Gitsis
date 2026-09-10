@@ -5,7 +5,7 @@
 //    3) Aksi halde             -> Sidebar + Topbar + sayfa yonlendirmesi.
 //  Sayfa anahtarlari: dashboard, req-user, req-system, req-subsystem,
 //  test-acceptance, test-system, test-subsystem, glossary, coverage,
-//  traceability, documents, audit.
+//  traceability, documents (AI analizi), document-library (Dökümanlar), audit.
 // ============================================================================
 import { useState, useEffect, useMemo } from 'react'
 import { useApp } from './context/AppContext.jsx'
@@ -17,12 +17,14 @@ import Topbar from './components/layout/Topbar.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Hierarchy from './pages/Hierarchy.jsx'
 import PbsTree from './pages/PbsTree.jsx'
+import MyAssignments from './pages/MyAssignments.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
 import Roles from './pages/Roles.jsx'
 import Traceability from './pages/Traceability.jsx'
 import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
+import DocumentLibrary from './pages/DocumentLibrary.jsx'
 import AuditLogPage from './pages/AuditLog.jsx'
 import SnapshotsPage from './pages/Snapshots.jsx'
 import SuspectPage from './pages/SuspectPage.jsx'
@@ -114,12 +116,15 @@ export default function App() {
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'roles' && <Roles />}
           {page === 'pbs-tree' && <PbsTree />}
+          {page === 'my-work' && <MyAssignments />}
           {REQ_KEYS.includes(pageKey) && (
             <Hierarchy
               key={page}
               pageKey={pageKey}
+              navKey={page}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
+              typeFilter={navItem?.typeFilter || null}
               onOpenSuspect={openSuspect}
             />
           )}
@@ -127,6 +132,7 @@ export default function App() {
             <TestCases
               key={page}
               pageKey={pageKey}
+              navKey={page}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
               onOpenSuspect={openSuspect}
@@ -138,6 +144,7 @@ export default function App() {
           {page === 'traceability-import' && <TraceabilityImportPage projectId={activeProjectId} />}
           {page === 'coverage' && <CoverageReport onNavigate={setPage} />}
           {page === 'documents' && <DocumentAnalysis />}
+          {page === 'document-library' && <DocumentLibrary />}
           {page === 'audit' && <AuditLogPage />}
           {page === 'snapshots' && <SnapshotsPage />}
           {page === 'suspect' && <SuspectPage focusId={suspectFocusId} />}

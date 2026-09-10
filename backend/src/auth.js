@@ -10,7 +10,7 @@
 //      jwt (Bearer). local stratejisi SADECE dogrulama yapar; basarisiz
 //      deneme sayaci / hesap kilidi / audit, giris route'unda islenir.
 //    - Express middleware'leri: requireAuth (her istekte token zorunlu,
-//      birkac genel yol haric), requirePM (yalnizca Proje Yoneticisi),
+//      birkac genel yol haric), requirePM (yalnizca Proje Yöneticisi),
 //      projectAccessGuard (app.param('pid', ...) — personel yalnizca
 //      kendi atandigi projeye erisebilir; PM her projeye erisebilir).
 // ============================================================================
@@ -165,7 +165,7 @@ export function requireAuth(req, res, next) {
 
 export function requirePM(req, res, next) {
   if (!req.auth?.isPM) {
-    return res.status(403).json({ error: 'Bu islem yalnizca Proje Yoneticisi tarafindan yapilabilir.' });
+    return res.status(403).json({ error: 'Bu islem yalnizca Proje Yöneticisi tarafindan yapilabilir.' });
   }
   next();
 }

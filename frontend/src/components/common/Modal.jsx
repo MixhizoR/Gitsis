@@ -12,6 +12,10 @@ export default function Modal({
   children,
   footer,
   maxWidth = 'max-w-2xl',
+  // Genis icerik (belge onizlemesi gibi) icin: modal neredeyse tum ekrani
+  // kaplar. Diger tum kullanimlar (formlar, onay modallari) varsayilan
+  // (kompakt) davranisi KORUR — bu yuzden opsiyonel ve varsayilani false.
+  fullScreen = false,
 }) {
   useEffect(() => {
     if (!open) return
@@ -27,18 +31,26 @@ export default function Modal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+    <div
+      className={
+        'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto ' +
+        (fullScreen ? 'p-2 sm:p-4' : 'p-4 sm:p-8')
+      }
+    >
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
       <div
-        className={`card relative z-10 my-auto w-full ${maxWidth} animate-fade-in`}
+        className={
+          'card relative z-10 my-auto flex w-full flex-col animate-fade-in ' +
+          (fullScreen ? 'h-[94vh] max-w-[98vw]' : maxWidth)
+        }
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
             {subtitle && (
@@ -54,10 +66,12 @@ export default function Modal({
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">{children}</div>
+        <div className={'overflow-y-auto px-6 py-5 ' + (fullScreen ? 'flex-1' : 'max-h-[70vh]')}>
+          {children}
+        </div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
             {footer}
           </div>
         )}

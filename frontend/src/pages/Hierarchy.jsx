@@ -4,7 +4,9 @@
 //  belirler (REQ_PAGES yapilandirmasi). Tip kilitli, Alan dinamik, durum
 //  otomatik. Satisfies baglari LinkManager ile yonetilir.
 //  Toplu islem: coklu secim + 5 sn geri alinabilir toplu silme + toplu linkle.
-//  Izin/onay: 12 kademeli RBAC (can) + consensus onay + kilit (freeze).
+//  Izin: 12 kademeli RBAC (can). Gereksinimler KENDI baslarina onaylanmaz;
+//  Durum sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir
+//  (bkz. verifiedFor) — onay/kilit yalnizca test tarafinda (bkz. TestCases.jsx).
 //  pageKey ayni zamanda izin bileson anahtaridir (req-user / req-system / ...).
 // ============================================================================
 import { useMemo, useState } from 'react'
@@ -21,36 +23,54 @@ import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
-import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
+import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
+import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
+import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
-import { REQ_PAGES } from '../utils/constants.js'
+import { REQ_PAGES, LINK_TYPE } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
+import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
+import {
+  selectAttrDefs,
+  requirementStatusOptions,
+  requirementStatusOf,
+} from '../utils/filterOptions.js'
 
 export default function Hierarchy({
   pageKey,
+  navKey = pageKey,
   titleOverride = null,
   fieldFilter = null,
+  typeFilter = null,
   onOpenSuspect,
 }) {
-  // titleOverride / fieldFilter: kullanicinin menuye ekledigi OZEL sayfalar
-  // icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa ayni tipin
-  // Alan (disiplin) filtresiyle daraltilmis gorunumudur.
+  // titleOverride / fieldFilter / typeFilter: kullanicinin menuye ekledigi
+  // OZEL sayfalar icin (Issue #9). Gereksinim TIPLERI sabittir; ozel sayfa
+  // ayni tipin Alan (disiplin) ve/veya Tip (yalnizca req-subsystem: Software/
+  // Hardware) filtresiyle daraltilmis gorunumudur.
   const cfg = REQ_PAGES[pageKey]
+  // typeFilter yalnizca sayfanin zaten sundugu tiplerden biriyse gecerlidir
+  // (orn. req-subsystem'de 'Software Requirement'); aksi halde yoksayilir.
+  const effectiveCfg = useMemo(() => {
+    if (!cfg || !typeFilter || !cfg.typeOptions?.includes(typeFilter)) return cfg
+    return { ...cfg, typeOptions: [typeFilter], lockedType: typeFilter }
+  }, [cfg, typeFilter])
   const {
     requirements,
     links,
-    approvals,
+    fields,
+    attributeDefs,
+    personnel,
     bulkRemoveRequirements,
     editRequirement,
-    voteApproval,
-    unlockApproval,
-    getApprovalMatrix,
+    projectId,
   } = useApp()
   const { t } = useLang()
-  const { can, isPM, currentUser } = useAuth()
-  const [q, setQ] = useState('')
+  const { can } = useAuth()
+  const fx = useEntityFilters(navKey)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
@@ -58,36 +78,60 @@ export default function Hierarchy({
   const [attrMgr, setAttrMgr] = useState(false)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
   const [viewRow, setViewRow] = useState(null)
-  const [matrixRow, setMatrixRow] = useState(null)
+  // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
+  const [sourceRow, setSourceRow] = useState(null)
   const [impactRow, setImpactRow] = useState(null)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { ids, label } | null
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
-  const types = useMemo(() => cfg?.typeOptions || [], [cfg])
+  const types = useMemo(() => effectiveCfg?.typeOptions || [], [effectiveCfg])
+  // Tip kilitliyse (tek tip) tablo sutununda tekrari onlemek icin kaldirilir;
+  // bunun yerine baslik yaninda tek bir rozet olarak gosterilir. Gereksinimler
+  // artik KENDI baslarina onaylanmaz (Issue: onay tuslari kaldirildi) — Durum
+  // sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir.
+  const tableColumns = useMemo(
+    () =>
+      effectiveCfg?.lockedType
+        ? ['field', 'status', 'assignee', 'links']
+        : ['type', 'field', 'status', 'assignee', 'links'],
+    [effectiveCfg],
+  )
+  // Bu gereksinimi dogrulayan (Verifies) en az bir test bagli mi? Degilse
+  // "Dogrulanamaz" gosterilir — durum r.status'tan degil, baglantidan okunur.
+  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
 
   // --- Izin cozumleyiciler ---------------------------------------------------
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
   const canRead = can('read', comp)
   const canAdd = can('add_requirement', comp)
   const canFields = can('manage_fields')
   const canEditRow = () => can('write', comp)
   const canDeleteRow = () => can('delete', comp)
   const canLinksRow = () => can('link_satisfies', comp)
-  const canApproveRow = () => can('approve', comp)
 
   // 5 sn geri alinabilir toplu silme.
   const del = useUndoableDelete(bulkRemoveRequirements)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
 
+  // Filtre cubugu secenekleri: Alan projeye gore dinamiktir, oznitelikler
+  // runtime'da eklenip silinebilir; Tip yalnizca sayfa tek tipe kilitli
+  // DEGILSE anlamlidir (tablo 'type' sutunuyla ayni kural, bkz. tableColumns).
+  const filterAttrDefs = useMemo(
+    () => selectAttrDefs(attributeDefs, 'requirement'),
+    [attributeDefs],
+  )
+  const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
+
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const statusOf = (r) => requirementStatusOf(r, verifiedFor)
     return requirements
       .filter((r) => types.includes(r.type))
       .filter((r) => !fieldFilter || r.field === fieldFilter)
-      .filter((r) =>
-        !needle ? true : `${r.text_id} ${r.title} ${r.description}`.toLowerCase().includes(needle),
-      )
+      .filter((r) => matchesFilters(r, fx.filters, statusOf))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [requirements, types, q, fieldFilter])
+    // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requirements, types, fx.filters, fieldFilter, links])
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
@@ -98,24 +142,6 @@ export default function Hierarchy({
 
   // Issue #57: satirin supheli (suspect) cikis bag sayisi — gosterge + yonlendirme.
   const suspectCountFor = (r) => suspectLinksForRequirement(links, r.id).length
-
-  // --- Onay bilgisi ----------------------------------------------------------
-  const approvalInfoFor = (r) => ({
-    approved: r.approvalStatus === 'Approved',
-    voted: approvals.some(
-      (a) => a.entityType === 'requirement' && a.entityId === r.id && a.voterId === myVoterId,
-    ),
-  })
-
-  const toggleApprove = (r) => {
-    voteApproval({
-      entityType: 'requirement',
-      entityId: r.id,
-      voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
-    })
-  }
 
   const openCreate = () => {
     setEditing(null)
@@ -128,13 +154,17 @@ export default function Hierarchy({
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
   const handleDelete = (r) => {
-    del.schedule([r.id])
+    setDeleteTarget({ ids: [r.id], label: `${r.text_id} — ${r.title}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return
-    const ids = sel.selectedIds
+    setDeleteTarget({ ids: sel.selectedIds, label: `${sel.count} ${t('req.records')}` })
+  }
+  const confirmDelete = async (reason) => {
+    const { ids } = deleteTarget
     sel.clear()
-    del.schedule(ids)
+    await del.schedule(ids, reason)
+    setDeleteTarget(null)
   }
 
   const selectedRows = useMemo(
@@ -148,14 +178,18 @@ export default function Hierarchy({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            {titleOverride || cfg.navLabel}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {titleOverride || effectiveCfg.navLabel}
+            </h2>
+            {effectiveCfg.lockedType && <TypeBadge value={effectiveCfg.lockedType} />}
+          </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">
-              {visibleRows.length}
-            </span>{' '}
-            {t('req.records')}
+            <FilterSummary
+              count={visibleRows.length}
+              label={t('req.records')}
+              activeCount={fx.activeCount}
+            />
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -171,17 +205,23 @@ export default function Hierarchy({
           )}
           {canAdd && (
             <button onClick={openCreate} className="btn-primary">
-              <IconPlus size={18} /> {cfg.addLabel}
+              <IconPlus size={18} /> {effectiveCfg.addLabel}
             </button>
           )}
         </div>
       </div>
 
-      <input
-        className="input !py-1.5 text-sm"
-        placeholder={t('filt.searchPh')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
+      <FilterBar
+        filters={fx.filters}
+        onSet={fx.set}
+        onSetAttr={fx.setAttr}
+        onClear={fx.clear}
+        types={effectiveCfg.lockedType ? null : types}
+        fields={fieldFilter ? null : fields}
+        statusOptions={statusOptions}
+        assignees={personnel}
+        attrDefs={filterAttrDefs}
+        activeCount={fx.activeCount}
       />
 
       <BulkActionBar
@@ -194,7 +234,7 @@ export default function Hierarchy({
 
       <EntityTable
         rows={visibleRows}
-        columns={['type', 'field', 'links']}
+        columns={tableColumns}
         attributeEntityType="requirement"
         linkCountFor={linkCountFor}
         suspectCountFor={suspectCountFor}
@@ -207,12 +247,8 @@ export default function Hierarchy({
         canEditRow={canEditRow}
         canDeleteRow={canDeleteRow}
         canManageLinksRow={canLinksRow}
-        showApproval
-        canApproveRow={canApproveRow}
-        approvalInfoFor={approvalInfoFor}
-        onToggleApprove={toggleApprove}
-        showApprovalDetail={isPM}
-        onApprovalDetail={setMatrixRow}
+        statusLabel={t('tbl.th.verification')}
+        verifiedFor={verifiedFor}
         selectable
         selectedIds={sel.selectedSet}
         onToggleRow={sel.toggleRow}
@@ -225,7 +261,7 @@ export default function Hierarchy({
         open={formOpen}
         onClose={() => setFormOpen(false)}
         editing={editing}
-        pageConfig={cfg}
+        pageConfig={effectiveCfg}
       />
       <FieldManager open={fieldMgr} onClose={() => setFieldMgr(false)} />
       <AttributeManager open={attrMgr} onClose={() => setAttrMgr(false)} />
@@ -250,25 +286,31 @@ export default function Hierarchy({
         showHistory
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
+        onOpenSource={setSourceRow}
+        commentEntityType="requirement"
+      />
+      {/* Kaynak izlenebilirligi: dokumani Metin modunda acip pasaji vurgular. */}
+      <SourceDocumentModal
+        requirement={sourceRow}
+        projectId={projectId}
+        onClose={() => setSourceRow(null)}
       />
       <ImpactAnalysisModal
         open={Boolean(impactRow)}
         onClose={() => setImpactRow(null)}
         requirement={impactRow}
       />
-      <ApprovalMatrixModal
-        open={Boolean(matrixRow)}
-        entityType="requirement"
-        row={matrixRow}
-        onClose={() => setMatrixRow(null)}
-        onFetch={getApprovalMatrix}
-        onUnlock={(et, id) => unlockApproval({ entityType: et, entityId: id })}
-      />
       <UndoToast
         open={del.isPending}
         count={del.pendingIds.length}
         secondsLeft={del.secondsLeft}
         onUndo={del.undo}
+      />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.label}
       />
     </div>
   )

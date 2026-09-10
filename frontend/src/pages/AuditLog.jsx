@@ -8,17 +8,30 @@ import { useLang } from '../context/LanguageContext.jsx'
 import { formatDateTime } from '../utils/format.js'
 import { IconSearch, IconHistory } from '../components/common/Icons.jsx'
 
+const DELETE_STYLE = 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+
+// Veriyi GERCEKTEN silen tum action turleri — hepsi ayni (rose) renkle
+// gosterilir ve gerekce (reason) alani bunlarda anlamlidir.
+const DELETE_ACTIONS = [
+  'DELETE',
+  'UNLINK',
+  'ATTRIBUTE_DELETE',
+  'ROLE_DELETE',
+  'FIELD_DELETE',
+  'PERSONNEL_DELETE',
+  'SNAPSHOT_DELETE',
+]
+
 const ACTION_STYLES = {
   CREATE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   UPDATE: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  DELETE: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
   LINK: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300',
-  UNLINK: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   SEED: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   RESET: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+  ...Object.fromEntries(DELETE_ACTIONS.map((a) => [a, DELETE_STYLE])),
 }
 
-const ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'LINK', 'UNLINK']
+const ACTIONS = ['CREATE', 'UPDATE', 'LINK', ...DELETE_ACTIONS]
 
 export default function AuditLogPage() {
   const { auditLog } = useApp()
@@ -31,7 +44,8 @@ export default function AuditLogPage() {
     return auditLog.filter((e) => {
       if (action && e.action !== action) return false
       if (needle) {
-        const hay = `${e.textId} ${e.message} ${e.user} ${e.field || ''}`.toLowerCase()
+        const hay =
+          `${e.textId} ${e.message} ${e.actor} ${e.reason || ''} ${e.field || ''}`.toLowerCase()
         if (!hay.includes(needle)) return false
       }
       return true
@@ -96,11 +110,11 @@ export default function AuditLogPage() {
                 {filtered.map((e) => (
                   <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-slate-500 dark:text-slate-400">
-                      {formatDateTime(e.timestamp)}
+                      {formatDateTime(e.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 align-top">
                       <span className="font-semibold text-slate-700 dark:text-slate-200">
-                        {e.user}
+                        {e.actor || '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3 align-top">
@@ -117,6 +131,11 @@ export default function AuditLogPage() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <div className="text-slate-700 dark:text-slate-200">{e.message}</div>
+                      {e.reason && (
+                        <div className="mt-1 rounded bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                          <span className="font-semibold">{t('audit.reason')}:</span> {e.reason}
+                        </div>
+                      )}
                       {e.field && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-500 dark:bg-slate-800 dark:text-slate-400">

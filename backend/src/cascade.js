@@ -5,7 +5,7 @@
 //  Sadece degeri DEGISEN satirlar yazilir ("sadece etkilenenler").
 // ============================================================================
 import { Prisma } from '@prisma/client';
-import { REQ_TYPE, TEST_TYPE, PM_ROLE } from './constants.js';
+import { REQ_TYPE, TEST_TYPE } from './constants.js';
 
 // --- Bilesen -> varlik tip eslemesi (server.js'teki componentKeyOf ile ayni)
 const COMPONENT_TYPES = [
@@ -151,14 +151,18 @@ function requiredVotersFor(pmUserIds, personnel, componentKey) {
 }
 
 /**
- * Projedeki tum "Proje Yoneticisi" kullanicilarinin id'lerini tek sorguda getirir.
- * Birden fazla PM olabilir (co PM'li kurulumlar).
+ * Projedeki tum PM kullanicilarinin id'lerini tek sorguda getirir. "PM" User
+ * tablosundaki HERHANGI bir hesaptir — auth.js requirePM ile ayni tanim
+ * (req.auth.isPM, kullaniciadi/sifre ile giren HERKESE kosulsuz verilir,
+ * bkz. /auth/login). User.role SADECE gorsel bir unvan (varsayilan "System
+ * Engineer") ve erisim kontrolu icin KULLANILMAZ — eskiden bu sorgu
+ * role==='Proje Yöneticisi' filtreliyordu; varsayilan admin hesabi
+ * (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin HICBIR
+ * ZAMAN PM sayilmiyor, konsensus asla tamamlanamiyordu.
+ * Birden fazla PM olabilir (co-PM'li kurulumlar) — hepsi sayilir.
  */
 async function getProjectManagerIds(prisma) {
-  const pms = await prisma.user.findMany({
-    where: { role: PM_ROLE },
-    select: { id: true },
-  });
+  const pms = await prisma.user.findMany({ select: { id: true } });
   return pms.map((u) => u.id);
 }
 

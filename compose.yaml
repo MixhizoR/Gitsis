@@ -1,3 +1,14 @@
+# Proje adini SABITLER: compose.yaml'i icinde bulunduran klasorun adindan
+# turetilen varsayilan davranisa GUVENME. Sabit ad olmadan, ayni repo farkli
+# klasor adiyla (orn. "Gitsis-main" vs "Gitsis-main-ma-v3.1.1") indirilirse
+# HER BIRI kendi ayri (ve birbirinden habersiz) Postgres volume'una baglanir;
+# bu da eski/terk edilmis bir klasorden kalma volume'un yeni bir indirmede
+# sessizce yeniden kullanilip supheli "eksik sutun" hatalarina yol acmasina
+# neden olabilir (bkz. Issue: fresh clone migrate hatasi). Sabit isim, ayni
+# makinede bu repo hangi klasor adiyla calistirilirsa calistirilsin HEP AYNI
+# volume + container kumesine baglanmasini garanti eder.
+name: ehsim
+
 services:
   db:
     image: postgres:15
@@ -5,10 +16,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ehsim
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Kok dizinde .env olustur (bkz. .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Kok dizinde .env olustur}
       POSTGRES_DB: ehsim_rmt
-    ports:
-      - "127.0.0.1:5433:5432"
     volumes:
       - ehsim_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,10 +27,7 @@ services:
       retries: 12
 
   migrate:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-      target: builder
+    image: ehsim-migrate:latest
     container_name: ehsim_migrate
     restart: "no"
     depends_on:
@@ -33,10 +39,9 @@ services:
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:?Kok dizinde .env olustur (bkz .env.example)}
       BCRYPT_SALT_ROUNDS: "12"
     command: sh -c "cd /app/backend && npx prisma db push --skip-generate --accept-data-loss && node src/seed.js"
+
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: ehsim-backend:latest
     container_name: ehsim_api
     restart: unless-stopped
     init: true
@@ -61,9 +66,7 @@ services:
       retries: 3
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
+    image: ehsim-frontend:latest
     container_name: ehsim_web
     restart: unless-stopped
     init: true
@@ -71,10 +74,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "5173:8080"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "80:8080"
 
 volumes:
   ehsim_pgdata:

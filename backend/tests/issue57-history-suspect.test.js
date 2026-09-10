@@ -281,12 +281,16 @@ test('status cascade ile degisince: history + suspect IKISI DE tetiklenmez', asy
     data: { projectId: proj.id, fromId: req.id, toId: tc.id, type: 'Verifies' },
   });
 
-  // Test sonucu Approved -> cascade, gereksinim durumunu updateMany ile degistirir.
+  // Test sonucu artik ELLE degil, onay aksiyonuyla belirlenir (bkz. server.js
+  // recomputeApproval). Bu bilesende (test-system) approve izinli personel
+  // yok, o yuzden PM'in tek oyu konsensus icin yeterli -> test 'Approved'
+  // olur -> cascade gereksinimin durumunu ayni deger ile updateMany eder.
   const r = await request(app)
-    .put(`/api/projects/${proj.id}/testcases/${tc.id}`)
+    .post(`/api/projects/${proj.id}/approvals/vote`)
     .set('Authorization', `Bearer ${pmToken}`)
-    .send({ status: 'Approved' });
+    .send({ entityType: 'testcase', entityId: tc.id });
   assert.equal(r.status, 200);
+  assert.equal(r.body.status, 'Approved', "PM tek basina onaylayinca test sonucu 'Approved' olmali");
 
   const updated = await prisma.requirement.findUnique({ where: { id: req.id } });
   assert.equal(updated.status, 'Approved', 'cascade statusu guncellemeli');

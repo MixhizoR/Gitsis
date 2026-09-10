@@ -4,17 +4,21 @@
 //  calisiyor, grupsuz sayfa gorunuyor, "Menuyu duzenle" yalnizca PM'e acik.
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../../context/LanguageContext.jsx'
 
-const { navMock, authMock } = vi.hoisted(() => ({
+const { navMock, authMock, actions } = vi.hoisted(() => ({
   navMock: { value: null },
   authMock: { isPM: true },
+  actions: {
+    addNavItem: vi.fn().mockResolvedValue({}),
+    materializeNav: vi.fn(),
+  },
 }))
 
 vi.mock('../../../context/AppContext.jsx', () => ({
-  useApp: () => ({ nav: navMock.value }),
+  useApp: () => ({ nav: navMock.value, ...actions }),
   AppProvider: ({ children }) => children,
 }))
 
@@ -69,6 +73,8 @@ describe('Sidebar — menu gruplari', () => {
   beforeEach(() => {
     navMock.value = defaultNav
     authMock.isPM = true
+    vi.clearAllMocks()
+    actions.addNavItem.mockResolvedValue({})
   })
 
   afterEach(() => {
@@ -135,5 +141,97 @@ describe('Sidebar — menu gruplari', () => {
     navMock.value = null
     renderSidebar()
     expect(screen.getByText('Gösterge Paneli')).toBeInTheDocument()
+  })
+
+  it('grubun yanindaki "+" ile Menuyu duzenle acmadan sayfa eklenir (materialize edilmis grup)', async () => {
+    navMock.value = {
+      materialized: true,
+      groups: [
+        {
+          id: 'g-test',
+          name: 'Testler',
+          nameKey: null,
+          order: 0,
+          items: [{ pageKey: 'test-acceptance' }],
+        },
+      ],
+      ungrouped: [],
+    }
+    renderSidebar()
+
+    fireEvent.click(screen.getByTestId('nav-group-quickadd-Testler'))
+    expect(await screen.findByTestId('nav-quickadd-form')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('nav-quickadd-submit'))
+
+    await waitFor(() => expect(actions.addNavItem).toHaveBeenCalledTimes(1))
+    expect(actions.addNavItem).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: 'g-test', pageKey: 'req-user' }),
+    )
+    expect(actions.materializeNav).not.toHaveBeenCalled()
+  })
+
+  it('grubun yanindaki "+" varsayilan (id\'siz) grup icin once materialize eder', async () => {
+    actions.materializeNav.mockResolvedValue({
+      groups: [{ id: 'g-req-real', name: 'Gereksinimler', nameKey: null, order: 0, items: [] }],
+    })
+    renderSidebar()
+
+    fireEvent.click(screen.getByTestId('nav-group-quickadd-Gereksinimler'))
+    fireEvent.click(await screen.findByTestId('nav-quickadd-submit'))
+
+    await waitFor(() => expect(actions.addNavItem).toHaveBeenCalledTimes(1))
+    expect(actions.materializeNav).toHaveBeenCalledTimes(1)
+    expect(actions.addNavItem).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: 'g-req-real' }),
+    )
+  })
+
+  it('"+" yalnizca PM icin gorunur', () => {
+    authMock.isPM = false
+    renderSidebar()
+    expect(screen.queryByTestId('nav-group-quickadd-Testler')).not.toBeInTheDocument()
+  })
+
+  it('hizli eklemede "req-subsystem" secilince Tip filtresi (Software/Hardware) cikar', async () => {
+    navMock.value = {
+      materialized: true,
+      groups: [{ id: 'g-test', name: 'Testler', nameKey: null, order: 0, items: [] }],
+      ungrouped: [],
+    }
+    renderSidebar()
+
+    fireEvent.click(screen.getByTestId('nav-group-quickadd-Testler'))
+    // Varsayilan tip (req-user) icin tip filtresi yok.
+    expect(screen.queryByTestId('nav-quickadd-typefilter')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByTestId('nav-quickadd-type'), {
+      target: { value: 'req-subsystem' },
+    })
+    const typeFilterSelect = await screen.findByTestId('nav-quickadd-typefilter')
+    fireEvent.change(typeFilterSelect, { target: { value: 'Software Requirement' } })
+    fireEvent.click(screen.getByTestId('nav-quickadd-submit'))
+
+    await waitFor(() => expect(actions.addNavItem).toHaveBeenCalledTimes(1))
+    expect(actions.addNavItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: 'g-test',
+        pageKey: 'req-subsystem',
+        typeFilter: 'Software Requirement',
+      }),
+    )
+  })
+
+  // "Bana Atananlar" personelin kendi is kuyrugudur; PM'in personel kimligi
+  // olmadigi icin ona atanmis is de olamaz — menude gosterilmez.
+  it('"Bana Atananlar" yalnizca personel oturumunda gorunur', () => {
+    navMock.value = defaultNav
+    authMock.isPM = false
+    renderSidebar()
+    expect(screen.getByRole('button', { name: /Bana Atananlar/i })).toBeInTheDocument()
+
+    cleanup()
+    authMock.isPM = true
+    renderSidebar()
+    expect(screen.queryByRole('button', { name: /Bana Atananlar/i })).not.toBeInTheDocument()
   })
 })

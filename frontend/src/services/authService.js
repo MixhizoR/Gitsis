@@ -12,7 +12,7 @@
 // ============================================================================
 import * as api from './apiClient.js'
 
-const PM_ROLE = 'Proje Yöneticisi'
+export const PM_ROLE = 'Proje Yöneticisi'
 
 // --- Rol tanimlari (istemci; kayit ekraninda secilir) -----------------------
 //  Backend'e gonderilen deger cevrilmez; bu etiketler ayni zamanda backend

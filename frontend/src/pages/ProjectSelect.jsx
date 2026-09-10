@@ -12,8 +12,10 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import Logo from '../components/common/Logo.jsx'
 import Modal from '../components/common/Modal.jsx'
+import ReasonModal from '../components/common/ReasonModal.jsx'
+import DeletedProjectsModal from '../components/common/DeletedProjectsModal.jsx'
 import { DEFAULT_CODE_PREFIX } from '../utils/constants.js'
-import { IconPlus, IconTrash, IconChevron } from '../components/common/Icons.jsx'
+import { IconPlus, IconTrash, IconChevron, IconHistory } from '../components/common/Icons.jsx'
 
 function CreateModal({ open, onClose }) {
   const { createProject } = useProject()
@@ -109,14 +111,21 @@ function CreateModal({ open, onClose }) {
 
 export default function ProjectSelect() {
   const { projects, loading, error, openProject, removeProject } = useProject()
-  const { currentUser, logout, can } = useAuth()
+  const { currentUser, logout, can, isPM } = useAuth()
   const { t, lang, toggleLang } = useLang()
   const [createOpen, setCreateOpen] = useState(false)
+  const [deletedLogOpen, setDeletedLogOpen] = useState(false)
+  // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const canManageProjects = can('manage_projects')
 
-  const handleDelete = async (e, p) => {
+  const handleDelete = (e, p) => {
     e.stopPropagation()
-    if (window.confirm(t('proj.deleteConfirm', { name: p.name }))) await removeProject(p.id)
+    setDeleteTarget(p)
+  }
+  const confirmDelete = async (reason) => {
+    await removeProject(deleteTarget.id, reason)
+    setDeleteTarget(null)
   }
 
   return (
@@ -153,11 +162,18 @@ export default function ProjectSelect() {
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('proj.savedSub')}</p>
           </div>
-          {canManageProjects && (
-            <button onClick={() => setCreateOpen(true)} className="btn-primary">
-              <IconPlus size={18} /> {t('proj.new')}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isPM && (
+              <button onClick={() => setDeletedLogOpen(true)} className="btn-secondary">
+                <IconHistory size={16} /> {t('proj.deletedLog')}
+              </button>
+            )}
+            {canManageProjects && (
+              <button onClick={() => setCreateOpen(true)} className="btn-primary">
+                <IconPlus size={18} /> {t('proj.new')}
+              </button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -231,6 +247,14 @@ export default function ProjectSelect() {
       </main>
 
       <CreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ReasonModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        itemLabel={deleteTarget?.name}
+        warning={deleteTarget ? t('proj.deleteWarning') : null}
+      />
+      <DeletedProjectsModal open={deletedLogOpen} onClose={() => setDeletedLogOpen(false)} />
     </div>
   )
 }

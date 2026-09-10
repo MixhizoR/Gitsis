@@ -18,6 +18,7 @@ import {
   DEFAULT_CODE_PREFIX,
   prefixFor,
   SATISFIES_PARENT_OF,
+  SATISFIES_ALLOWED_PARENTS,
   VERIFIES_TARGET_TYPES,
   ASSIGNABLE_REQ_TYPES,
   COVERABLE_TYPES,
@@ -85,6 +86,21 @@ test('SATISFIES_PARENT_OF: User disindaki her req tipinin ust tipi var', () => {
   assert.equal(SATISFIES_PARENT_OF[REQ_TYPE.SYSTEM], REQ_TYPE.USER);
   assert.equal(SATISFIES_PARENT_OF[REQ_TYPE.SOFTWARE], REQ_TYPE.SYSTEM);
   assert.equal(SATISFIES_PARENT_OF[REQ_TYPE.HARDWARE], REQ_TYPE.SYSTEM);
+});
+
+test('SATISFIES_ALLOWED_PARENTS: izlenebilirlik bagi PBS agacindan daha esnek (skip-level)', () => {
+  // User hicbir zaman satisfies KAYNAGI olamaz (yukariga dogru akar).
+  assert.ok(!SATISFIES_ALLOWED_PARENTS[REQ_TYPE.USER], 'User ust olmamali');
+  // System'in TEK gecerli ustu User'dir (atlayacagi bir ust seviye yok).
+  assert.deepEqual(SATISFIES_ALLOWED_PARENTS[REQ_TYPE.SYSTEM], [REQ_TYPE.USER]);
+  // Software/Hardware hem System'i (normal) hem DOGRUDAN User'i (skip-level) karsilayabilir.
+  assert.deepEqual(SATISFIES_ALLOWED_PARENTS[REQ_TYPE.SOFTWARE], [REQ_TYPE.SYSTEM, REQ_TYPE.USER]);
+  assert.deepEqual(SATISFIES_ALLOWED_PARENTS[REQ_TYPE.HARDWARE], [REQ_TYPE.SYSTEM, REQ_TYPE.USER]);
+  // PBS agaci (SATISFIES_PARENT_OF) hala TEK deger — iki sabit birbirinden bagimsiz.
+  for (const t of [REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE]) {
+    assert.equal(typeof SATISFIES_PARENT_OF[t], 'string');
+    assert.ok(Array.isArray(SATISFIES_ALLOWED_PARENTS[t]));
+  }
 });
 
 test('VERIFIES_TARGET_TYPES: her test tipi sadece izinli req tiplerini dogrular', () => {
