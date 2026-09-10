@@ -96,17 +96,33 @@ app.use(passport.initialize());
 //  karsi auth uclarina ayrica hiz siniri uygulanir. Login/register/passcode
 //  (bilgi dogrulama) 20 istek/15dk; refresh/logout (legit frontend refresh'i
 //  etkilenmesin) ayri ve daha yuksek bir limit kullanir.
+// Test ortaminda TUM test dosyalari AYNI surecte (node --test), dolayisiyla
+// AYNI bellek-ici sayac deposunu paylasarak calisir — supertest'in gercek
+// istemci IP'si (loopback) tum dosyalarda ortaktir. Bu yuzden onlarca test
+// dosyasinin toplam login/passcode cagrisi, tek bir dosyanin kendi testleri
+// tamamlanmadan limiti (20/15dk) tuketebilir; bu bir GUVENLIK acigi DEGIL,
+// paylasilan test surecinin bir yan etkisidir. Ozel olarak izin verilen tek
+// istisna: loopback IP'den gelen istekler test ortaminda sayilmaz. Rate
+// limit davranisinin KENDISINI dogrulayan test (issue85-auth-infra.test.js)
+// bunu ETKILENMEZ — o test kasitli olarak sahte X-Forwarded-For IP'leri
+// (203.0.113.x) kullanir, tam da gercek loopback IP'nin paylasimli oldugunu
+// bildigi icin; skip burada SADECE loopback'i muaf tutar, sahte IP'leri degil.
+const isTestLoopback = (req) =>
+  process.env.NODE_ENV === 'test' && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.ip);
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isTestLoopback,
   message: { error: 'Cok fazla deneme yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
+  skip: isTestLoopback,
   legacyHeaders: false,
   message: { error: 'Cok fazla istek yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
