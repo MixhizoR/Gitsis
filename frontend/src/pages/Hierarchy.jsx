@@ -25,15 +25,23 @@ import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES, LINK_TYPE } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
+import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
+import {
+  selectAttrDefs,
+  requirementStatusOptions,
+  requirementStatusOf,
+} from '../utils/filterOptions.js'
 
 export default function Hierarchy({
   pageKey,
+  navKey = pageKey,
   titleOverride = null,
   fieldFilter = null,
   typeFilter = null,
@@ -50,10 +58,18 @@ export default function Hierarchy({
     if (!cfg || !typeFilter || !cfg.typeOptions?.includes(typeFilter)) return cfg
     return { ...cfg, typeOptions: [typeFilter], lockedType: typeFilter }
   }, [cfg, typeFilter])
-  const { requirements, links, bulkRemoveRequirements, editRequirement, projectId } = useApp()
+  const {
+    requirements,
+    links,
+    fields,
+    attributeDefs,
+    bulkRemoveRequirements,
+    editRequirement,
+    projectId,
+  } = useApp()
   const { t } = useLang()
   const { can } = useAuth()
-  const [q, setQ] = useState('')
+  const fx = useEntityFilters(navKey)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
@@ -96,16 +112,25 @@ export default function Hierarchy({
   const del = useUndoableDelete(bulkRemoveRequirements)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
 
+  // Filtre cubugu secenekleri: Alan projeye gore dinamiktir, oznitelikler
+  // runtime'da eklenip silinebilir; Tip yalnizca sayfa tek tipe kilitli
+  // DEGILSE anlamlidir (tablo 'type' sutunuyla ayni kural, bkz. tableColumns).
+  const filterAttrDefs = useMemo(
+    () => selectAttrDefs(attributeDefs, 'requirement'),
+    [attributeDefs],
+  )
+  const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
+
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const statusOf = (r) => requirementStatusOf(r, verifiedFor)
     return requirements
       .filter((r) => types.includes(r.type))
       .filter((r) => !fieldFilter || r.field === fieldFilter)
-      .filter((r) =>
-        !needle ? true : `${r.text_id} ${r.title} ${r.description}`.toLowerCase().includes(needle),
-      )
+      .filter((r) => matchesFilters(r, fx.filters, statusOf))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [requirements, types, q, fieldFilter])
+    // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requirements, types, fx.filters, fieldFilter, links])
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
@@ -159,10 +184,11 @@ export default function Hierarchy({
             {effectiveCfg.lockedType && <TypeBadge value={effectiveCfg.lockedType} />}
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">
-              {visibleRows.length}
-            </span>{' '}
-            {t('req.records')}
+            <FilterSummary
+              count={visibleRows.length}
+              label={t('req.records')}
+              activeCount={fx.activeCount}
+            />
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -184,11 +210,16 @@ export default function Hierarchy({
         </div>
       </div>
 
-      <input
-        className="input !py-1.5 text-sm"
-        placeholder={t('filt.searchPh')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
+      <FilterBar
+        filters={fx.filters}
+        onSet={fx.set}
+        onSetAttr={fx.setAttr}
+        onClear={fx.clear}
+        types={effectiveCfg.lockedType ? null : types}
+        fields={fieldFilter ? null : fields}
+        statusOptions={statusOptions}
+        attrDefs={filterAttrDefs}
+        activeCount={fx.activeCount}
       />
 
       <BulkActionBar

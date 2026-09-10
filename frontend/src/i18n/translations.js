@@ -200,12 +200,16 @@ export const STRINGS = {
     'filt.allOf': '{label}: Tümü',
     'filt.type': 'Tip',
     'filt.category': 'Alan',
+    'filt.field': 'Alan',
     'filt.status': 'Durum',
     'filt.priority': 'Öncelik',
     'filt.dal': 'DAL',
     'filt.searchPh': 'Kod, başlık veya tanımda ara…',
     'filt.uncoveredBadge': 'Testi eksik (kapsam dışı)',
     'filt.clear': 'Temizle',
+    'filt.active': '{n} filtre aktif',
+    'filt.treeFlat':
+      'Filtre aktif — sonuçlar proje genelinde düz liste olarak gösteriliyor; ağaç görünümü filtreler temizlenince geri gelir.',
 
     // --- Gereksinim tablosu ---
     'tbl.noResult': 'Sonuç bulunamadı',
@@ -975,12 +979,16 @@ export const STRINGS = {
     'filt.allOf': '{label}: All',
     'filt.type': 'Type',
     'filt.category': 'Domain',
+    'filt.field': 'Field',
     'filt.status': 'Status',
     'filt.priority': 'Priority',
     'filt.dal': 'DAL',
     'filt.searchPh': 'Search code, title or description…',
     'filt.uncoveredBadge': 'Missing test (uncovered)',
     'filt.clear': 'Clear',
+    'filt.active': '{n} filters active',
+    'filt.treeFlat':
+      'Filter active — results are shown as a flat, project-wide list; the tree view returns once filters are cleared.',
 
     // --- Requirements table ---
     'tbl.noResult': 'No results found',

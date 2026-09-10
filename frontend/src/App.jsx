@@ -111,6 +111,7 @@ export default function App() {
             <Hierarchy
               key={page}
               pageKey={pageKey}
+              navKey={page}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
               typeFilter={navItem?.typeFilter || null}
@@ -121,6 +122,7 @@ export default function App() {
             <TestCases
               key={page}
               pageKey={pageKey}
+              navKey={page}
               titleOverride={navItem?.label || null}
               fieldFilter={navItem?.fieldFilter || null}
               onOpenSuspect={openSuspect}
