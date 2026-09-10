@@ -34,7 +34,9 @@ export default function FilterBar({
   const select = (testId, label, value, onChange, options) => (
     <select
       key={testId}
-      className="input !py-1.5 text-sm"
+      // .input `w-full` oldugu icin flex-wrap satirinda her select tek basina
+      // bir satiri kaplardi; cubugun tek satirda kalmasi icin geri alinir.
+      className="input !w-auto min-w-[9rem] max-w-[14rem] !py-1.5 text-sm"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
