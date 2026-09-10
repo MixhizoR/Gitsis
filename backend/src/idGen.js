@@ -10,7 +10,13 @@
 // ============================================================================
 import { prefixFor } from './constants.js';
 
-export async function nextTextId(prisma, projectId, type, isTest) {
+// Bir kerede N adet ardisik text_id ayirir (tek DB gidis-donusu ile). Toplu
+// ice aktarma (reqif/excel) senaryolarinda her kayit icin ayri ayri
+// nextTextId() cagirmak (her seferinde tum tabloyu tekrar taramak) N
+// gereksinim icin O(N^2) sorguya yol acardi; bu fonksiyon O(1) sorguyla
+// ayni "omur boyu benzersizlik" garantisini korur.
+export async function nextTextIdBatch(prisma, projectId, type, isTest, count) {
+  if (count <= 0) return [];
   // Onek PROJE bazlidir: <codePrefix>-<TIP>  (orn. EH-KAHVE-TİD-USR)
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -46,5 +52,16 @@ export async function nextTextId(prisma, projectId, type, isTest) {
   };
   for (const { text_id } of rows) consider(text_id);
   for (const { textId } of auditRows) consider(textId);
-  return `${prefix}-${String(max + 1).padStart(3, '0')}`;
+
+  const ids = [];
+  for (let i = 0; i < count; i++) {
+    max += 1;
+    ids.push(`${prefix}-${String(max).padStart(3, '0')}`);
+  }
+  return ids;
+}
+
+export async function nextTextId(prisma, projectId, type, isTest) {
+  const [id] = await nextTextIdBatch(prisma, projectId, type, isTest, 1);
+  return id;
 }

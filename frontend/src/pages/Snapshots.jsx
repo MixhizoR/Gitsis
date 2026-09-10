@@ -8,7 +8,7 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { formatDateTime } from '../utils/format.js'
+import { formatDateTime, getDisplayLabel } from '../utils/format.js'
 import { IconHistory, IconPlus, IconTrash, IconEye } from '../components/common/Icons.jsx'
 import Modal from '../components/common/Modal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
@@ -158,8 +158,15 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
           <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400">
             {d.text_id}
           </td>
-          <td className="px-4 py-3 text-sm text-slate-900 dark:text-white max-w-xs truncate">
-            {d.title}
+          <td className="px-4 py-3 text-sm text-slate-900 dark:text-white max-w-sm">
+            {(() => {
+              const { text: displayTitle, isFallback } = getDisplayLabel(d)
+              return isFallback ? (
+                <div className="font-normal">{displayTitle}</div>
+              ) : (
+                <div className="truncate">{displayTitle}</div>
+              )
+            })()}
           </td>
           <td className="px-4 py-3 text-sm text-center">
             <Pill>{d.type}</Pill>
@@ -177,8 +184,15 @@ function SnapshotDetailModal({ open, snapshot, onClose }) {
           <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-slate-400">
             {d.text_id}
           </td>
-          <td className="px-4 py-3 text-sm text-slate-900 dark:text-white max-w-xs truncate">
-            {d.title}
+          <td className="px-4 py-3 text-sm text-slate-900 dark:text-white max-w-sm">
+            {(() => {
+              const { text: displayTitle, isFallback } = getDisplayLabel(d)
+              return isFallback ? (
+                <div className="font-normal">{displayTitle}</div>
+              ) : (
+                <div className="truncate">{displayTitle}</div>
+              )
+            })()}
           </td>
           <td className="px-4 py-3 text-sm text-center">
             <Pill>{d.type}</Pill>

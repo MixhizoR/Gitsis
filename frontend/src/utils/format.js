@@ -39,6 +39,40 @@ export function truncate(text, max = 90) {
   return text.length > max ? text.slice(0, max).trimEnd() + '…' : text
 }
 
+/** HTML etiketlerini soker, duz metne cevirir (zengin metin onizlemeleri icin). */
+export function stripHtml(html) {
+  if (!html) return ''
+  return String(html)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Baslik yoksa aciklamadan turetilen etiketin ust siniri — normal baslik
+// aliskanligindan (~30-50 karakter) belirgin sekilde daha genis: baslik
+// olmayan bir kaydin TEK gorunur bilgisi bu oldugu icin listelerde/agacta
+// fazladan kesilmemesi onemli.
+const FALLBACK_LABEL_MAX = 220
+
+/**
+ * Baslik ARTIK ZORUNLU DEGIL (Requirement/TestCase.title bos olabilir).
+ * Bir satirin goruntulenecek etiketini TEK YERDEN belirler:
+ *   1) baslik varsa o (isFallback:false),
+ *   2) yoksa aciklamadan (HTML'den arindirilmis, kesilmis) turetilmis metin
+ *      (isFallback:true — cagiran taraf bunu KALIN + ORTALANMIS gostermeli),
+ *   3) o da yoksa sozluk terimi (`term`) ya da text_id (isFallback:false).
+ * Import/olusturma akislarinin ARTIK baslik UYDURMAMASI (bkz. reqifParser.js)
+ * bu fonksiyonu UI'daki TEK "baslik yoksa ne gosterilir" karar noktasi yapar.
+ */
+export function getDisplayLabel(row, { max = FALLBACK_LABEL_MAX } = {}) {
+  const title = String(row?.title || '').trim()
+  if (title) return { text: title, isFallback: false }
+  const plain = stripHtml(row?.description || '')
+  if (plain) return { text: truncate(plain, max), isFallback: true }
+  if (row?.term) return { text: row.term, isFallback: false }
+  return { text: row?.text_id || '', isFallback: false }
+}
+
 /**
  * "5 dk once", "2 saat once" gibi goreli zaman.
  * Yorum listesinde okunabilirlik icin kullanilir; 7 gunden eskiler tam

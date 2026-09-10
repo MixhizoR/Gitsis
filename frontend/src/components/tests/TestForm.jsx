@@ -76,7 +76,8 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.title.trim()) return setError(t('form.titleRequired'))
+    // Baslik ARTIK ZORUNLU DEGIL — bos birakilirsa listelerde tanim baslik
+    // yerine (kalin + ortalanmis) gosterilir.
     setSaving(true)
     try {
       const payload = {

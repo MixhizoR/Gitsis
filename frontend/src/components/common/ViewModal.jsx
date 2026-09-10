@@ -14,6 +14,7 @@ import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
 import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { getDisplayLabel } from '../../utils/format.js'
 
 const BUILTIN_KEYS = new Set(['priority', 'dal_level'])
 
@@ -82,7 +83,7 @@ export default function ViewModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={`${row.text_id} — ${row.title}`}
+      title={`${row.text_id} — ${getDisplayLabel(row).text}`}
       subtitle={t('view.title')}
       maxWidth="max-w-3xl"
       footer={

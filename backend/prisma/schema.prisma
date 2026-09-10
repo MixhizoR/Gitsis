@@ -331,7 +331,7 @@ model Requirement {
   // korur; parentId ise agac gezinme icin TEK ebeveynli yapiyi tutar.
   parentId           String?
   text_id            String
-  title              String
+  title              String               @default("") // opsiyonel — bos ise UI aciklamayi baslik yerine gosterir
   description        String               @default("")
   type               String // 'User Requirement' | 'System Requirement' | 'Software Requirement' | 'Hardware Requirement'
   field              String? // dinamik Alan / disiplin
@@ -384,7 +384,7 @@ model RequirementHistory {
   version          Int // gereksinim bazli, 1'den baslar
   // Ana tablo alan kopyasi (degisiklik ONCESI durum)
   text_id          String
-  title            String
+  title            String      @default("")
   description      String      @default("")
   type             String
   field            String?
@@ -411,7 +411,7 @@ model TestCase {
   id             String   @id @default(uuid())
   projectId      String
   text_id        String
-  title          String
+  title          String   @default("")
   description    String   @default("")
   type           String // 'Acceptance Test' | 'System Test' | 'Sub-system Test'
   field          String? // gereksinimden otomatik kopyalanir

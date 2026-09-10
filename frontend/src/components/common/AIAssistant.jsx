@@ -14,6 +14,7 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { getTraceForRequirement, computeRequirementStatus } from '../../utils/coverage.js'
+import { getDisplayLabel } from '../../utils/format.js'
 
 const WELCOME = { id: 'welcome', from: 'ai', text: null, welcome: true }
 
@@ -104,7 +105,7 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
       addMessage({
         from: 'ai',
         text:
-          `🔍 ${req.text_id} · ${req.title}\n` +
+          `🔍 ${req.text_id} · ${getDisplayLabel(req).text}\n` +
           `Tip: Test Case · Durum (test sonucu): ${status}\n` +
           `Doğruladığı gereksinim: ${verifies.length} adet` +
           (verifies.length ? `\n→ ${verifies.map((v) => v.req.text_id).join(', ')}` : ''),
@@ -124,7 +125,7 @@ export default function AIAssistant({ onNavigate, onApplyFilters }) {
     addMessage({
       from: 'ai',
       text:
-        `🔍 ${req.text_id} · ${req.title}\n` +
+        `🔍 ${req.text_id} · ${getDisplayLabel(req).text}\n` +
         `Tip: ${req.type} · DAL: ${req.dal_level} · Öncelik: ${req.priority}\n` +
         `Otomatik Durum: ${status}\n${verdict}` +
         (tcs.length ? `\n→ ${tcs.map((x) => `${x.req.text_id}(${x.req.status})`).join(', ')}` : ''),

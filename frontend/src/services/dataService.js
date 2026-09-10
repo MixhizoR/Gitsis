@@ -145,8 +145,17 @@ export const clearLinkSuspect = (pid, linkId) =>
 export const recompute = (pid) => api.post(`/projects/${pid}/recompute`)
 
 // --- ReqIF Integration ------------------------------------------------------
-export const importReqIF = (pid, xmlContent) =>
-  api.post(`/projects/${pid}/traceability/import/reqif`, { xmlContent })
+//  file: .reqif / .reqifz (ZIP) / .xml — ikili (binary) guvenli oldugu icin
+//  multipart/form-data ile gonderilir (JSON govdesi .reqifz'i tasiyamaz).
+//  importType: REQ_TYPE degerlerinden biri — dosyadaki TUM nesneler bu
+//  gereksinim tipi olarak ice aktarilir (DOORS modulleri genelde tek bir
+//  hiyerarsi seviyesini temsil eder).
+export const importReqIF = (pid, file, importType) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (importType) formData.append('importType', importType)
+  return api.upload(`/projects/${pid}/traceability/import/reqif`, formData)
+}
 
 // --- Etki Analizi (Issue #46) -----------------------------------------------
 // Backend Recursive CTE ile hesaplanan etki agaci; buyuk veri setlerinde

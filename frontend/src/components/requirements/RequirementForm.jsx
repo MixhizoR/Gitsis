@@ -92,7 +92,8 @@ export default function RequirementForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.title.trim()) return setError(t('form.titleRequired'))
+    // Baslik ARTIK ZORUNLU DEGIL — bos birakilirsa listelerde/agacta
+    // aciklama baslik yerine (kalin + ortalanmis) gosterilir.
     setSaving(true)
     try {
       const payload = {

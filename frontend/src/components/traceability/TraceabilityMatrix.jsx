@@ -5,6 +5,7 @@
 // ============================================================================
 import { IconCheck } from '../common/Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { getDisplayLabel } from '../../utils/format.js'
 
 export default function TraceabilityMatrix({
   title,
@@ -48,7 +49,7 @@ export default function TraceabilityMatrix({
                   <th
                     key={c.id}
                     className="border-b border-slate-200 bg-slate-50 px-2 py-3 align-bottom dark:border-slate-800 dark:bg-slate-800/60"
-                    title={c.title}
+                    title={getDisplayLabel(c).text}
                   >
                     <div className="mx-auto whitespace-nowrap font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300 [writing-mode:vertical-rl] rotate-180">
                       {c.text_id}
@@ -65,8 +66,8 @@ export default function TraceabilityMatrix({
                       <span className="font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400">
                         {r.text_id}
                       </span>
-                      <span className="max-w-[180px] truncate text-xs text-slate-700 dark:text-slate-200">
-                        {r.title}
+                      <span className="max-w-[220px] truncate text-xs text-slate-700 dark:text-slate-200">
+                        {getDisplayLabel(r).text}
                       </span>
                     </div>
                   </td>
