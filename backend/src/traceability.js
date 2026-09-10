@@ -446,7 +446,11 @@ router.post('/import/reqif', handleReqifUpload, async (req, res) => {
       // projede daha once yazilmis "*-retired" audit kayitlarina bakilarak
       // yapilir.
       const existingRetirements = await tx.auditLog.findMany({
-        where: { projectId: pid, entityType: { in: ['requirement-retired', 'testcase-retired'] }, field: 'reqifExternalId' },
+        where: {
+          projectId: pid,
+          entityType: { in: ['requirement-retired', 'testcase-retired'] },
+          field: 'reqifExternalId',
+        },
         select: { newValue: true },
       });
       const alreadyRetired = new Set(existingRetirements.map((r) => r.newValue).filter(Boolean));
@@ -644,7 +648,9 @@ router.get('/export/reqif', async (req, res) => {
         where: { projectId: pid, ...(layer ? { type: layer } : {}) },
         orderBy: { text_id: 'asc' },
       }),
-      layer ? Promise.resolve([]) : prisma.testCase.findMany({ where: { projectId: pid }, orderBy: { text_id: 'asc' } }),
+      layer
+        ? Promise.resolve([])
+        : prisma.testCase.findMany({ where: { projectId: pid }, orderBy: { text_id: 'asc' } }),
       prisma.traceabilityLink.findMany({ where: { projectId: pid } }),
     ]);
 

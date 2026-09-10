@@ -89,7 +89,7 @@ describe('Formlarda "Atanan Kişi" secimi', () => {
     renderReq()
     fireEvent.change(screen.getByTestId('form-assignee'), { target: { value: 'p2' } })
     fireEvent.change(screen.getByTestId('form-assignee'), { target: { value: 'p1' } })
-    fireEvent.change(screen.getByPlaceholderText('Kısa başlık'), {
+    fireEvent.change(screen.getByPlaceholderText('Kısa başlık', { exact: false }), {
       target: { value: 'Yeni gereksinim' },
     })
     fireEvent.submit(document.getElementById('req-form'))
@@ -112,7 +112,9 @@ describe('Formlarda "Atanan Kişi" secimi', () => {
     fireEvent.change(screen.getByTestId('form-assignee'), { target: { value: 'p2' } })
     // p2 ikinci sirada; bir yukari alinca birincil sorumlu olur.
     fireEvent.click(screen.getAllByLabelText('Sırada yukarı taşı')[0])
-    fireEvent.change(screen.getByPlaceholderText('Kısa başlık'), { target: { value: 'Sirali' } })
+    fireEvent.change(screen.getByPlaceholderText('Kısa başlık', { exact: false }), {
+      target: { value: 'Sirali' },
+    })
     fireEvent.submit(document.getElementById('req-form'))
 
     await waitFor(() => expect(addRequirement).toHaveBeenCalled())
@@ -177,7 +179,7 @@ describe('Formlarda "Atanan Kişi" secimi', () => {
     renderTest()
     fireEvent.change(screen.getByTestId('form-assignee'), { target: { value: 'p1' } })
     fireEvent.change(screen.getByTestId('form-assignee'), { target: { value: 'p2' } })
-    fireEvent.change(screen.getByPlaceholderText('Kısa test başlığı'), {
+    fireEvent.change(screen.getByPlaceholderText('Kısa test başlığı', { exact: false }), {
       target: { value: 'Yeni test' },
     })
     fireEvent.submit(document.getElementById('test-form'))

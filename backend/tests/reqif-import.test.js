@@ -437,7 +437,11 @@ test('R10: gercek IBM DOORS classic RIF 1.2 .xml exportu (child-element IDENTIFI
   // Bu nesnenin Object Text alani ICERIKSIZ bir XHTML sargisiydi
   // (<div></div>) — anlamsiz ham etiket aciklamaya SIZMAMALI, aciklama
   // tamamen bos kalmali (bkz. reqifParser.js isBlankHtml).
-  assert.equal(withHeading.description, '', `Bos XHTML sargisi aciklamaya sizdi: ${JSON.stringify(withHeading.description)}`);
+  assert.equal(
+    withHeading.description,
+    '',
+    `Bos XHTML sargisi aciklamaya sizdi: ${JSON.stringify(withHeading.description)}`,
+  );
 
   const bodyOnly = rows.find((r) => r.id !== withHeading.id);
   // Object Heading bos oldugunda ARTIK baslik UYDURULMAZ (ne "Req-xxxxx" ne

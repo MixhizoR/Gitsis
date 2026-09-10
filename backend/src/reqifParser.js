@@ -132,8 +132,33 @@ function serializeXHTML(node) {
       return String(node['#text']);
     }
     const allowedTags = new Set([
-      'p', 'b', 'i', 'u', 'strong', 'em', 'span', 'div', 'br', 'ul', 'ol', 'li', 'font', 'img', 'a',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre', 'hr', 'sub', 'sup',
+      'p',
+      'b',
+      'i',
+      'u',
+      'strong',
+      'em',
+      'span',
+      'div',
+      'br',
+      'ul',
+      'ol',
+      'li',
+      'font',
+      'img',
+      'a',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'blockquote',
+      'code',
+      'pre',
+      'hr',
+      'sub',
+      'sup',
     ]);
     let html = '';
     for (const [key, val] of Object.entries(node)) {
@@ -378,7 +403,8 @@ export function parseReqIF(xmlContent) {
         const name = def?.name || defId || '';
 
         if (tagName === 'ATTRIBUTE-VALUE-ENUMERATION') {
-          const enumMap = (def?.datatypeId && enumDatatypeMap.get(def.datatypeId)) || enumDatatypeMap.get(defId) || null;
+          const enumMap =
+            (def?.datatypeId && enumDatatypeMap.get(def.datatypeId)) || enumDatatypeMap.get(defId) || null;
           const resolved = asArray(val?.['VALUES']?.['ENUM-VALUE-REF'])
             .map((r) => {
               const refId = typeof r === 'object' ? r?.['#text'] : r;
