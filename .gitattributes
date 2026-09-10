@@ -1,0 +1,36 @@
+# ============================================================================
+#  .gitattributes — Satır sonu (line ending) normalizasyonu.
+#  Windows (CRLF checkout, LF repo) ile Linux/CI (LF) arasında repo'yu
+#  tutarlı tutar; `git status`'te gereksiz "modified" gürültüsünü kaldırır.
+#
+#  Kural: tüm metin dosyaları repo'da LF olarak saklanır; Windows tekil
+#  checkout yaparken local CRLF'e cevirir (core.autocrlf=true gerekir).
+# ============================================================================
+
+# Metin dosyaları: repo'da LF, checkout'ta platforma gore (Windows'ta CRLF).
+* text=auto eol=lf
+
+# Binary/sabit formatlar (normalize ETME):
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.pdf binary
+*.lock binary
+
+# Betik/CI dosyalari icin LF sabit (CRLF shell'i bozar).
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# Son satir sonu boşluk/karisikligina karsi guard.
+* whitespace=trailing-space,space-before-tab,cr-at-eol

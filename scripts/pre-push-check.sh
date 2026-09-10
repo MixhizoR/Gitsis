@@ -23,4 +23,7 @@ echo "==> Pre-push: test (backend, DB servisi gerekir)..."
 echo "==> Pre-push: test (frontend)..."
 ( cd frontend && pnpm run test )
 
+echo "==> Pre-push: build (frontend)..."
+( cd frontend && pnpm run build )
+
 echo "==> Tum kontroller basarili. Push devam edebilir."

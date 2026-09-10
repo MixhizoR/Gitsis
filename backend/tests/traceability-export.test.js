@@ -28,7 +28,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Trace Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -66,7 +66,7 @@ before(async () => {
   });
 
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  pmToken = res.body.token;
+  pmToken = res.body.accessToken;
   assert.ok(pmToken);
 });
 

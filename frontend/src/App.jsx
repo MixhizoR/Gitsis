@@ -30,6 +30,7 @@ import SnapshotsPage from './pages/Snapshots.jsx'
 import SuspectPage from './pages/SuspectPage.jsx'
 import ProjectSelect from './pages/ProjectSelect.jsx'
 import Login from './pages/Login.jsx'
+import AdminLayout from './admin/AdminLayout.jsx'
 import AIAssistant from './components/common/AIAssistant.jsx'
 import { TraceabilityPage } from './pages/TraceabilityPage'
 import { TraceabilityImportPage } from './pages/TraceabilityImportPage'
@@ -56,14 +57,21 @@ export default function App() {
   }, [nav, page])
   const pageKey = navItem?.pageKey || page
 
-  // Personel oturumu: her zaman atandigi projeye kilitlenir (proje secim yok).
-  const forcedProjectId = currentUser?.kind === 'personnel' ? currentUser.projectId : null
+  // Issue #87: projeye atanmis oturum (personel veya regular user) her zaman
+  // atandigi projeye kilitlenir (proje secim yok). PM/projesiz kullanici secim yapar.
+  const forcedProjectId = currentUser?.projectId || null
   useEffect(() => {
     if (forcedProjectId && activeProjectId !== forcedProjectId) openProject(forcedProjectId)
   }, [forcedProjectId, activeProjectId, openProject])
 
   // 1) Giris kapisi
   if (!currentUser) return <Login />
+
+  // 1b) Admin ayrimi (Issue #90 + konsol ayrilmasi): ADMIN hesaplari proje
+  //  ekranlarini HIC GORMEZ — yalnizca sistem yonetim konsoluna (kullanici
+  //  yonetimi + denetim kayitlari) dusur. "User yonetimi" ile "proje
+  //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
+  if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
 
   // 2) Proje secim kapisi — YALNIZCA PM icin. Personel dogrudan projesine gider.
   if (!activeProjectId || (forcedProjectId && activeProjectId !== forcedProjectId)) {

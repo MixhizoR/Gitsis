@@ -67,8 +67,8 @@ async function resolveAuthor(req) {
     });
     return {
       id: req.auth.userId,
-      name: u?.name || 'Proje Yoneticisi',
-      role: u?.role || 'Proje Yoneticisi',
+      name: u?.name || 'Proje Yöneticisi',
+      role: u?.role || 'Proje Yöneticisi',
       isPM: true,
     };
   }

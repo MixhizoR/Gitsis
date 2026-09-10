@@ -156,7 +156,7 @@ function requiredVotersFor(pmUserIds, personnel, componentKey) {
  * (req.auth.isPM, kullaniciadi/sifre ile giren HERKESE kosulsuz verilir,
  * bkz. /auth/login). User.role SADECE gorsel bir unvan (varsayilan "System
  * Engineer") ve erisim kontrolu icin KULLANILMAZ — eskiden bu sorgu
- * role==='Proje Yoneticisi' filtreliyordu; varsayilan admin hesabi
+ * role==='Proje Yöneticisi' filtreliyordu; varsayilan admin hesabi
  * (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin HICBIR
  * ZAMAN PM sayilmiyor, konsensus asla tamamlanamiyordu.
  * Birden fazla PM olabilir (co-PM'li kurulumlar) — hepsi sayilir.

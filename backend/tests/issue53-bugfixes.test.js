@@ -43,7 +43,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Issue53 PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   pmUserId = u.id;
@@ -81,7 +81,7 @@ before(async () => {
   // PM token al
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');
-  pmToken = t0.body.token;
+  pmToken = t0.body.accessToken;
 
   // Personel token al
   const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
@@ -230,14 +230,14 @@ test('unlock: yalnızca PM token ile çalışır (personel 403 alır)', async ()
   assert.equal(after.locked, false, 'PM unlock sonrasi kilit acilmali');
 });
 
-test('unlock: audit actor PM userId olarak yazilir (sentinel "Proje Yoneticisi" string degil)', async () => {
+test('unlock: audit actor PM userId olarak yazilir (sentinel "Proje Yöneticisi" string degil)', async () => {
   // r6 üzerinde PM unlock yaptık; audit'i kontrol edelim.
   const audit = await prisma.auditLog.findFirst({
     where: { projectId: projA.id, action: 'UNLOCK', entityId: r6.id },
     orderBy: { createdAt: 'desc' },
   });
   assert.ok(audit, 'UNLOCK audit kaydi olmali');
-  // Gerçek PM userId içermeli (string 'Proje Yoneticisi' hardcoded olmamali)
+  // Gerçek PM userId içermeli (string 'Proje Yöneticisi' hardcoded olmamali)
   assert.ok(audit.actor && audit.actor.includes(pmUserId), `actor PM userId icermeli, gelen: ${audit.actor}`);
 });
 

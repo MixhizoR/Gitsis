@@ -40,6 +40,10 @@ model User {
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @default(now()) @updatedAt
+  // Issue #87: normal (PM olmayan) kullanicinin atandigi proje. PM (isPM)
+  // tum projelere erisir; bu alan regular user icin proje-ceperli erisim saglar.
+  projectId      String?
+  project        Project?  @relation("UserProject", fields: [projectId], references: [id], onDelete: SetNull)
 
   refreshTokens RefreshToken[]
 }
@@ -94,6 +98,7 @@ model Project {
   audit         AuditLog[]
   roles         Role[]
   personnel     Personnel[]
+  users         User[] @relation("UserProject")
   approvals     Approval[]
   snapshots     ProjectSnapshot[]
   navGroups     NavGroup[]
@@ -254,7 +259,7 @@ model Personnel {
 
 // --- Onay oylari (consensus) -----------------------------------------------
 //  Bir gereksinim/test icin bir oy verenin (personel veya PM) onayi.
-//  voterId: personel id'si veya 'PM' (proje yoneticisi). entityType:
+//  voterId: personel id'si veya 'PM' (Proje Yöneticisi). entityType:
 //  'requirement' | 'testcase'.
 model Approval {
   id          String     @id @default(uuid())

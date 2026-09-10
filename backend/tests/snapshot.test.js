@@ -32,7 +32,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Snapshot Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -56,7 +56,7 @@ before(async () => {
 
   // PM token al.
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
-  pmToken = res.body.token;
+  pmToken = res.body.accessToken;
 });
 
 after(async () => {

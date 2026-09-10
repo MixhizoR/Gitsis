@@ -19,14 +19,39 @@
 
 // --- 1) Ortam degiskenleri --------------------------------------------------
 // PrismaClient import aninda DATABASE_URL'i okur; import'lardan ONCE kurulur.
+//
+// KOK .env YUKLEYICI (tek dogruluk kaynagi: compose ile AYNI dosya):
+// Yerel gelistirmede sifre/baglanti bilgisini elle env vermek zorunda
+// kalmamak icin kok dizindeki .env okunur. Yalnizca TANIMSIZ degiskenler
+// doldurulur — boylece shell/CI'da verilen degerler (TEST_DATABASE_URL,
+// DATABASE_URL...) her zaman kazanir (12-factor: env > dosya).
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+function loadRootEnv() {
+  const rootEnv = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env');
+  try {
+    for (const line of readFileSync(rootEnv, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (!m || m[1].startsWith('#')) continue;
+      const val = m[2].trim().replace(/^["']|["']$/g, '');
+      if (m[1] in process.env === false && val !== '') process.env[m[1]] = val;
+    }
+  } catch {
+    // Kok .env yok (CI ortami) — sorun degil; asagidaki env/varsayilan devreye girer.
+  }
+}
+loadRootEnv();
+
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'ehsim-test-secret';
 // Issue #85: auth.js artik import aninda REFRESH_TOKEN_SECRET zorunlu tutar.
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'ehsim-test-refresh-secret';
 
 if (!process.env.DATABASE_URL) {
+  // Oncekilik: CI/shell TEST_DATABASE_URL > kok .env POSTGRES_PASSWORD > dev sabiti.
   // Yerel: docker compose "db" servisi 5433'u disariya acar.
-  // CI: TEST_DATABASE_URL ile override edilir.
   process.env.DATABASE_URL =
     process.env.TEST_DATABASE_URL ||
     `postgresql://ehsim:${encodeURIComponent(

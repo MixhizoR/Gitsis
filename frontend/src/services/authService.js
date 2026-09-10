@@ -12,6 +12,8 @@
 // ============================================================================
 import * as api from './apiClient.js'
 
+export const PM_ROLE = 'Proje Yöneticisi'
+
 // --- Rol tanimlari (istemci; kayit ekraninda secilir) -----------------------
 //  Backend'e gonderilen deger cevrilmez; bu etiketler ayni zamanda backend
 //  User.role alanina yazilir.
@@ -24,6 +26,7 @@ export const ROLES = {
 export const ROLE_LABELS = {
   [ROLES.SYSTEM_ENGINEER]: 'Sistem Mühendisi',
   [ROLES.DEVELOPER]: 'Geliştirici',
+  [PM_ROLE]: 'Proje Yöneticisi',
 }
 
 // --- Izin matrisi -----------------------------------------------------------
@@ -91,4 +94,12 @@ export async function createUser({ username, password, name, role }) {
  */
 export async function passcodeAuthenticate(passcode) {
   return api.post('/auth/passcode', { passcode })
+}
+
+/**
+ * Refresh token'i sunucuda revoke eder (logout). Basarisiz olsa da cagiran
+ * taraf oturumu temizlemeye devam eder (best-effort).
+ */
+export async function logoutRefresh(refreshToken) {
+  return api.post('/auth/logout', { refreshToken })
 }

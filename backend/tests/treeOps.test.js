@@ -78,7 +78,7 @@ before(async () => {
       username: 'pm-treeops',
       passwordHash: await hashPassword('pm-pass'),
       name: 'TreeOps PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });

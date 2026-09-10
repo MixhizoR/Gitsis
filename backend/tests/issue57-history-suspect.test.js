@@ -60,7 +60,7 @@ before(async () => {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Issue57 PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   pmUserId = u.id;
@@ -156,7 +156,7 @@ before(async () => {
 
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');
-  pmToken = t0.body.token;
+  pmToken = t0.body.accessToken;
 
   const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
   assert.equal(t1.status, 200, 'approve personel login basarili olmali');

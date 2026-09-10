@@ -37,8 +37,8 @@ before(async () => {
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
-      name: 'Test Proje Yoneticisi',
-      role: 'Proje Yoneticisi',
+      name: 'Test Proje Yöneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
 
@@ -93,7 +93,8 @@ test('POST /api/auth/login — hatali sifre 401 dondurur', async () => {
 test('POST /api/auth/login — gecerli PM girisi token dondurur', async () => {
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(res.status, 200);
-  assert.ok(res.body.token);
+  assert.ok(res.body.accessToken);
+  assert.ok(res.body.refreshToken);
   assert.equal(res.body.user.username, PM_CREDENTIALS.username);
 });
 
