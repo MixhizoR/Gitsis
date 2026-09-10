@@ -249,6 +249,21 @@ export function parseReqIF(xmlContent) {
     throw new Error(`Gecersiz ReqIF/RIF formatı: REQ-IF-CONTENT/RIF-CONTENT bulunamadı${rootHint}.`);
   }
 
+  // Baslik bilgisi: dosyayi kimin urettigini soyler (REQ-IF-HEADER/RIF-HEADER
+  // altindaki SOURCE-TOOL-ID/REQ-IF-TOOL-ID). Gitsis'in KENDI reqifExporter.js
+  // ciktisi bu alana daima "Gitsis" yazar — cagiran taraf (traceability.js)
+  // bunu, SADECE Gitsis'in kendi export->DOORS->reimport dongusune ozgu ek
+  // esleme mantiklarini (SPEC-OBJECT-TYPE adindan Requirement/TestCase tipi
+  // cikarma gibi) GENEL DOORS/ReqIF dosyalarina sizdirmamak icin kullanir.
+  const headerNode = rifRoot?.['THE-HEADER']?.['REQ-IF-HEADER'] || rifRoot?.['THE-HEADER']?.['RIF-HEADER'] || null;
+  function headerVal(key) {
+    const v = headerNode?.[key];
+    if (v == null) return null;
+    const t = typeof v === 'object' ? v?.['#text'] : v;
+    return t != null ? String(t) : null;
+  }
+  const sourceToolId = headerVal('SOURCE-TOOL-ID') || headerVal('REQ-IF-TOOL-ID') || null;
+
   // 0. DOORS "silindi ama export'ta tombstone olarak kaldi" nesneleri —
   // bunlar SPEC-OBJECTS icinde fiziksel olarak hala goruluyor ama artik
   // DOORS modulunde yok. TOOL-EXTENSIONS'in sarmalayici etiket adi arac/
@@ -300,6 +315,18 @@ export function parseReqIF(xmlContent) {
     ...asArray(coreContent?.['SPEC-TYPES']?.['SPEC-OBJECT-TYPE']),
     ...asArray(coreContent?.['SPEC-TYPES']?.['SPEC-TYPE']),
   ];
+  // SPEC-OBJECT-TYPE/SPEC-TYPE'in KENDI adini (id -> LONG-NAME) da ayrica
+  // haritalar — Gitsis'in kendi exportlarinda bu ad TAM OLARAK bir Gitsis
+  // gereksinim/test tipi (orn. "System Requirement", "Acceptance Test")
+  // oldugundan, geri-donen (round-trip) dosyalarda her SPEC-OBJECT'in HANGI
+  // Gitsis varligina eslenecegini (bkz. asagida objectTypeName) belirlemek
+  // icin kullanilir. Genel DOORS/ReqIF dosyalarinda bu bilgi yalnizca
+  // sourceToolId === 'Gitsis' oldugunda anlamli kabul edilir (traceability.js).
+  const specTypeNameMap = new Map();
+  for (const type of specTypeContainers) {
+    const tid = getId(type);
+    if (tid) specTypeNameMap.set(tid, getLongName(type) || tid);
+  }
   for (const type of specTypeContainers) {
     const attrs = type?.['SPEC-ATTRIBUTES'];
     if (!attrs || typeof attrs !== 'object') continue;
@@ -433,6 +460,8 @@ export function parseReqIF(xmlContent) {
     const fields = resolveFields(obj?.['VALUES']);
     const { title: rawTitle, description, foreignId, typeHint, customAttributes } = classifyFields(fields);
     const cleanDesc = description.trim();
+    const objectTypeRef = anyRef(obj?.['TYPE']);
+    const objectTypeName = (objectTypeRef && specTypeNameMap.get(objectTypeRef)) || null;
 
     // Baslik ARTIK ZORUNLU DEGIL (Requirement.title @default("")) — kaynakta
     // gercek bir baslik alani (ReqIF.Name, Object Heading, ...) yoksa BURADA
@@ -453,6 +482,7 @@ export function parseReqIF(xmlContent) {
       description: cleanDesc,
       foreignId,
       typeHint, // 'user' | 'system' | 'software' | 'hardware' | null
+      objectTypeName, // SPEC-OBJECT-TYPE LONG-NAME'i (yalnizca Gitsis kaynakli dosyalarda anlamli) | null
       customAttributes,
       isDeleted: deletedIds.has(reqId),
     };
@@ -474,5 +504,5 @@ export function parseReqIF(xmlContent) {
     })
     .filter((r) => r.sourceExternalId && r.targetExternalId);
 
-  return { requirements, relations };
+  return { requirements, relations, sourceToolId };
 }

@@ -8,6 +8,7 @@ import { before, after, test } from 'node:test';
 import request from 'supertest';
 import './_setup.js';
 import { resetDb } from './_setup.js';
+import { buildReqIF } from '../src/reqifExporter.js';
 
 const { default: app } = await import('../src/server.js');
 const { PrismaClient } = await import('@prisma/client');
@@ -162,6 +163,7 @@ async function cleanProject(pid) {
   await prisma.traceabilityLink.deleteMany({ where: { projectId: pid } });
   await prisma.auditLog.deleteMany({ where: { projectId: pid } });
   await prisma.requirement.deleteMany({ where: { projectId: pid } });
+  await prisma.testCase.deleteMany({ where: { projectId: pid } });
 }
 
 test('setup: proje olustur', async () => {
@@ -587,4 +589,113 @@ test('R12: kaynakta silinmis nesne gorunur kayit olusturmaz, numarasi emekliye a
   const liveSuffixes = allRows.map((r) => suffixOf(r.text_id));
   const retiredSuffix = suffixOf(retiredAudit.textId);
   assert.ok(!liveSuffixes.includes(retiredSuffix), 'emekli numara canli bir kayitta tekrar kullanilmamali');
+});
+
+test('R13: Gitsis -> ReqIF export -> (baska bir projeye) reimport dongusu KAYIPSIZ kapanir (baslik/aciklama/alan/yazar/oznitelik/Satisfies/Verifies)', async () => {
+  await cleanProject(proj.id);
+
+  const userReq = await prisma.requirement.create({
+    data: {
+      projectId: proj.id,
+      text_id: 'RT-USR-001',
+      title: 'Coffee shall be hot',
+      description: '<p>The coffee <b>must</b> be served above 80&nbsp;C.</p>',
+      type: 'User Requirement',
+      field: 'Thermal',
+      author: 'kaan',
+      attributes: { priority: 'High' },
+      status: 'In Review',
+    },
+  });
+  const sysReq = await prisma.requirement.create({
+    data: {
+      projectId: proj.id,
+      text_id: 'RT-SYS-001',
+      title: 'System shall heat water',
+      description: 'Water shall reach target temperature within 60 seconds.',
+      type: 'System Requirement',
+      attributes: { priority: 'Medium', dal_level: 'DAL B' },
+      status: 'In Review',
+    },
+  });
+  const testCase = await prisma.testCase.create({
+    data: {
+      projectId: proj.id,
+      text_id: 'RT-TC-ACC-001',
+      title: 'Verify hot coffee',
+      description: '<p>Measure temperature at dispense.</p>',
+      type: 'Acceptance Test',
+      attributes: {},
+      status: 'In Review',
+    },
+  });
+  const satisfiesLink = await prisma.traceabilityLink.create({
+    data: { projectId: proj.id, fromId: userReq.id, toId: sysReq.id, type: 'Satisfies' },
+  });
+  const verifiesLink = await prisma.traceabilityLink.create({
+    data: { projectId: proj.id, fromId: userReq.id, toId: testCase.id, type: 'Verifies' },
+  });
+
+  const xml = buildReqIF({
+    projectName: 'Round Trip Test',
+    requirements: [userReq, sysReq],
+    testCases: [testCase],
+    links: [satisfiesLink, verifiesLink],
+  });
+
+  // Farkli (bombos) bir projeye reimport et — asil sistemin (DOORS'un)
+  // rolunu oynayan ARA adim atlanmis olsa da, Gitsis'in KENDI yazdigi
+  // ReqIF'i KENDI okuyucusuyla dogru yorumladigini (round-trip'in HER IKI
+  // ucunu da) dogrular.
+  const target = await prisma.project.create({ data: { name: 'ReqIF Round Trip Target' } });
+  const res = await request(app)
+    .post(`/api/projects/${target.id}/traceability/import/reqif`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', Buffer.from(xml, 'utf8'), { filename: 'roundtrip.reqif' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.stats.importedRequirements, 2, JSON.stringify(res.body));
+  assert.equal(res.body.stats.importedTestCases, 1, JSON.stringify(res.body));
+  assert.equal(res.body.stats.importedLinks, 2, JSON.stringify(res.body));
+
+  const newUserReq = await prisma.requirement.findFirst({ where: { projectId: target.id, type: 'User Requirement' } });
+  const newSysReq = await prisma.requirement.findFirst({ where: { projectId: target.id, type: 'System Requirement' } });
+  const newTestCase = await prisma.testCase.findFirst({ where: { projectId: target.id } });
+
+  assert.equal(newUserReq.title, 'Coffee shall be hot');
+  assert.match(newUserReq.description, /must.*served above 80/);
+  assert.equal(newUserReq.field, 'Thermal');
+  assert.equal(newUserReq.author, 'kaan');
+  assert.equal(newUserReq.attributes.priority, 'High');
+
+  assert.equal(newSysReq.title, 'System shall heat water');
+  assert.equal(newSysReq.attributes.priority, 'Medium');
+  assert.equal(newSysReq.attributes.dal_level, 'DAL B');
+
+  assert.equal(newTestCase.type, 'Acceptance Test');
+  assert.equal(newTestCase.title, 'Verify hot coffee');
+
+  const newSatisfies = await prisma.traceabilityLink.findFirst({
+    where: { projectId: target.id, type: 'Satisfies', fromId: newUserReq.id, toId: newSysReq.id },
+  });
+  assert.ok(newSatisfies, 'Satisfies bagi round-trip sonrasi dogru yonde yeniden kurulmali');
+
+  const newVerifies = await prisma.traceabilityLink.findFirst({
+    where: { projectId: target.id, type: 'Verifies', fromId: newUserReq.id, toId: newTestCase.id },
+  });
+  assert.ok(newVerifies, 'Verifies bagi (Requirement -> TestCase) round-trip sonrasi yeniden kurulmali');
+
+  // Kimlik capasi: ikinci kez AYNI dosyayi (ayni projeye) tekrar ice aktarinca
+  // COGALTMAMALI — Gitsis.ForeignID uzerinden ayni kayitlar taninmali.
+  const res2 = await request(app)
+    .post(`/api/projects/${target.id}/traceability/import/reqif`)
+    .set('Authorization', `Bearer ${pmToken}`)
+    .attach('file', Buffer.from(xml, 'utf8'), { filename: 'roundtrip2.reqif' });
+  assert.equal(res2.status, 200, JSON.stringify(res2.body));
+  assert.equal(res2.body.stats.importedRequirements, 0, 'ikinci ice aktarmada YENI kayit olusmamali');
+  assert.equal(res2.body.stats.updatedRequirements, 2, 'ikinci ice aktarmada MEVCUT kayitlar guncellenmeli');
+  assert.equal(res2.body.stats.importedTestCases, 0);
+  assert.equal(res2.body.stats.updatedTestCases, 1);
+
+  const allReqsAfter2 = await prisma.requirement.findMany({ where: { projectId: target.id } });
+  assert.equal(allReqsAfter2.length, 2, 'tekrar ice aktarma cogaltmamali');
 });
