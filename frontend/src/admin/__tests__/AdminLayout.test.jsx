@@ -18,7 +18,6 @@ vi.mock('../../services/adminService.js', () => ({
       name: 'Zeynep K',
       role: 'Developer',
       roleKey: 'developer',
-      systemRole: 'USER',
       clearanceLevel: 2,
       isActive: true,
     },
@@ -70,24 +69,24 @@ describe('AdminLayout — ayrık admin konsolu', () => {
 
   it('ADMIN oturumu konsolu görür ve kullanıcı tablosunu listeler', async () => {
     renderWithSession({
-      systemRole: 'ADMIN',
+      roleKey: 'admin',
       username: 'admin',
       name: 'Admin',
       initials: 'AD',
     })
     expect(await screen.findByText('zeynep')).toBeInTheDocument()
     expect(screen.getByText('Yönetim Konsolu')).toBeInTheDocument()
-    expect(screen.getByText('ADMIN')).toBeInTheDocument()
+    expect(screen.getByText('Developer')).toBeInTheDocument()
   })
 
   it('ADMIN olmayan oturum yetkisiz uyarısı görür', async () => {
-    renderWithSession({ systemRole: 'USER', username: 'u', name: 'U' })
+    renderWithSession({ roleKey: 'developer', username: 'u', name: 'U' })
     expect(await screen.findByText('Bu alan yalnızca Admin rolüne açıktır.')).toBeInTheDocument()
   })
 
   it('Roller sekmesi sistem rollerini listeler (Issue #101)', async () => {
     renderWithSession({
-      systemRole: 'ADMIN',
+      roleKey: 'admin',
       username: 'admin',
       name: 'Admin',
       initials: 'AD',

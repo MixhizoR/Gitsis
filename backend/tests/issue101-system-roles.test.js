@@ -40,9 +40,8 @@ before(async () => {
       username: ADMIN.username,
       passwordHash: await hashPassword(ADMIN.password),
       name: 'Admin',
-      role: 'System Engineer',
-      roleKey: 'system_engineer',
-      systemRole: 'ADMIN',
+      role: 'Admin',
+      roleKey: 'admin',
       clearanceLevel: 5,
       isActive: true,
     },
@@ -54,7 +53,6 @@ before(async () => {
       name: 'User',
       role: 'Developer',
       roleKey: 'developer',
-      systemRole: 'USER',
       clearanceLevel: 1,
       isActive: true,
     },
@@ -163,7 +161,6 @@ test("roleKey='pm' ile login isPM=true doner", async () => {
       name: 'PM 101',
       role: 'Proje Yöneticisi',
       roleKey: 'pm',
-      systemRole: 'USER',
       clearanceLevel: 5,
       isActive: true,
     },
@@ -179,7 +176,6 @@ test("roleKey='pm' ile login isPM=true doner", async () => {
       passwordHash: await hashPassword('legacy-pass-1'),
       name: 'PM Legacy',
       role: 'Proje Yöneticisi',
-      systemRole: 'USER',
       clearanceLevel: 5,
       isActive: true,
     },
@@ -188,5 +184,5 @@ test("roleKey='pm' ile login isPM=true doner", async () => {
   assert.equal(lg2.status, 200);
   const jwtMod = await import('jsonwebtoken');
   const payload = jwtMod.default.verify(lg2.body.accessToken, process.env.JWT_SECRET || 'ehsim-test-secret');
-  assert.equal(payload.isPM, true, 'eski veri PM tespiti bozulmamali');
+  assert.equal(payload.roleKey, 'pm', 'eski veri PM tespiti bozulmamali');
 });

@@ -21,7 +21,7 @@ export default function AdminLayout() {
 
   // Savunma katmanı: App.jsx zaten ADMIN olmayanları buraya sokmaz; yine de
   // eski oturum/derin bağlantı senaryolarına karşı UI tarafında da kısıtlarız.
-  if (currentUser?.systemRole !== 'ADMIN') {
+  if (currentUser?.roleKey !== 'admin') {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 p-6 dark:bg-slate-950">
         <div className="card text-sm font-medium text-slate-500">{t('admin.unauthorized')}</div>

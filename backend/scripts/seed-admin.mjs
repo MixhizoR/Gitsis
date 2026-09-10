@@ -5,7 +5,7 @@
 //  adlandirmasi mevcut sifrelerin kaybina yol acar. Bu script, mevcut dev
 //  veritabanina ADMIN kaydini idempotent sekilde geri ekler:
 //    - YOKSA  -> ADMIN kullanici olusturur (varsayilan: admin / admin)
-//    - VARSA  -> systemRole='ADMIN', clearanceLevel>=5, isActive=true
+//    - VARSA  -> roleKey='admin', clearanceLevel>=5, isActive=true
 //                guvence altina alinir; sifre YALNIZCA hash bos/silinmis ise
 //                yeniden yazilir (mevcut sifreye dokunulmaz).
 //
@@ -44,7 +44,8 @@ export async function upsertAdmin(clientOverride) {
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) {
     const data = {
-      systemRole: 'ADMIN',
+      roleKey: 'admin',
+      role: 'Admin',
       clearanceLevel: Math.max(existing.clearanceLevel || 0, 5),
       isActive: true,
     };
@@ -61,8 +62,8 @@ export async function upsertAdmin(clientOverride) {
         passwordHash: await hashPassword(password),
         name,
         initials,
-        role: 'System Engineer',
-        systemRole: 'ADMIN',
+        role: 'Admin',
+        roleKey: 'admin',
         clearanceLevel: 5,
         isActive: true,
       },

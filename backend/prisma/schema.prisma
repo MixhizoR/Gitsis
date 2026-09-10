@@ -24,11 +24,12 @@ datasource db {
 }
 
 // --- Kullanicilar (kimlik dogrulama) ---------------------------------------
-//  Issue #85: Auth epik altyapisi — password -> passwordHash, systemRole
-//  (ADMIN/USER), clearanceLevel (ABAC, #87'de tuketilir), isActive /
-//  failedAttempts / lockedUntil kolonlari (kilitleme mantigi #86'da).
-//  `role` KORUNUR: free-text PM tespiti (cascade.js/server.js 'Proje
-//  Yoneticisi' okur) ve frontend permissionsFor(role) anahtaridir.
+//  Issue #85: Auth epik altyapisi — password -> passwordHash, clearanceLevel
+//  (ABAC, #87'de tuketilir), isActive / failedAttempts / lockedUntil kolonlari
+//  (kilitleme mantigi #86'da).
+//  `role` KORUNUR: display adi + eski veri fallback'i (PM_ROLE).
+//  Issue #101: Admin bir ROL'dur — ayri `systemRole` kolonu KALDIRILDI;
+//  konsol erisimi yalnizca `roleKey === 'admin'` ile belirlenir.
 model User {
   id             String    @id @default(uuid())
   username       String    @unique
@@ -40,7 +41,6 @@ model User {
   // display adi olarak korunur; yetki bu anahtardan turetilir. Eski verilerde
   // null olabilir (o zaman `role` eslesmesi - PM_ROLE - gecerli kalir).
   roleKey        String?
-  systemRole     String    @default("USER") // 'ADMIN' | 'USER'
   clearanceLevel Int       @default(1)
   isActive       Boolean   @default(true)
   failedAttempts Int       @default(0)

@@ -81,7 +81,7 @@ before(async () => {
   pidA = (await prisma.project.create({ data: { name: 'Members A' } })).id;
   pidB = (await prisma.project.create({ data: { name: 'Members B' } })).id;
 
-  const makeUser = async (creds, { roleKey, role, systemRole = 'USER' }) => {
+  const makeUser = async (creds, { roleKey, role }) => {
     return prisma.user.create({
       data: {
         username: creds.username,
@@ -89,7 +89,6 @@ before(async () => {
         name: creds.username.replace(/-.*/, '').toUpperCase(),
         role: role || (roleKey === 'pm' ? 'Proje Yöneticisi' : 'System Engineer'),
         roleKey: roleKey || null,
-        systemRole,
       },
     });
   };
@@ -109,7 +108,7 @@ before(async () => {
   const str = await makeUser(STRANGER, { roleKey: 'system_engineer', role: 'System Engineer' });
   strangerId = str.id;
 
-  await makeUser(ADMIN, { systemRole: 'ADMIN' });
+  await makeUser(ADMIN, { roleKey: 'admin', role: 'Admin' });
 
   pmToken = (await login(PM)).accessToken;
   mToken = (await login(M)).accessToken;

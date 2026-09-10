@@ -10,6 +10,7 @@
     "seed": "node src/seed.js",
     "seed:admin": "node scripts/seed-admin.mjs",
     "db:push": "prisma db push",
+    "predb:push": "node scripts/migrate-system-role.mjs",
     "migrate:attrs:dump": "node scripts/migrate-attributes-1-dump.mjs",
     "migrate:attrs:restore": "node scripts/migrate-attributes-2-restore.mjs",
     "migrate:attrs:unlock": "node scripts/migrate-attributes-3-unlock-builtins.mjs",

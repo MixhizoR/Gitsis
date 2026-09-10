@@ -42,19 +42,18 @@ export function AuthProvider({ children }) {
     // Issue #101: PM tespiti tek kanonik kuralla (roleKey==='pm' OR serbest-metin fallback).
     const isPM = user.roleKey === 'pm' || user.role === PM_ROLE
     return persist({
-      kind: isPM ? 'pm' : 'user',
-      isPM,
       accessToken,
       refreshToken,
       id: user.id,
       username: user.username,
       name: user.name,
       initials: user.initials || toInitials(user.name),
-      systemRole: user.systemRole,
       clearanceLevel: user.clearanceLevel,
       role: user.role,
       // Issue #101: sistem rol anahtari — rol/izin eslemesi icin kanonik kaynak.
-      roleKey: user.roleKey || null,
+      roleKey: user.roleKey || (isPM ? 'pm' : null),
+      // Issue #101: izin matrisi SystemRole'den cozulur (login payload'dan gelir).
+      permissions: user.permissions || null,
       // Issue #103: projectId token'da tasinmaz — uyelikler DB'den dogrulanir.
     })
   }, [])
@@ -86,18 +85,17 @@ export function AuthProvider({ children }) {
   }, [])
 
   // --- Yetki kontrolü -------------------------------------------------------
-  //  can(permKey, componentKey?) — PM her zaman true. Normal kullanici icin
-  //  rol izni (roleKey -> SystemRole semasi). Issue #97: personnel kaldirildi.
+  //  can(permKey, componentKey?) — tum roller (PM dahil) SystemRole.permissions
+  //  matrisinden degerlendirilir (Issue #101; hardcoded PM bypass kaldirildi).
   const can = useCallback(
     (permKey, componentKey = null) => {
       if (!currentUser) return false
-      if (currentUser.isPM) return true
       return hasPermission(currentUser.permissions, permKey, componentKey)
     },
     [currentUser],
   )
 
-  const isPM = Boolean(currentUser?.isPM)
+  const isPM = Boolean(currentUser?.roleKey === 'pm' || currentUser?.role === PM_ROLE)
 
   return (
     <AuthContext.Provider value={{ currentUser, isPM, login, logout, can, ROLES }}>

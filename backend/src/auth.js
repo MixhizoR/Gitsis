@@ -160,15 +160,18 @@ export function requireAuth(req, res, next) {
 }
 
 export function requirePM(req, res, next) {
-  if (!req.auth?.isPM) {
+  // Issue #101: PM tespiti JWT'deki kanonik roleKey uzerinden yapilir
+  // (login/refresh fallback: role==='Proje Yöneticisi' ise roleKey='pm').
+  if (req.auth?.roleKey !== 'pm') {
     return res.status(403).json({ error: 'Bu islem yalnizca Proje Yoneticisi tarafindan yapilabilir.' });
   }
   next();
 }
 
-// Issue #88: admin uclari yalnizca systemRole='ADMIN' JWT ile erisilebilir.
+// Issue #101: admin konsol uclari yalnizca roleKey='admin' ile erisilebilir
+// (Admin bir ROL'dur; ayri `systemRole` kolonu KALDIRILDI).
 export function requireAdmin(req, res, next) {
-  if (req.auth?.systemRole !== 'ADMIN') {
+  if (req.auth?.roleKey !== 'admin') {
     return res.status(403).json({ error: 'Bu islem yalnizca Admin tarafindan yapilabilir.' });
   }
   next();
@@ -181,7 +184,8 @@ export function requireAdmin(req, res, next) {
 export function makeProjectAccessGuard(prisma) {
   return async function projectAccessGuard(req, res, next, pid) {
     if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
-    if (req.auth.isPM) return next();
+    // Issue #103: PM (roleKey='pm') uyelik kaydi tutmaz ve tum projelere erisir.
+    if (req.auth.roleKey === 'pm') return next();
     try {
       const membership = await prisma.projectMember.findUnique({
         where: { projectId_userId: { projectId: pid, userId: req.auth.userId } },

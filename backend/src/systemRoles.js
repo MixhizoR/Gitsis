@@ -16,8 +16,8 @@ const C = (components) => ({ enabled: true, components });
 
 // --- Varsayilan izin kumeleri ------------------------------------------------
 //  PM: her sey acik. System Engineer: teknik matrisin tamami. Developer:
-//  yalnizca okuma/yazma (silme/onay/yonetim yok). Admin: her sey (systemRole
-//  ADMIN ile birlikte kullanilir; burada yalnizca izin temsili).
+//  yalnizca okuma/yazma (silme/onay/yonetim yok). Admin: konsol-only hesap
+//  (roleKey='admin' gecisi), proje ekranlarina girmez.
 const ALL_PERMS = {
   read: C(ALL_COMPONENTS),
   write: C(ALL_COMPONENTS),
@@ -149,4 +149,9 @@ export async function resolveUserRole(prisma, user) {
 /** PM tespiti icin tek kanonik kontrol: roleKey==='pm' OR serbest-metin fallback. */
 export function isPMRole(user) {
   return user?.roleKey === 'pm' || user?.role === PM_ROLE;
+}
+
+/** Admin tespiti icin tek kanonik kontrol (Issue #101: Admin bir ROL'dur). */
+export function isAdminRole(user) {
+  return user?.roleKey === 'admin';
 }

@@ -33,7 +33,7 @@ before(async () => {
       roleKey: 'pm',
     },
   });
-  pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
+  pmToken = signToken({ userId: user.id, roleKey: 'pm' });
 
   proj = await prisma.project.create({ data: { name: 'Nav Proje', description: 'Test' } });
   otherProj = await prisma.project.create({ data: { name: 'Nav Baska Proje', description: 'Test' } });
@@ -50,7 +50,7 @@ before(async () => {
   });
   await prisma.projectMember.create({ data: { projectId: proj.id, userId: member.id } });
   // Issue #103: token'da projectId tasinmaz — uyelik DB'den dogrulanir.
-  memberToken = signToken({ kind: 'user', isPM: false, userId: member.id });
+  memberToken = signToken({ userId: member.id, roleKey: 'system_engineer' });
 });
 
 beforeEach(async () => {

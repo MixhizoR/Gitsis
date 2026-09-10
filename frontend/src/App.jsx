@@ -70,7 +70,7 @@ export default function App() {
   //  ekranlarini HIC GORMEZ — yalnizca sistem yonetim konsoluna (kullanici
   //  yonetimi + denetim kayitlari) dusur. "User yonetimi" ile "proje
   //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
-  if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
+  if (currentUser.roleKey === 'admin') return <AdminLayout />
 
   // 2) Proje secim kapisi — PM ve normal uyeler icin. Backend GET /projects
   //  uyeligi filtreler; normal kullanici yalnizca uye oldugu projeleri gorur.

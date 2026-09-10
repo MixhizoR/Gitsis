@@ -35,7 +35,7 @@ import {
   REFRESH_TOKEN_TTL_MS,
 } from './auth.js';
 import { cleanRichText } from './sanitize.js';
-import { ensureSystemRoles, resolveUserRole, isPMRole } from './systemRoles.js';
+import { ensureSystemRoles, resolveUserRole, isPMRole, isAdminRole } from './systemRoles.js';
 import traceabilityRoutes from './traceability.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
@@ -238,7 +238,7 @@ function componentKeyOf(entityType, type) {
 //  (vote handler ile ayni kural, tek kaynak: componentKeyOf + SystemRole
 //  permissions.approve). Issue #97: Personnel kalkti, kimlik User.
 async function assertApprovePermission(req, pid, entityType, entity) {
-  if (req.auth?.isPM) return;
+  if (req.auth?.roleKey === 'pm') return;
   const userId = req.auth?.userId;
   if (!userId) throw bad('Gecersiz kimlik.', 401);
   const user = await prisma.user.findUnique({
@@ -414,14 +414,15 @@ async function handleLogin(req, res, user, info) {
     await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
   }
   const isPM = isPMRole(user);
+  // Issue #101: token'da ayri `systemRole`/`isPM` tasinmaz; kanonik tek alan
+  // `roleKey`'tir. Eski PM kayitlari (roleKey=null, role='Proje Yöneticisi')
+  // icin fallback uygulanir.
+  const roleKey = user.roleKey || (isPM ? 'pm' : null);
+  const resolved = await resolveUserRole(prisma, user);
   const accessToken = signToken({
-    kind: isPM ? 'pm' : 'user',
-    isPM,
     userId: user.id,
-    systemRole: user.systemRole,
+    roleKey,
     clearanceLevel: user.clearanceLevel,
-    // Issue #101: sistem rol anahtari — frontend izin eslemesi icin.
-    roleKey: user.roleKey || null,
     // Issue #103: token'da projectId tasimiyoruz — uyelik guard'da DB'den
     // canli dogrulanir (aninda gecerli olan cikarim).
   });
@@ -434,7 +435,11 @@ async function handleLogin(req, res, user, info) {
     },
   });
   await auditSystem('login.success', { userId: user.id, username: user.username, ip: req.ip });
-  res.json({ accessToken, refreshToken, user: safeUser(user) });
+  res.json({
+    accessToken,
+    refreshToken,
+    user: safeUser(user, { roleKey, permissions: resolved.permissions || {} }),
+  });
 }
 
 // --- Refresh (rotasyon) + Logout (Issue #86) -------------------------------
@@ -459,13 +464,12 @@ app.post(
     // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
     await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
     const isPM = isPMRole(stored.user);
+    const roleKey = stored.user.roleKey || (isPM ? 'pm' : null);
+    const resolved = await resolveUserRole(prisma, stored.user);
     const accessToken = signToken({
-      kind: isPM ? 'pm' : 'user',
-      isPM,
       userId: stored.user.id,
-      systemRole: stored.user.systemRole,
+      roleKey,
       clearanceLevel: stored.user.clearanceLevel,
-      roleKey: stored.user.roleKey || null,
       // Issue #103: token'da projectId yok (uyelik DB'den dogrulanir).
     });
     const newRefresh = generateRefreshToken();
@@ -477,7 +481,11 @@ app.post(
       },
     });
     await auditSystem('refresh.success', { userId: stored.user.id, ip: req.ip });
-    res.json({ accessToken, refreshToken: newRefresh, user: safeUser(stored.user) });
+    res.json({
+      accessToken,
+      refreshToken: newRefresh,
+      user: safeUser(stored.user, { roleKey, permissions: resolved.permissions || {} }),
+    });
   }),
 );
 
@@ -499,7 +507,7 @@ app.post(
   }),
 );
 
-// --- Issue #88: Admin kullanici yonetimi (yalnizca systemRole='ADMIN') ------
+// --- Issue #88: Admin kullanici yonetimi (yalnizca roleKey='admin') --------
 //  API yuzeyi /api/admin/* altinda IZOLEDIR (admin konsolu ayrik UI): kullanici
 //  yonetimi proje kaynaklarindan tamamen ayriktir. Signup kapali; kullanicilari
 //  yalnizca admin olusturur/yonetir. Admin islemleri de SystemAuditLog'a yazilir
@@ -532,7 +540,6 @@ app.post(
       roleKey = sr.key;
       role = sr.name;
     }
-    const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
     const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
     if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
     // Issue #103: admin artik proje ATAMAZ — uyelik yalnizca PM'in
@@ -552,7 +559,6 @@ app.post(
         initials,
         role,
         roleKey,
-        systemRole,
         clearanceLevel,
       },
     });
@@ -585,7 +591,9 @@ app.patch(
         data.role = sr.name;
       }
     }
-    if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    if (b.systemRole !== undefined) {
+      throw bad('systemRole kolonu kaldirildi; rol atamasi icin roleKey kullanin.', 400);
+    }
     if (b.clearanceLevel != null) {
       const cl = Number(b.clearanceLevel);
       if (!isValidClearanceLevel(cl)) throw bad('clearanceLevel 1-5 arasinda olmali.');
@@ -637,7 +645,7 @@ app.post(
 // --- Kullanici silme (Issue: admin paneli feedback) ------------------------
 //  Guvenlik kuralari:
 //    - Admin KENDI hesabini silemez (kilitlenme korumasi).
-//    - ADMIN systemRole'lu baska bir hesap silinemez (son admin kalmasin).
+//    - ADMIN (roleKey='admin') baska bir hesap silinemez (son admin kalmasin).
 //  User silinince refreshToken'lari Cascade ile temizlenir; proje verisine
 //  dokunulmaz (User yalnizca kimlik/giris kaydidir).
 app.delete(
@@ -647,7 +655,7 @@ app.delete(
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!target) throw bad('Kullanici bulunamadi.', 404);
     if (target.id === req.auth.userId) throw bad('Kendi hesabinizi silemezsiniz.');
-    if (target.systemRole === 'ADMIN') throw bad('Admin hesabi silinemez.');
+    if (isAdminRole(target)) throw bad('Admin hesabi silinemez.');
     await prisma.user.delete({ where: { id: target.id } });
     await auditSystem('admin.user.delete', {
       userId: req.auth.userId,
@@ -812,16 +820,17 @@ app.get(
 // Issue #97: passcode/personel girisi KALDIRILDI — tek giris yolu
 // /api/auth/login (kullanici adi + sifre). Personnel/Role modelleri de kalkti.
 
-const safeUser = (u) => ({
+const safeUser = (u, extras = {}) => ({
   id: u.id,
   username: u.username,
   name: u.name,
   initials: u.initials,
   role: u.role,
   // Issue #101: sistem rol anahtari — frontend izin eslemesi bunu kullanir.
-  roleKey: u.roleKey || null,
+  roleKey: extras.roleKey ?? u.roleKey ?? null,
+  // Issue #101: izin matrisi SystemRole'den cozulur ve oturuma eklenir.
+  permissions: extras.permissions ?? null,
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
-  systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
   // Issue #103: projectId kalkti — uyelikler GET /projects'ten (uyelik filtreli).
 });
@@ -834,7 +843,6 @@ const adminUser = (u) => ({
   initials: u.initials,
   role: u.role,
   roleKey: u.roleKey || null,
-  systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
   isActive: u.isActive,
   failedAttempts: u.failedAttempts,
@@ -851,7 +859,7 @@ app.get(
   wrap(async (req, res) => {
     // Issue #103: PM tum projeleri; normal kullanici YALNIZCA uye oldugu
     // projeleri gorur (uye olmadigi projenin varligi bile sızmaz).
-    const where = req.auth.isPM ? {} : { members: { some: { userId: req.auth.userId } } };
+    const where = req.auth.roleKey === 'pm' ? {} : { members: { some: { userId: req.auth.userId } } };
     const projects = await prisma.project.findMany({
       where,
       orderBy: { updatedAt: 'desc' },
