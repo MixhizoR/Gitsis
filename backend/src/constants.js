@@ -34,6 +34,18 @@ export const STATUS = {
 };
 export const DAL = { A: 'DAL A', B: 'DAL B', C: 'DAL C', D: 'DAL D', E: 'DAL E' };
 
+// --- Clearance (ABAC, Issue #102) ---------------------------------------------
+//  1-Açık · 2-İç · 3-Gizli · 4-Kısıtlı · 5-Çok Gizli (savunma projelerinde
+//  1-5 standarttir). Backend yalnizca sinir dogrulamasi yapar; etiketler
+//  frontend i18n'de tutulur.
+export const MIN_CLEARANCE_LEVEL = 1;
+export const MAX_CLEARANCE_LEVEL = 5;
+
+/** clearanceLevel icin gecerli aralik: 1..5 tam sayi. */
+export function isValidClearanceLevel(value) {
+  return Number.isInteger(value) && value >= MIN_CLEARANCE_LEVEL && value <= MAX_CLEARANCE_LEVEL;
+}
+
 export const LINK_TYPE = {
   SATISFIES: 'Satisfies',
   VERIFIES: 'Verifies',

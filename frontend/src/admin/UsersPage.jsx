@@ -14,6 +14,7 @@ import {
   deleteUser,
   listSystemRoles,
 } from '../services/adminService.js'
+import { CLEARANCE_LEVELS, clearanceDisplay } from '../utils/clearance.js'
 
 // Issue #101: rol `<select>` sabit ROLE_OPTIONS yerine aktif SystemRole
 // listesinden beslenir; backend `roleKey`'den display adi turettigi icin
@@ -170,15 +171,18 @@ function UserForm({ mode, user, roles, onClose, onSaved }) {
         </div>
         <div>
           <label className="label">{t('admin.clearance')}</label>
-          <input
+          <select
             className="input"
-            type="number"
-            min="1"
-            max="5"
             value={form.clearanceLevel}
             onChange={(e) => set('clearanceLevel', e.target.value)}
             required
-          />
+          >
+            {CLEARANCE_LEVELS.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {clearanceDisplay(lvl, t)}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn-secondary" onClick={onClose}>
@@ -301,7 +305,7 @@ export default function UsersPage() {
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{u.role}</td>
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{u.systemRole}</td>
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
-                    {u.clearanceLevel}
+                    {clearanceDisplay(u.clearanceLevel, t)}
                   </td>
                   <td className="px-4 py-2.5">
                     <StatusBadge u={u} t={t} />

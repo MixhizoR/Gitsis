@@ -16,7 +16,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS } from './constants.js';
+import { STATUS, isValidClearanceLevel } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, getRequiredVoters } from './cascade.js';
 import {
@@ -534,7 +534,7 @@ app.post(
     }
     const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
     const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
-    if (!Number.isInteger(clearanceLevel) || clearanceLevel < 1) throw bad('clearanceLevel gecersiz.');
+    if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
     // Issue #103: admin artik proje ATAMAZ — uyelik yalnizca PM'in
     // /projects/:pid/members uclarindan yonetilir (tek dogruluk kaynagi).
     const initials = name
@@ -588,7 +588,7 @@ app.patch(
     if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
     if (b.clearanceLevel != null) {
       const cl = Number(b.clearanceLevel);
-      if (!Number.isInteger(cl) || cl < 1) throw bad('clearanceLevel gecersiz.');
+      if (!isValidClearanceLevel(cl)) throw bad('clearanceLevel 1-5 arasinda olmali.');
       data.clearanceLevel = cl;
     }
     if (b.isActive != null) {
@@ -1353,6 +1353,8 @@ app.post(
       clearanceLevel = parent.clearanceLevel; // miras
     }
     if (clearanceLevel == null) clearanceLevel = 1;
+    // Issue #102: gereksinim seviyesi de 1..5 araliginda olmali (miras dahil).
+    if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
     if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
     const row = await prisma.requirement.create({
       data: {

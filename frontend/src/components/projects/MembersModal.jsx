@@ -7,6 +7,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Modal from '../common/Modal.jsx'
 import { IconSearch, IconPlus, IconTrash } from '../common/Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { clearanceDisplay } from '../../utils/clearance.js'
 import {
   listMembers,
   addMember,
@@ -151,7 +152,7 @@ export default function MembersModal({ open, project, onClose }) {
                       </td>
                       <td className="px-3 py-2 text-xs">
                         <span className="rounded-full bg-brand-50 px-2 py-0.5 font-bold text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
-                          L{m.clearanceLevel ?? 1}
+                          {clearanceDisplay(m.clearanceLevel ?? 1, t)}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-xs text-slate-400">{joinedDate(m.joinedAt)}</td>
@@ -211,7 +212,8 @@ export default function MembersModal({ open, project, onClose }) {
                       {u.name || '-'}
                     </div>
                     <div className="truncate text-xs text-slate-400">
-                      @{u.username} · {u.roleName || u.roleKey || '-'} · L{u.clearanceLevel ?? 1}
+                      @{u.username} · {u.roleName || u.roleKey || '-'} ·{' '}
+                      {clearanceDisplay(u.clearanceLevel ?? 1, t)}
                     </div>
                   </div>
                   <button
