@@ -27,12 +27,12 @@ before(async () => {
       username: PM_CREDS.username,
       passwordHash: await hashPassword(PM_CREDS.password),
       name: 'ReqIF Test PM',
-      role: 'Proje Yoneticisi',
+      role: 'Proje Yöneticisi',
     },
   });
   const res = await request(app).post('/api/auth/login').send(PM_CREDS);
-  pmToken = res.body.token;
-  assert.ok(pmToken);
+  pmToken = res.body.accessToken;
+  assert.ok(pmToken, `login basarisiz: ${res.status} ${JSON.stringify(res.body)}`);
 });
 
 after(async () => {
