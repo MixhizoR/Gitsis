@@ -387,6 +387,7 @@ export default function PbsTree() {
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
         onOpenSource={setSourceRow}
+        commentEntityType="requirement"
       />
       {/* Kaynak izlenebilirligi: dokumani Metin modunda acip pasaji vurgular. */}
       <SourceDocumentModal

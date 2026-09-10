@@ -100,6 +100,7 @@ model Project {
   navItems      NavItem[]
   history       RequirementHistory[]
   documents     ProjectDocument[]
+  comments      Comment[]
 }
 
 // --- Proje SILME gerekcesi (izlenebilirlik) ---------------------------------
@@ -147,6 +148,35 @@ model SnapshotItem {
 
   @@index([snapshotId])
   @@index([snapshotId, entityType])
+}
+
+// --- Yorumlar (ana varliklar uzerinde ekip ici iletisim) --------------------
+//  ONAY/REVIEW SURECINDEN BAGIMSIZDIR: yorum eklemek bir kaydin durumunu,
+//  onayini veya kilidini ETKILEMEZ; yalnizca ekip ici not/soru alanidir.
+//
+//  GENERIC: tek tablo tum ana varliklara hizmet eder (entityType + entityId).
+//  Bu yuzden entityId'ye foreign key KONULMAZ — hedef tablo satira gore
+//  degisir. Varligin gercekten ayni projede oldugu YAZMA aninda dogrulanir
+//  (bkz. src/comments.js assertEntityInProject).
+//
+//  authorName / authorRole ANLIK KOPYADIR: personel silinse ya da rolu
+//  degisse bile yorumun yazildigi andaki kimlik korunur (izlenebilirlik).
+model Comment {
+  id         String   @id @default(uuid())
+  projectId  String
+  entityType String // 'requirement' | 'testcase' | 'glossary'
+  entityId   String
+  // PM icin User.id, personel icin Personnel.id (bkz. actorOf deseni).
+  authorId   String
+  authorName String
+  authorRole String?
+  text       String
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Bir varligin yorumlari kronolojik cekilir; sorgu deseni birebir bu index.
+  @@index([projectId, entityType, entityId, createdAt])
+  @@index([projectId])
 }
 
 // --- Proje Dokumanlari (Dokuman Kutuphanesi) -------------------------------

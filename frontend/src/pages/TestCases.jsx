@@ -266,6 +266,7 @@ export default function TestCases({
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
         statusLabel={t('tbl.th.testResult')}
+        commentEntityType="testcase"
       />
       <ApprovalMatrixModal
         open={Boolean(matrixRow)}

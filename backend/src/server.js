@@ -10,6 +10,7 @@
 //        glossary       (GET/POST/PUT:id/DELETE:id)
 //        links          (GET/POST/DELETE:id)
 //        documents      (GET/POST/GET:id/download/DELETE:id)
+//        comments       (GET/POST/DELETE:id)  -> generic entityType+entityId
 //        audit          (GET/POST)
 //        recompute      (POST)  -> tum durumlari yeniden hesaplar (cascade)
 // ============================================================================
@@ -17,7 +18,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS } from './constants.js';
+import { STATUS, componentKeyOf } from './constants.js';
 import { validateLink } from './logic.js';
 import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
 import { requireAuth, requirePM, projectAccessGuard, hashPassword, verifyPassword, signToken } from './auth.js';
@@ -25,6 +26,7 @@ import { cleanRichText } from './sanitize.js';
 import { requireReason } from './reason.js';
 import traceabilityRoutes from './traceability.js';
 import documentRoutes from './documents.js';
+import commentRoutes from './comments.js';
 import { getImpactTree } from './impact.js';
 import { getTreeChildren, getTreeAncestorPath } from './tree.js';
 import { nextTextId as nextTextIdShared } from './idGen.js';
@@ -95,6 +97,8 @@ app.param('pid', projectAccessGuard);
 app.use('/api/projects/:pid/traceability', traceabilityRoutes);
 // Dokuman kutuphanesi (PDF/Excel yukleme) — ayni sekilde :pid altinda.
 app.use('/api/projects/:pid/documents', documentRoutes);
+// Yorumlar (ana varliklar uzerinde ekip ici iletisim) — ayni sekilde :pid altinda.
+app.use('/api/projects/:pid/comments', commentRoutes);
 
 const PORT = process.env.PORT || 4001;
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => fail(res, e));
@@ -191,20 +195,6 @@ async function batchDelete(pid, model, ids, entityType, reason, actor) {
     });
   }
   return foundIds.length;
-}
-
-// --- Izin bileseni (permission component) eslemesi --------------------------
-//  Her gereksinim/test, izin panellerindeki 6 bilesenden birine dusurulur.
-//  Anahtarlar frontend REQ_PAGES / TEST_PAGES sayfa anahtarlariyla ayni.
-function componentKeyOf(entityType, type) {
-  if (entityType === 'requirement') {
-    if (type === 'User Requirement') return 'req-user';
-    if (type === 'System Requirement') return 'req-system';
-    return 'req-subsystem'; // Software / Hardware
-  }
-  if (type === 'Acceptance Test') return 'test-acceptance';
-  if (type === 'System Test') return 'test-system';
-  return 'test-subsystem';
 }
 
 // --- Issue #57: approve izni denetimi ---------------------------------------

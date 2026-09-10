@@ -273,3 +273,10 @@ export const IconLoader = (p) => (
     <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
   </Svg>
 )
+
+// Yorum balonu — ana varliklarin yorum sekmesi/dugmesi icin.
+export const IconComment = (p) => (
+  <Svg {...p}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+  </Svg>
+)

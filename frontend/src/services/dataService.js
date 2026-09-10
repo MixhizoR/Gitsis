@@ -195,3 +195,14 @@ export const previewDocument = (pid, id) => api.get(`/projects/${pid}/documents/
  * yapip gereksinim olusturur; secimin karakter araligi kaynak olarak saklanir.
  */
 export const getDocumentText = (pid, id) => api.get(`/projects/${pid}/documents/${id}/text`)
+
+// --- Yorumlar (ana varliklar uzerinde ekip ici iletisim) -------------------
+//  GENERIC: ayni uclar tum varlik tipleri icin kullanilir (entityType +
+//  entityId). Yazar SUNUCUDA belirlenir; istemci authorId/authorName GONDERMEZ.
+export const listComments = (pid, entityType, entityId) =>
+  api.get(`/projects/${pid}/comments`, entityType ? { entityType, entityId } : undefined)
+export const addComment = (pid, entityType, entityId, text) =>
+  api.post(`/projects/${pid}/comments`, { entityType, entityId, text })
+//  Silme MEVCUT "gerekce zorunlu" kuralina tabidir (bkz. ReasonModal).
+export const deleteComment = (pid, commentId, reason) =>
+  api.del(`/projects/${pid}/comments/${commentId}`, { reason })
