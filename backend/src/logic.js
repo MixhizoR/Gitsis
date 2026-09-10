@@ -8,6 +8,7 @@ import {
   STATUS,
   LINK_TYPE,
   SATISFIES_PARENT_OF,
+  SATISFIES_ALLOWED_PARENTS,
   VERIFIES_TARGET_TYPES,
   ASSIGNABLE_REQ_TYPES,
 } from './constants.js';
@@ -24,11 +25,19 @@ export function validateLink(from, to, type, toKind) {
   if (from.id === to.id) return { ok: false, error: 'Bir nesne kendine baglanamaz.' };
 
   if (type === LINK_TYPE.SATISFIES) {
-    // to = ALT gereksinim (System / SW / HW), from = ust gereksinim
-    const expectedParent = SATISFIES_PARENT_OF[to.type];
-    if (!expectedParent) return { ok: false, error: `"${to.type}" bir Satisfies bagi baslatamaz.` };
-    if (from.type !== expectedParent) {
-      return { ok: false, error: `"${to.type}" yalnizca "${expectedParent}" ile Satisfies bagi kurabilir.` };
+    // to = ALT gereksinim (System / SW / HW), from = ust gereksinim.
+    // SATISFIES_ALLOWED_PARENTS (izlenebilirlik BAGI icin) — SATISFIES_PARENT_OF
+    // (PBS AGACI parentId'si icin) DEGIL: bir gereksinim TraceabilityLink
+    // grafiginde birden fazla gecerli ust TIPINE sahip olabilir (orn.
+    // Software/Hardware, System uzerinden GECMEDEN dogrudan User'i da
+    // karsilayabilir — "skip-level" bag).
+    const allowedParents = SATISFIES_ALLOWED_PARENTS[to.type];
+    if (!allowedParents) return { ok: false, error: `"${to.type}" bir Satisfies bagi baslatamaz.` };
+    if (!allowedParents.includes(from.type)) {
+      return {
+        ok: false,
+        error: `"${to.type}" yalnizca ${allowedParents.join(' / ')} ile Satisfies bagi kurabilir.`,
+      };
     }
     return { ok: true };
   }

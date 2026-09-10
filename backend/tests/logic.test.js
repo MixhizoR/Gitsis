@@ -48,6 +48,53 @@ test('validateLink: tanımsız bağ tipi reddedilir', () => {
   assert.equal(r.ok, false);
 });
 
+// --- validateLink: Satisfies (top-down baslatma + skip-level) ---------------
+//  Kullanıcı talebi: LinkManager artık (1) User Requirement'tan bir System
+//  Requirement'ı "buna bağla" diyebilmeli (üstten başlatma) ve (2) bir
+//  Sub-system (Software/Hardware) Requirement doğrudan bir User Requirement'ı
+//  karşılayabilmeli (System'i atlayarak). validateLink, HANGİ tarafın
+//  başlattığını bilmez — yalnızca (from.type, to.type) çiftinin
+//  SATISFIES_ALLOWED_PARENTS'ta izinli olup olmadığını kontrol eder; bu
+//  yüzden "üstten başlatma" ayrı bir test gerektirmez, aynı doğrulama.
+
+test('validateLink: Satisfies — System req, User req’i karşılar (normal, adjacent-tier)', () => {
+  const from = req('user-1', REQ_TYPE.USER);
+  const to = req('sys-1', REQ_TYPE.SYSTEM);
+  assert.deepEqual(validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement'), { ok: true });
+});
+
+test('validateLink: Satisfies — Software req, System req’i karşılar (normal, adjacent-tier)', () => {
+  const from = req('sys-1', REQ_TYPE.SYSTEM);
+  const to = req('sw-1', REQ_TYPE.SOFTWARE);
+  assert.deepEqual(validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement'), { ok: true });
+});
+
+test('validateLink: Satisfies — Software req, System atlayıp DOĞRUDAN User req’i karşılayabilir (skip-level)', () => {
+  const from = req('user-1', REQ_TYPE.USER);
+  const to = req('sw-1', REQ_TYPE.SOFTWARE);
+  assert.deepEqual(validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement'), { ok: true });
+});
+
+test('validateLink: Satisfies — Hardware req de doğrudan User req’i karşılayabilir (skip-level)', () => {
+  const from = req('user-1', REQ_TYPE.USER);
+  const to = req('hw-1', REQ_TYPE.HARDWARE);
+  assert.deepEqual(validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement'), { ok: true });
+});
+
+test('validateLink: Satisfies — System req, System’i (kendi tipini) karşılayamaz', () => {
+  const from = req('sys-a', REQ_TYPE.SYSTEM);
+  const to = req('sys-b', REQ_TYPE.SYSTEM);
+  const r = validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement');
+  assert.equal(r.ok, false);
+});
+
+test('validateLink: Satisfies — User req bir Satisfies bağı BAŞLATAMAZ (to=User geçersiz, tepe seviye)', () => {
+  const from = req('sys-1', REQ_TYPE.SYSTEM);
+  const to = req('user-1', REQ_TYPE.USER);
+  const r = validateLink(from, to, LINK_TYPE.SATISFIES, 'requirement');
+  assert.equal(r.ok, false);
+});
+
 // --- computeRequirementStatus -----------------------------------------------
 
 test('computeRequirementStatus: bağlı test yok → In Review', () => {
