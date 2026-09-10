@@ -27,26 +27,32 @@ const prisma = new PrismaClient();
 
 const PM_CREDENTIALS = { username: 'pm-assignee', password: 'pm-assignee-pass-1234' };
 let pmToken = null;
-let personnelToken = null;
+let memberToken = null;
+let adminToken = null;
 let projA = null;
 let projB = null;
-let personA = null; // projA personeli
-let personA2 = null; // projA ikinci personeli (yeniden atama)
-let personB = null; // projB personeli (IDOR)
+let personA = null; // projA uyesi
+let personA2 = null; // projA ikinci uyesi (yeniden atama)
+let personB = null; // projB uyesi (IDOR)
 
 const auth = (req, token = pmToken) => req.set('Authorization', `Bearer ${token}`);
 
-const createPersonnel = async (projectId, firstName, lastName, passcode) => {
-  const role = await prisma.role.create({
+// Issue #97/A: atanan kisi artik USER'dir; atanabilmek icin projede
+// ProjectMember uyeligi olmalidir (eski Personnel kaydinin karsiligi).
+const createMember = async (projectId, name, roleKey = 'system_engineer') => {
+  const username = `member-${Math.random().toString(36).slice(2, 10)}`;
+  const { hashPassword } = await import('../src/auth.js');
+  const user = await prisma.user.create({
     data: {
-      projectId,
-      name: `Rol-${passcode}`,
-      permissions: { read: { enabled: true, components: ['req-system'] } },
+      username,
+      passwordHash: await hashPassword('member-pass-1234'),
+      name,
+      role: roleKey === 'system_engineer' ? 'System Engineer' : 'Developer',
+      roleKey,
     },
   });
-  return prisma.personnel.create({
-    data: { projectId, roleId: role.id, firstName, lastName, passcode },
-  });
+  await prisma.projectMember.create({ data: { projectId, userId: user.id } });
+  return user;
 };
 
 const assignAudits = (projectId, entityId) =>
@@ -55,29 +61,48 @@ const assignAudits = (projectId, entityId) =>
     orderBy: { createdAt: 'asc' },
   });
 
+// Atanan kullaniciyi silmek admin ucnudur (Issue #88): admin token'i ile.
+const deleteUserAsAdmin = (userId) => auth(request(app).delete(`/api/admin/users/${userId}`), adminToken);
+
 before(async () => {
   resetDb();
-  const { hashPassword } = await import('../src/auth.js');
+  const { hashPassword, signToken } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
+
   await prisma.user.create({
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Atama Test PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
+  const admin = await prisma.user.create({
+    data: {
+      username: 'admin-assignee',
+      passwordHash: await hashPassword('admin-assignee-pass-1234'),
+      name: 'Atama Test Admin',
+      role: 'Admin',
+      roleKey: 'admin',
+    },
+  });
+  adminToken = signToken({ userId: admin.id, roleKey: 'admin', clearanceLevel: 5 });
 
   projA = await prisma.project.create({ data: { name: 'Atama Projesi A' } });
   projB = await prisma.project.create({ data: { name: 'Atama Projesi B' } });
 
-  personA = await createPersonnel(projA.id, 'Ayse', 'Demir', 'ASG01');
-  personA2 = await createPersonnel(projA.id, 'Mehmet', 'Kaya', 'ASG02');
-  personB = await createPersonnel(projB.id, 'Zeynep', 'Ak', 'ASG03');
+  personA = await createMember(projA.id, 'Ayse Demir');
+  personA2 = await createMember(projA.id, 'Mehmet Kaya');
+  personB = await createMember(projB.id, 'Zeynep Ak');
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   pmToken = login.body.accessToken;
-  const pass = await request(app).post('/api/auth/passcode').send({ passcode: 'ASG01' });
-  personnelToken = pass.body.token;
+  const memberLogin = await request(app)
+    .post('/api/auth/login')
+    .send({ username: personA.username, password: 'member-pass-1234' });
+  memberToken = memberLogin.body.accessToken;
 });
 
 after(async () => {
@@ -196,34 +221,29 @@ test('POST/PUT /testcases — atama ayni kurallarla calisir', async () => {
   assert.equal(ok.body.assigneeId, personA2.id);
 });
 
-test('Personel silinince atama bosa duser, kayit SILINMEZ', async () => {
-  const victim = await createPersonnel(projA.id, 'Silinecek', 'Kisi', 'ASG09');
+test('Kullanici silinince atama bosa duser, kayit SILINMEZ', async () => {
+  const victim = await createMember(projA.id, 'Silinecek Kisi');
   const created = await newRequirement({ assigneeId: victim.id });
 
-  await auth(request(app).delete(`/api/projects/${projA.id}/personnel/${victim.id}`)).send({
-    reason: 'Projeden ayrildi',
-  });
+  await deleteUserAsAdmin(victim.id);
 
   const after = await prisma.requirement.findUnique({ where: { id: created.body.id } });
   assert.ok(after, 'gereksinim silinmemeli');
   assert.equal(after.assigneeId, null);
 });
 
-test('GET /personnel — personel oturumu passcode GORMEZ, PM gorur', async () => {
-  const asPersonnel = await auth(request(app).get(`/api/projects/${projA.id}/personnel`), personnelToken);
-  assert.equal(asPersonnel.status, 200);
-  assert.ok(asPersonnel.body.length > 0);
-  for (const p of asPersonnel.body) {
-    assert.equal(p.passcode, undefined, 'passcode personele sizmamali');
-    assert.ok(p.firstName, "ad alanlari korunmali (atama dropdown'i bunlari kullanir)");
+test('GET /assignees — uye oturumu da listeyi gorur; passcode gibi hassas alan YOK', async () => {
+  const asMember = await auth(request(app).get(`/api/projects/${projA.id}/assignees`), memberToken);
+  assert.equal(asMember.status, 200);
+  assert.ok(asMember.body.length > 0);
+  for (const p of asMember.body) {
+    assert.equal(p.passcode, undefined, 'hassas alan sizmamali');
+    assert.ok(p.name, "ad alani korunmali (atama dropdown'i bunu kullanir)");
   }
 
-  const asPm = await auth(request(app).get(`/api/projects/${projA.id}/personnel`));
+  const asPm = await auth(request(app).get(`/api/projects/${projA.id}/assignees`));
   assert.equal(asPm.status, 200);
-  assert.ok(
-    asPm.body.every((p) => typeof p.passcode === 'string'),
-    'PM unutulan kodu kurtarabilmeli',
-  );
+  assert.ok(asPm.body.every((p) => typeof p.name === 'string'));
 });
 
 // ===========================================================================
@@ -356,13 +376,11 @@ test('POST/PUT /testcases — coklu atama ayni kurallarla calisir', async () => 
 });
 
 test('Coklu atamada ILK kisi silinince siradaki sorumlu yerine gecer', async () => {
-  const victim = await createPersonnel(projA.id, 'Ayrilan', 'Sorumlu', 'ASG10');
+  const victim = await createMember(projA.id, 'Ayrilan Sorumlu');
   const created = await newRequirement({ assigneeIds: [victim.id, personA.id] });
   assert.equal(created.body.assigneeId, victim.id);
 
-  await auth(request(app).delete(`/api/projects/${projA.id}/personnel/${victim.id}`)).send({
-    reason: 'Projeden ayrildi',
-  });
+  await deleteUserAsAdmin(victim.id);
 
   const after = await auth(request(app).get(`/api/projects/${projA.id}/requirements/${created.body.id}`));
   assert.equal(after.status, 200);

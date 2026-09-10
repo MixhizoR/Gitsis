@@ -38,6 +38,7 @@ vi.mock('../../context/AppContext.jsx', () => ({
     glossary: [],
     links: [],
     approvals: [],
+    // Issue #97: personnel koleksiyonu kalkti (artik yok).
     personnel: [],
     roles: [],
     fields: fieldsMock.value,

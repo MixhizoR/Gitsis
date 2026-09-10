@@ -22,6 +22,7 @@ import ExcelJS from 'exceljs';
 import { PrismaClient } from '@prisma/client';
 import { requireReason } from './reason.js';
 import { extractDocumentText, cellText } from './documentText.js';
+import { resolveUserRole } from './systemRoles.js';
 
 const prisma = new PrismaClient();
 const router = express.Router({ mergeParams: true });
@@ -88,19 +89,12 @@ async function audit(projectId, entry) {
   }
 }
 
-// Yukleyen kisinin okunabilir adi (PM -> User.name, personel -> Ad Soyad).
+// Yukleyen kisinin okunabilir adi — Issue #97: tek kimlik dunyasi (User.name).
 async function uploaderName(req) {
   try {
-    if (req.auth?.isPM && req.auth.userId) {
+    if (req.auth?.userId) {
       const u = await prisma.user.findUnique({ where: { id: req.auth.userId }, select: { name: true } });
-      return u?.name || 'Proje Yöneticisi';
-    }
-    if (req.auth?.kind === 'personnel' && req.auth.personnelId) {
-      const p = await prisma.personnel.findUnique({
-        where: { id: req.auth.personnelId },
-        select: { firstName: true, lastName: true },
-      });
-      return p ? `${p.firstName} ${p.lastName}`.trim() : 'Personel';
+      if (u?.name) return u.name;
     }
   } catch {
     /* yoksay */
@@ -108,15 +102,16 @@ async function uploaderName(req) {
   return 'Bilinmiyor';
 }
 
-// Silme yetkisi: PM her zaman; personel yalnizca rolunde 'delete' izni acikken.
+// Silme yetkisi: PM her zaman; normal kullanici SystemRole'unde 'delete' izni aciksa.
 async function canDelete(req) {
-  if (req.auth?.isPM) return true;
-  if (req.auth?.kind !== 'personnel') return false;
-  const pers = await prisma.personnel.findUnique({
-    where: { id: req.auth.personnelId },
-    select: { role: { select: { permissions: true } } },
+  if (req.auth?.roleKey === 'pm') return true;
+  const u = await prisma.user.findUnique({
+    where: { id: req.auth?.userId },
+    select: { role: true, roleKey: true },
   });
-  return Boolean((pers?.role?.permissions || {}).delete?.enabled);
+  if (!u) return false;
+  const resolved = await resolveUserRole(prisma, u);
+  return Boolean((resolved?.permissions || {}).delete?.enabled);
 }
 
 // Content-Disposition icin dosya adini guvenli hale getirir (CRLF/tirnak yok).

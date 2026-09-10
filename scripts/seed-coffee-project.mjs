@@ -7,7 +7,7 @@
 //  V-Model tureti:
 //    Kullanici (12) -> Sistem (20) -> Alt-sistem: Yazilim (16) + Donanim (10)
 //    Testler: Kabul/KT (8) / Sistem/ST (12) / Alt-sistem/AST (12)
-//    Sozluk (14) + Roller (6) + Personel (5)
+//    Sozluk (14) + proje uyeleri (5, SystemRole eslemeli)
 //    Baglar: Satisfies (yukari) + Verifies (test->gereksinim, COKLU dahil) +
 //            Assigned To (sozluk->gereksinim)
 //    Toplam bag: 47 Satisfies + 58 Verifies + 14 Assigned = 119
@@ -22,17 +22,26 @@
 //    PostgreSQL volume sayesinde veriler PC kapansa da kalicidir; sadece
 //    "docker compose down -v" siler.
 //
-//  KIMLIK DOGRULAMA:
-//    Tum API uclari JWT ister. Script acilirken POST /api/auth/login ile oturum
-//    acar; kullanici/sifre SEED_USERNAME / SEED_PASSWORD env degiskenleriyle
-//    degistirilebilir (varsayilan: admin/admin — docker compose ilk acilista
-//    bos veritabanina bu ikiliyi olusturur).
+//  KIMLIK DOGRULAMA (Issue #97 sonrasi):
+//    Tum API uclari JWT ister; giris yolu TEK: /auth/login (kullanici+sifre).
+//    Script once ADMIN hesabiyla (SEED_USERNAME/SEED_PASSWORD, varsayilan
+//    admin/admin) acilir, ardindan demo icin ayri bir PM hesabi yaratir ve
+//    O hesapla devam eder (PM olmayan hesap proje uclarina erisemez —
+//    projectAccessGuard). Demo uyeleri (proje uyesi User + SystemRole eslemesi)
+//    PM hesabiyla yaratilir; passcode/Personnel kavrami KALDIRILMISTIR.
 // ============================================================================
 
 const BASE = process.env.API_BASE || 'http://localhost:4001/api'
 const PROJECT_NAME = 'Espresso Bazli Kahve Otomati'
 const SEED_USERNAME = process.env.SEED_USERNAME || 'admin'
 const SEED_PASSWORD = process.env.SEED_PASSWORD || 'admin'
+
+// Demo PM hesabi (idempotent: ayni kullanici adi varsa sifresi kontrol edilir).
+const DEMO_PM = {
+  username: process.env.DEMO_PM_USERNAME || 'pm-espresso',
+  password: process.env.DEMO_PM_PASSWORD || 'espresso-pm-2026',
+  name: 'Espresso PM',
+}
 
 let authToken = null
 
@@ -55,12 +64,12 @@ async function api(method, path, body) {
 }
 const post = (path, body) => api('POST', path, body)
 
-/** Oturum acar ve token'i modul seviyesinde saklar. */
-async function login() {
+/** Verilen hesapla oturum acar; token'i modul seviyesinde saklar. */
+async function login(username, password) {
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: SEED_USERNAME, password: SEED_PASSWORD }),
+    body: JSON.stringify({ username, password }),
   })
   if (!res.ok) {
     throw new Error(
@@ -69,7 +78,8 @@ async function login() {
     )
   }
   const data = await res.json()
-  authToken = data.token
+  authToken = data.accessToken
+  return data.user
 }
 
 // --- Taksonomi sabitleri (backend/src/constants.js ile ayni) ---------------
@@ -89,29 +99,6 @@ const LINK = { SATISFIES: 'Satisfies', VERIFIES: 'Verifies', ASSIGNED: 'Assigned
 const PRI = { HIGH: 'High', MED: 'Medium', LOW: 'Low' }
 const DAL = { A: 'DAL A', B: 'DAL B', C: 'DAL C', D: 'DAL D', E: 'DAL E' }
 const STATUS = { PASS: 'Approved', FAIL: 'Rejected', REVIEW: 'In Review' }
-
-// --- Izin bileson anahtar kumeleri (frontend permissions.js ile ayni) ------
-const C_REQ = ['req-user', 'req-system', 'req-subsystem']
-const C_TEST = ['test-acceptance', 'test-system', 'test-subsystem']
-const C_ALL = [...C_REQ, ...C_TEST]
-const C_SAT = ['req-system', 'req-subsystem'] // satisfies yukari akar: Kullanici kaynak olmaz
-
-// 12 kademeli izin objesini kolayca kur. Verilmeyen anahtarlar kapali gelir.
-function perms(spec = {}) {
-  const scoped = {
-    read: 'all', write: 'all', add_requirement: 'req', add_test: 'test',
-    delete: 'all', link_satisfies: 'sat', link_verifies: 'test',
-    link_assigned: 'req', approve: 'all',
-  }
-  const toggles = ['manage_roles', 'manage_projects', 'manage_fields']
-  const out = {}
-  for (const key of Object.keys(scoped)) {
-    const v = spec[key]
-    out[key] = v ? { enabled: true, components: v } : { enabled: false, components: [] }
-  }
-  for (const key of toggles) out[key] = { enabled: Boolean(spec[key]) }
-  return out
-}
 
 // ============================================================================
 //  VERI: Gereksinimler  — [localKey, title, description, field, priority, dal]
@@ -196,7 +183,7 @@ const ACC_TESTS = [
   ['A3', 'KT-03 Dokum suresi ve bardak ergonomisi', '200 ml Latte siparisi verip kronometre tut; 8 oz bardak >=100 mm acikliga rahat sigmali, Latte onaydan sonra maks 85 sn surmeli.', 'Mekanik / Ergonomi', PRI.HIGH, DAL.C, STATUS.PASS],
   ['A4', 'KT-04 Operasyonel akustik seviye', 'Makine tam kapasite calisirken 1 metre mesafeden desibel olc; ses azami 62.0 dB olmalidir.', 'Genel', PRI.MED, DAL.D, STATUS.REVIEW],
   ['A5', 'KT-05 Atik su tepsisi kapasitesi', 'Atik tepsisine dereceli silindirle sivi doldur; tepsi uyari vermeden en az 450 ml depolayabilmelidir.', 'Mekanik / Ergonomi', PRI.LOW, DAL.D, STATUS.PASS],
-  ['A6', 'KT-06 Moduler parcalarin kullanilabilirligi', 'Sut tankini (min 1000 ml) ve toz haznesini (min 500 g) aletsiz sokmeyi dene; her ikisi de maks 15 sn icinde cikarilabilmelidir.', 'Mekanik / Ergonomi', PRI.MED, DAL.D, STATUS.PASS],
+  ['A6', 'KT-06 Moduler parcaların kullanilabilirligi', 'Sut tankini (min 1000 ml) ve toz haznesini (min 500 g) aletsiz sokmeyi dene; her ikisi de maks 15 sn icinde cikarilabilmelidir.', 'Mekanik / Ergonomi', PRI.MED, DAL.D, STATUS.PASS],
   ['A7', 'KT-07 Ekran dokunmatik gecikme testi', 'Dokunmatik ekrana temas edip agir cekim kamerayla tepki suresini olc; gecikme azami 500 ms olmalidir.', 'Arayuz / HMI', PRI.MED, DAL.D, STATUS.PASS],
   ['A8', 'KT-08 Bekleme gucu ve su tanki kesintisiz kullanim', 'Standby modunda wattmetre ile guc cekimini olc; 2000 ml tanktan 150 ml ye inene kadar pes pese icecek al. Guc <=5.0 W olmali.', 'Enerji Yonetimi', PRI.MED, DAL.C, STATUS.REVIEW],
 ]
@@ -252,40 +239,17 @@ const GLOSSARY = [
 ]
 
 // ============================================================================
-//  VERI: Roller  — [name, permsSpec]
+//  VERI: Proje uyeleri  — [firstName, lastName, email, systemRoleKey]
+//  Issue #97: Personnel/passcode yerine User + SystemRole eslemesi.
+//  roleKey degerleri backend SystemRole semasindan: 'system_engineer' |
+//  'developer'. Uyeler olusturulan projeye atanir (User.projectId).
 // ============================================================================
-const ROLES = [
-  ['Sistem Muhendisi', perms({
-    read: C_ALL, write: ['req-user', 'req-system'], add_requirement: ['req-user', 'req-system'],
-    delete: ['req-user', 'req-system'], link_satisfies: C_SAT, link_assigned: C_REQ,
-    approve: ['req-user', 'req-system'], manage_fields: true,
-  })],
-  ['Yazilim Tasarimcisi', perms({
-    read: C_ALL, write: ['req-subsystem'], add_requirement: ['req-subsystem'],
-    delete: ['req-subsystem'], link_satisfies: ['req-subsystem'], approve: ['req-subsystem'],
-  })],
-  ['Donanim Tasarimcisi', perms({
-    read: C_ALL, write: ['req-subsystem'], add_requirement: ['req-subsystem'],
-    delete: ['req-subsystem'], link_satisfies: ['req-subsystem'], approve: ['req-subsystem'],
-  })],
-  ['Test Muhendisi', perms({
-    read: C_ALL, write: C_TEST, add_test: C_TEST, delete: C_TEST, link_verifies: C_TEST,
-  })],
-  ['Dogrulama Sorumlusu', perms({
-    read: C_ALL, link_verifies: C_TEST, approve: [...C_TEST, 'req-user'],
-  })],
-  ['Gozlemci', perms({ read: C_ALL })],
-]
-
-// ============================================================================
-//  VERI: Personel  — [firstName, lastName, roleName]
-// ============================================================================
-const PERSONNEL = [
-  ['Ahmet', 'Yilmaz', 'Sistem Muhendisi'],
-  ['Elif', 'Demir', 'Yazilim Tasarimcisi'],
-  ['Mert', 'Kaya', 'Donanim Tasarimcisi'],
-  ['Zeynep', 'Sahin', 'Test Muhendisi'],
-  ['Can', 'Aydin', 'Dogrulama Sorumlusu'],
+const MEMBERS = [
+  ['Ahmet', 'Yilmaz', 'ahmet.yilmaz.demo@ehsim.local', 'system_engineer'],
+  ['Elif', 'Demir', 'elif.demir.demo@ehsim.local', 'system_engineer'],
+  ['Mert', 'Kaya', 'mert.kaya.demo@ehsim.local', 'system_engineer'],
+  ['Zeynep', 'Sahin', 'zeynep.sahin.demo@ehsim.local', 'developer'],
+  ['Can', 'Aydin', 'can.aydin.demo@ehsim.local', 'developer'],
 ]
 
 // ============================================================================
@@ -421,12 +385,85 @@ async function repair(pid) {
 }
 
 // ============================================================================
+//  DEMO HESAPLAR (Issue #97: User tabanli kimlik dunyasi)
+// ============================================================================
+//  1) Demo PM hesabi: projesi YOK (PM tum projelere erisir) + roleKey='pm'.
+//  2) Demo uyeleri: olusturulan projeye ATANIR (User.projectId) + SystemRole.
+//  Admin olmayan bir hesap proje uclarina erisemez (projectAccessGuard);
+//  bu yuzden script tum islemleri DEMO PM kimligiyle yapar.
+// ============================================================================
+async function ensureDemoPM() {
+  // Admin kullanici admin konsolu API'si (/api/admin/users) ile PM yaratir.
+  try {
+    const u = await post('/admin/users', {
+      username: DEMO_PM.username,
+      password: DEMO_PM.password,
+      name: DEMO_PM.name,
+      roleKey: 'pm',
+    })
+    console.log(`[+] Demo PM olusturuldu: ${DEMO_PM.username} / ${DEMO_PM.password}`)
+    return u
+  } catch (e) {
+    if (String(e.message).includes('409')) {
+      console.log(`[~] Demo PM zaten var: ${DEMO_PM.username}`)
+      return null
+    }
+    throw e
+  }
+}
+
+async function assignMembersToProject(pid, P) {
+  // SystemRole listesi admin API'sinden okunur (key -> id eslemesi icin).
+  let roles = []
+  try {
+    roles = await api('GET', '/admin/system-roles')
+  } catch {
+    roles = [] // admin degilsek sessiz gec; uyeler roleKey'siz atanamaz
+  }
+  const memberLog = []
+  for (const [firstName, lastName, email, roleKey] of MEMBERS) {
+    const username = email.split('@')[0]
+    const password = `${username}-pass`
+    let user = null
+    try {
+      user = await post('/admin/users', {
+        username,
+        password,
+        name: `${firstName} ${lastName}`,
+        roleKey,
+        projectId: pid,
+      })
+    } catch (e) {
+      if (String(e.message).includes('409')) {
+        // Zaten var: proje atamasini guncellemeyi dene (idempotent).
+        try {
+          const admins = await api('GET', '/admin/users')
+          const found = Array.isArray(admins) ? admins.find((u) => u.username === username) : null
+          if (found && found.projectId !== pid) {
+            await api('PATCH', `/admin/users/${found.id}`, { projectId: pid })
+          }
+          user = found
+        } catch {
+          /* yoksay */
+        }
+      } else {
+        throw e
+      }
+    }
+    const roleName = roles.find((r) => r.key === roleKey)?.name || roleKey
+    memberLog.push(`    ${firstName} ${lastName}  (${roleName})  ->  kullanici: ${username} / ${password}`)
+  }
+  console.log(`[+] ${MEMBERS.length} proje uyesi eklendi (User + SystemRole eslemesi):`)
+  console.log(memberLog.join('\n'))
+}
+
+// ============================================================================
 //  YURUTME
 // ============================================================================
 async function main() {
-  // Kimlik dogrulama — tum uclar JWT ister.
-  await login()
-  console.log(`[+] Giris yapildi: ${SEED_USERNAME}`)
+  // 1) Admin ile ac (yalnizca demo hesaplarini kurmak icin).
+  await login(SEED_USERNAME, SEED_PASSWORD)
+  console.log(`[+] Admin girisi yapildi: ${SEED_USERNAME}`)
 
   // Baglanti kontrolu
   try {
@@ -437,10 +474,28 @@ async function main() {
     throw e
   }
 
-  // 1) Proje — ayni isimli proje varsa ONAR (eksik baglari tamamla), yoksa YARAT.
+  // 2) TUM demo hesaplarini ADMIN kimligiyle kur (admin konsolu API'si —
+  //    Issue #97: uye yaratma yalnizca admin yetkisidir). Bu adimdan sonra
+  //    script DEMO PM kimligine gecer ve proje icerigini O kurar.
+  await ensureDemoPM()
+
+  // 3) Proje — ayni isimli proje varsa ONAR (eksik baglari tamamla), yoksa YARAT.
+  //    Proje PM kimligiyle yaratilmali; uyelerin atanacagi pid icin once PM'e gec.
+  authToken = null
+  await login(DEMO_PM.username, DEMO_PM.password)
+  console.log(`[+] Demo PM girisi yapildi: ${DEMO_PM.username}`)
+
   const existing = await api('GET', '/projects')
   const already = Array.isArray(existing) && existing.find((p) => p.name === PROJECT_NAME)
   if (already) {
+    // ONARIM modu: once ADMIN kimligiyle uyelerin atamasini guncelle
+    // (idempotent), sonra PM olarak eksik baglari tamamla ve CIK
+    // (icerige dokunma — orijinal sozlesme).
+    authToken = null
+    await login(SEED_USERNAME, SEED_PASSWORD)
+    await assignMembersToProject(already.id)
+    authToken = null
+    await login(DEMO_PM.username, DEMO_PM.password)
     await repair(already.id)
     return
   }
@@ -449,32 +504,26 @@ async function main() {
     description: 'Nicel metrikli espresso otomati TID belgesinden turetilmis V-Model referans projesi (DO-178C).',
   })
   const pid = project.id
-  const P = (p) => `/projects/${pid}${p}`
   console.log(`\n[+] Proje olusturuldu: "${project.name}"  (id: ${pid})`)
-
-  // 2) Alanlar (fields)
+  // 3b) Alanlar (fields) — proje yaratildiktan hemen sonra (PM kimligiyle).
   const FIELDS = ['Arayuz / HMI', 'Yazilim / Kontrol', 'Donanim', 'Isil Sistem',
     'Hidrolik / Akiskan', 'Dozajlama', 'Sut Sistemi', 'Guvenlik / Emniyet',
     'Enerji Yonetimi', 'Mekanik / Ergonomi', 'Genel']
-  for (const name of FIELDS) await post(P('/fields'), { name })
+  const P0 = (p) => `/projects/${pid}${p}`
+  for (const name of FIELDS) await post(P0('/fields'), { name })
   console.log(`[+] ${FIELDS.length} alan (field) eklendi.`)
 
-  // 3) Roller
-  const roleIdByName = {}
-  for (const [name, permissions] of ROLES) {
-    const r = await post(P('/roles'), { name, permissions })
-    roleIdByName[name] = r.id
-  }
-  console.log(`[+] ${ROLES.length} rol olusturuldu.`)
+  // 3c) Uyeleri olusturulan/atanan projeye ADMIN kimligiyle ata:
+  //     admin'e geri don, uyeleri yarat/ata, sonra tekrar PM ol.
+  authToken = null
+  await login(SEED_USERNAME, SEED_PASSWORD)
+  await assignMembersToProject(pid)
+  authToken = null
+  await login(DEMO_PM.username, DEMO_PM.password)
 
-  // 4) Personel (passcode'lar konsola yazilir)
-  const passcodes = []
-  for (const [firstName, lastName, roleName] of PERSONNEL) {
-    const p = await post(P('/personnel'), { firstName, lastName, roleId: roleIdByName[roleName] })
-    passcodes.push(`    ${firstName} ${lastName}  (${roleName})  ->  passcode: ${p.passcode}`)
-  }
-  console.log(`[+] ${PERSONNEL.length} personel eklendi:`)
-  console.log(passcodes.join('\n'))
+  // 4) Kalan icerik PM kimligiyle kurulur (gereksinimler, testler, sozluk,
+  //    baglar). Uyeler 3c'de admin kimligiyle zaten atandi.
+  const P = (p) => `/projects/${pid}${p}`
 
   // 5) Gereksinimler
   const reqId = {} // localKey -> server id
@@ -513,13 +562,14 @@ async function main() {
   }
   console.log(`[+] Sozluk: ${GLOSSARY.length} terim.`)
 
-  // 8) Baglar (buildLinks: Satisfies + Verifies[coklu] + Assigned To)
+  // 9) Baglar (buildLinks: Satisfies + Verifies[coklu] + Assigned To)
   const { created: linkCount, skipped } = await buildLinks(P, reqId, testId, gloId)
   console.log(`[+] Baglar: ${linkCount} adet kuruldu${skipped ? ` (${skipped} atlandi)` : ''}.`)
 
   console.log('\n===============================================================')
   console.log('  TAMAMLANDI. Uygulamayi acip yeni projeyi secebilirsin.')
-  console.log('  Proje adi: ' + project.name)
+  console.log('  Proje adi: ' + PROJECT_NAME + '  (id: ' + pid + ')')
+  console.log(`  Demo PM girisi: ${DEMO_PM.username} / ${DEMO_PM.password}`)
   console.log('===============================================================\n')
 }
 

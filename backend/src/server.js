@@ -18,14 +18,14 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS, PM_ROLE, componentKeyOf } from './constants.js';
+import { STATUS, isValidClearanceLevel, componentKeyOf } from './constants.js';
 import { validateLink } from './logic.js';
-import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
+import { recomputeStatusesBulk, getRequiredVoters } from './cascade.js';
 import {
   requireAuth,
   requirePM,
   requireAdmin,
-  projectAccessGuard,
+  makeProjectAccessGuard,
   hashPassword,
   signToken,
   generateRefreshToken,
@@ -37,6 +37,7 @@ import {
   REFRESH_TOKEN_TTL_MS,
 } from './auth.js';
 import { cleanRichText } from './sanitize.js';
+import { ensureSystemRoles, resolveUserRole, isPMRole, isAdminRole } from './systemRoles.js';
 import { requireReason } from './reason.js';
 import traceabilityRoutes from './traceability.js';
 import documentRoutes from './documents.js';
@@ -128,7 +129,9 @@ app.use((req, res, next) => {
 app.use(requireAuth);
 // :pid iceren HER route icin otomatik calisir — personel yalnizca kendi
 // atandigi projeye erisebilir, PM her projeye erisebilir (IDOR korumasi).
-app.param('pid', projectAccessGuard);
+// Issue #103: guard artik fabrika — PrismaClient enjekte edilir ve uyelik
+// her istekte DB'den (ProjectMember) canli dogrulanir.
+app.param('pid', makeProjectAccessGuard(prisma));
 
 // Traceability router — mounted under :pid so app.param('pid', projectAccessGuard)
 app.use('/api/projects/:pid/traceability', traceabilityRoutes);
@@ -228,6 +231,7 @@ function assertRequirementVisible(req, row) {
 //  src/assignees.js icindedir: dogrulama (proje sinirini asma korumasi),
 //  ara tabloya yazma, legacy `assigneeId` kolonunu senkron tutma ve ASSIGN
 //  audit kaydi. Buradaki sarmalayicilar yalnizca prisma/audit'i baglar.
+//  Issue #97/A: atanan kisi Personel degil USER'dir (uyelik ProjectMember).
 const assigneeIdsFrom = (body, pid) => resolveAssigneeIds(prisma, pid, body);
 const logAssignment = (pid, entry) => auditAssignment(prisma, audit, pid, entry);
 
@@ -274,54 +278,50 @@ async function batchDelete(pid, model, ids, entityType, reason, actor) {
 }
 
 // --- Issue #57: approve izni denetimi ---------------------------------------
-//  Clear-suspect islemleri icin: PM her zaman yetkili; personel ise yalnizca
-//  rolunde o bilesen icin approve izni varsa yetkilidir (vote handler ile ayni
-//  kural, tek kaynak: componentKeyOf + role.permissions.approve).
+//  Clear-suspect islemleri icin: PM her zaman yetkili; normal kullanici ise
+//  yalnizca SystemRole'unde o bilesen icin approve izni varsa yetkilidir
+//  (vote handler ile ayni kural, tek kaynak: componentKeyOf + SystemRole
+//  permissions.approve). Issue #97: Personnel kalkti, kimlik User.
 async function assertApprovePermission(req, pid, entityType, entity) {
-  if (req.auth?.isPM) return;
-  if (req.auth?.kind !== 'personnel') throw bad('Gecersiz kimlik.', 401);
-  const pers = await prisma.personnel.findUnique({
-    where: { id: req.auth.personnelId },
-    select: { role: { select: { permissions: true } } },
+  if (req.auth?.roleKey === 'pm') return;
+  const userId = req.auth?.userId;
+  if (!userId) throw bad('Gecersiz kimlik.', 401);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { roleKey: true, role: true },
   });
-  const perm = (pers?.role?.permissions || {}).approve || {};
+  if (!user) throw bad('Kullanici bulunamadi.', 401);
+  // Proje siniri: PM her projeye; normal kullanici yalnizca UYE oldugu projeye
+  // (Issue #103: uyelik ProjectMember tablosundan canli okunur).
+  const isPM = isPMRole(user);
+  if (!isPM) {
+    const membership = await prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId: pid, userId } },
+      select: { id: true },
+    });
+    if (!membership) throw bad('Bu projeye erisim yetkiniz yok.', 403);
+  }
+  const resolved = await resolveUserRole(prisma, user);
+  const perm = (resolved.permissions || {}).approve || {};
   const compKey = componentKeyOf(entityType, entity.type);
   if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
     throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
 }
 
 // --- Aktor (kim degistirdi) -------------------------------------------------
-//  PM -> userId; personel -> personnelId; bilinmeyen -> 'unknown'.
+//  Issue #97: tek kimlik dunyasi — her zaman User UUID.
 function actorOf(req) {
-  if (req.auth?.isPM) return req.auth.userId;
-  if (req.auth?.kind === 'personnel') return req.auth.personnelId;
   return req.auth?.userId || 'unknown';
 }
 
-// --- Benzersiz 5 karakterlik passcode ureteci -------------------------------
-//  Karisik gorunumlu harf/rakamlar (0/O, 1/I) haric tutulur.
-async function generatePasscode() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  for (let attempt = 0; attempt < 100; attempt++) {
-    let code = '';
-    for (let i = 0; i < 5; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-    const existing = await prisma.personnel.findUnique({ where: { passcode: code } });
-    if (!existing) return code;
-  }
-  throw bad('Passcode uretilemedi; lutfen tekrar deneyin.', 500);
-}
-
 // --- Bir kaydin onay durumunu (consensus) yeniden hesapla -------------------
-//  Gerekli oy verenler = PM + (o bileseni onaylama yetkisi olan tum personel).
+//  Issue #97: Gerekli oy verenler = PM'ler + projeye atanmis, o bilesende
+//  approve izni olan kullanicilar (tek kaynak: cascade.js getRequiredVoters).
 //  Hepsi oy verdiyse -> Approved (kilitli). Aksi halde -> Pending.
 async function requiredVotersFor(pid, entityType, entity) {
   const compKey = componentKeyOf(entityType, entity.type);
-  const personnel = await prisma.personnel.findMany({ where: { projectId: pid }, include: { role: true } });
-  const requiredPersonnel = personnel.filter((p) => {
-    const perm = (p.role?.permissions || {}).approve;
-    return perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(compKey);
-  });
-  return { requiredPersonnel, requiredVoterIds: requiredPersonnel.map((p) => p.id) };
+  const voters = await getRequiredVoters(prisma, pid, compKey);
+  return { requiredVoters: voters, requiredVoterIds: voters.map((v) => v.id) };
 }
 
 async function recomputeApproval(pid, entityType, entityId) {
@@ -329,22 +329,17 @@ async function recomputeApproval(pid, entityType, entityId) {
   const entity = await prisma[model].findUnique({ where: { id: entityId } });
   if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
   const { requiredVoterIds } = await requiredVotersFor(pid, entityType, entity);
+  if (requiredVoterIds.length === 0) {
+    await prisma[model].update({
+      where: { id: entityId },
+      data: { approvalStatus: 'Pending', locked: false },
+    });
+    return { approvalStatus: 'Pending', locked: false };
+  }
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
-  const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
-  // Bug fix: "PM" User tablosundaki HERHANGI bir hesaptir (auth.js requirePM
-  // ile ayni tanim: req.auth.isPM, kullaniciadi/sifre ile giren HERKESE
-  // kosulsuz verilir — bkz. /auth/login). User.role SADECE gorsel bir unvan
-  // (varsayilan "System Engineer") ve erisim kontrolu icin KULLANILMAZ. Bu
-  // satir eskiden role==='Proje Yöneticisi' filtreliyordu; varsayilan admin
-  // hesabi (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin PM
-  // oyu HICBIR ZAMAN sayilmiyor, konsensus asla tamamlanamiyordu.
-  const pmUsers = await prisma.user.findMany({
-    where: { id: { in: Array.from(votedIds) } },
-    select: { id: true },
-  });
-  const pmVoted = pmUsers.length > 0;
-  const approved = allPersonnelVoted && pmVoted;
+  const allVoted = requiredVoterIds.every((v) => votedIds.has(v));
+  const approved = allVoted;
   const data = { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved };
   // Test SONUCU (Passed/Failed/In Review) artik elle duzenlenemez; yalnizca
   // onay/red aksiyonlarindan turetilir. Tam konsensus -> 'Approved' (Passed).
@@ -470,14 +465,18 @@ async function handleLogin(req, res, user, info) {
   if (user.failedAttempts) {
     await prisma.user.update({ where: { id: user.id }, data: { failedAttempts: 0 } });
   }
-  const isPM = user.role === PM_ROLE;
+  const isPM = isPMRole(user);
+  // Issue #101: token'da ayri `systemRole`/`isPM` tasinmaz; kanonik tek alan
+  // `roleKey`'tir. Eski PM kayitlari (roleKey=null, role='Proje Yöneticisi')
+  // icin fallback uygulanir.
+  const roleKey = user.roleKey || (isPM ? 'pm' : null);
+  const resolved = await resolveUserRole(prisma, user);
   const accessToken = signToken({
-    kind: isPM ? 'pm' : 'user',
-    isPM,
     userId: user.id,
-    systemRole: user.systemRole,
+    roleKey,
     clearanceLevel: user.clearanceLevel,
-    ...(user.projectId ? { projectId: user.projectId } : {}),
+    // Issue #103: token'da projectId tasimiyoruz — uyelik guard'da DB'den
+    // canli dogrulanir (aninda gecerli olan cikarim).
   });
   const refreshToken = generateRefreshToken();
   await prisma.refreshToken.create({
@@ -488,7 +487,11 @@ async function handleLogin(req, res, user, info) {
     },
   });
   await auditSystem('login.success', { userId: user.id, username: user.username, ip: req.ip });
-  res.json({ accessToken, refreshToken, user: safeUser(user) });
+  res.json({
+    accessToken,
+    refreshToken,
+    user: safeUser(user, { roleKey, permissions: resolved.permissions || {} }),
+  });
 }
 
 // --- Refresh (rotasyon) + Logout (Issue #86) -------------------------------
@@ -512,14 +515,14 @@ app.post(
     }
     // Rotasyon: eski belirtec gecersizlesir, yeni access+refresh cifti uretilir.
     await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-    const isPM = stored.user.role === PM_ROLE;
+    const isPM = isPMRole(stored.user);
+    const roleKey = stored.user.roleKey || (isPM ? 'pm' : null);
+    const resolved = await resolveUserRole(prisma, stored.user);
     const accessToken = signToken({
-      kind: isPM ? 'pm' : 'user',
-      isPM,
       userId: stored.user.id,
-      systemRole: stored.user.systemRole,
+      roleKey,
       clearanceLevel: stored.user.clearanceLevel,
-      ...(stored.user.projectId ? { projectId: stored.user.projectId } : {}),
+      // Issue #103: token'da projectId yok (uyelik DB'den dogrulanir).
     });
     const newRefresh = generateRefreshToken();
     await prisma.refreshToken.create({
@@ -530,7 +533,11 @@ app.post(
       },
     });
     await auditSystem('refresh.success', { userId: stored.user.id, ip: req.ip });
-    res.json({ accessToken, refreshToken: newRefresh, user: safeUser(stored.user) });
+    res.json({
+      accessToken,
+      refreshToken: newRefresh,
+      user: safeUser(stored.user, { roleKey, permissions: resolved.permissions || {} }),
+    });
   }),
 );
 
@@ -552,7 +559,7 @@ app.post(
   }),
 );
 
-// --- Issue #88: Admin kullanici yonetimi (yalnizca systemRole='ADMIN') ------
+// --- Issue #88: Admin kullanici yonetimi (yalnizca roleKey='admin') --------
 //  API yuzeyi /api/admin/* altinda IZOLEDIR (admin konsolu ayrik UI): kullanici
 //  yonetimi proje kaynaklarindan tamamen ayriktir. Signup kapali; kullanicilari
 //  yalnizca admin olusturur/yonetir. Admin islemleri de SystemAuditLog'a yazilir
@@ -575,15 +582,20 @@ app.post(
     const password = String(b.password || '');
     const name = String(b.name || '').trim();
     if (!username || !password || !name) throw bad('username, password, name zorunlu.');
-    const role = b.role ? String(b.role) : 'System Engineer';
-    const systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
-    const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
-    if (!Number.isInteger(clearanceLevel) || clearanceLevel < 1) throw bad('clearanceLevel gecersiz.');
-    let projectId = b.projectId ? String(b.projectId) : null;
-    if (projectId) {
-      const proj = await prisma.project.findUnique({ where: { id: projectId } });
-      if (!proj) throw bad('Proje bulunamadi.', 404);
+    // Issue #101: roleKey verilmisse SystemRole'den cozumle; display `role`
+    // adini sistem rolunden turet (PM tespiti ve izin eslemesi tutarli kalsin).
+    let roleKey = null;
+    let role = b.role ? String(b.role).trim() || 'System Engineer' : 'System Engineer';
+    if (b.roleKey) {
+      const sr = await prisma.systemRole.findUnique({ where: { key: String(b.roleKey) } });
+      if (!sr || !sr.isActive) throw bad('Gecersiz veya pasif rol.', 400);
+      roleKey = sr.key;
+      role = sr.name;
     }
+    const clearanceLevel = b.clearanceLevel != null ? Number(b.clearanceLevel) : 1;
+    if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
+    // Issue #103: admin artik proje ATAMAZ — uyelik yalnizca PM'in
+    // /projects/:pid/members uclarindan yonetilir (tek dogruluk kaynagi).
     const initials = name
       .trim()
       .split(/\s+/)
@@ -598,9 +610,8 @@ app.post(
         name,
         initials,
         role,
-        systemRole,
+        roleKey,
         clearanceLevel,
-        projectId,
       },
     });
     await auditSystem('admin.user.create', {
@@ -621,10 +632,23 @@ app.patch(
     if (!existing) throw bad('Kullanici bulunamadi.', 404);
     const data = {};
     if (b.role != null) data.role = String(b.role);
-    if (b.systemRole != null) data.systemRole = b.systemRole === 'ADMIN' ? 'ADMIN' : 'USER';
+    // Issue #101: roleKey guncellenirse display `role` adini SystemRole'den turet.
+    if (b.roleKey !== undefined) {
+      if (b.roleKey === null) {
+        data.roleKey = null;
+      } else {
+        const sr = await prisma.systemRole.findUnique({ where: { key: String(b.roleKey) } });
+        if (!sr || !sr.isActive) throw bad('Gecersiz veya pasif rol.', 400);
+        data.roleKey = sr.key;
+        data.role = sr.name;
+      }
+    }
+    if (b.systemRole !== undefined) {
+      throw bad('systemRole kolonu kaldirildi; rol atamasi icin roleKey kullanin.', 400);
+    }
     if (b.clearanceLevel != null) {
       const cl = Number(b.clearanceLevel);
-      if (!Number.isInteger(cl) || cl < 1) throw bad('clearanceLevel gecersiz.');
+      if (!isValidClearanceLevel(cl)) throw bad('clearanceLevel 1-5 arasinda olmali.');
       data.clearanceLevel = cl;
     }
     if (b.isActive != null) {
@@ -634,13 +658,10 @@ app.patch(
       }
       data.isActive = Boolean(b.isActive);
     }
+    // Issue #103: PATCH'te projectId kabul edilmez (404 yerine sessiz yoksayma
+    // yerine acik hata; client'in eski aliskanligini kirariz).
     if (b.projectId !== undefined) {
-      if (b.projectId === null) data.projectId = null;
-      else {
-        const proj = await prisma.project.findUnique({ where: { id: String(b.projectId) } });
-        if (!proj) throw bad('Proje bulunamadi.', 404);
-        data.projectId = String(b.projectId);
-      }
+      throw bad('Proje atamasi admin konsolundan yapilamaz; PM uyelik uclarini kullanin.', 400);
     }
     if (b.password != null) {
       const pw = String(b.password);
@@ -676,23 +697,155 @@ app.post(
 // --- Kullanici silme (Issue: admin paneli feedback) ------------------------
 //  Guvenlik kuralari:
 //    - Admin KENDI hesabini silemez (kilitlenme korumasi).
-//    - ADMIN systemRole'lu baska bir hesap silinemez (son admin kalmasin).
+//    - ADMIN (roleKey='admin') baska bir hesap silinemez (son admin kalmasin).
 //  User silinince refreshToken'lari Cascade ile temizlenir; proje verisine
 //  dokunulmaz (User yalnizca kimlik/giris kaydidir).
 app.delete(
   '/api/admin/users/:id',
   requireAdmin,
   wrap(async (req, res) => {
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: { memberships: { select: { projectId: true } } },
+    });
     if (!target) throw bad('Kullanici bulunamadi.', 404);
     if (target.id === req.auth.userId) throw bad('Kendi hesabinizi silemezsiniz.');
-    if (target.systemRole === 'ADMIN') throw bad('Admin hesabi silinemez.');
+    if (isAdminRole(target)) throw bad('Admin hesabi silinemez.');
+    const projectIds = (target.memberships || []).map((m) => m.projectId);
     await prisma.user.delete({ where: { id: target.id } });
+    // Issue #114/#115: atamalar USER'a baglidir. Silinen kisi bir kaydin ILK
+    // sorumlusuysa legacy `assigneeId` kolonu SetNull ile bosalir; siradaki
+    // sorumlu otomatik yerine gecsin diye kolon yeniden senkronlanir.
+    for (const projectId of projectIds) await resyncLegacyAssignee(prisma, projectId);
     await auditSystem('admin.user.delete', {
       userId: req.auth.userId,
       targetUserId: target.id,
       targetUsername: target.username,
     });
+    res.status(204).end();
+  }),
+);
+
+// ============================================================================
+//  AYRINTILI BILGI (permission debug/rapor icin) — Issue #101.
+//  resolveUserRole tek kanonik cozucuyle cozulmus rol + izin dondurur.
+//  Backend izin zorlamasi `requirePM`/`projectAccessGuard` uzerinden calisir;
+//  bu endpoint SADECE admin konsol raporlamsi icindir.
+app.get(
+  '/api/admin/resolve-role',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const { username, userId } = req.query || {};
+    const user = username
+      ? await prisma.user.findUnique({ where: { username: String(username) } })
+      : userId
+        ? await prisma.user.findUnique({ where: { id: String(userId) } })
+        : null;
+    if (!user) throw bad('Kullanici bulunamadi.', 404);
+    const resolved = await resolveUserRole(prisma, user);
+    res.json({
+      username: user.username,
+      storedRole: user.role,
+      storedRoleKey: user.roleKey || null,
+      resolved,
+      isPM: isPMRole(user),
+    });
+  }),
+);
+
+// ===========================================================================
+//  SYSTEM ROLES (Issue #101) — sabit cekirdek roller + izin yonetimi.
+//  Yalnizca ADMIN. isSystem roller silinemez (pasiflestirilebilir); ozel
+//  roller (isSystem=false) silinebilir. permissions: 12 kademeli izin JSON'u.
+// ===========================================================================
+const systemRoleView = (r) => ({
+  id: r.id,
+  key: r.key,
+  name: r.name,
+  permissions: r.permissions || {},
+  isSystem: r.isSystem,
+  isActive: r.isActive,
+  createdAt: r.createdAt,
+});
+
+app.get(
+  '/api/admin/system-roles',
+  requireAdmin,
+  wrap(async (_req, res) => {
+    const rows = await prisma.systemRole.findMany({ orderBy: [{ isSystem: 'desc' }, { key: 'asc' }] });
+    res.json(rows.map(systemRoleView));
+  }),
+);
+
+app.post(
+  '/api/admin/system-roles',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const key = String(b.key || '')
+      .trim()
+      .toLowerCase();
+    const name = String(b.name || '').trim();
+    if (!/^[a-z0-9_-]{2,32}$/.test(key)) throw bad('Rol anahtari 2-32 karakter, a-z0-9_- olmali.');
+    if (!name) throw bad('Rol adi zorunlu.');
+    const exists = await prisma.systemRole.findUnique({ where: { key } });
+    if (exists) throw bad('Bu rol anahtari zaten kullaniliyor.', 409);
+    const role = await prisma.systemRole.create({
+      data: { key, name, permissions: b.permissions || {}, isSystem: false, isActive: true },
+    });
+    await auditSystem('admin.system_role.create', { userId: req.auth.userId, roleKey: key, roleName: name });
+    res.status(201).json(systemRoleView(role));
+  }),
+);
+
+app.patch(
+  '/api/admin/system-roles/:key',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const b = req.body || {};
+    const role = await prisma.systemRole.findUnique({ where: { key: req.params.key } });
+    if (!role) throw bad('Rol bulunamadi.', 404);
+    const data = {};
+    if (b.name != null) {
+      data.name = String(b.name).trim();
+      if (!data.name) throw bad('Rol adi bos olamaz.');
+    }
+    if (b.permissions != null) {
+      if (typeof b.permissions !== 'object' || Array.isArray(b.permissions)) {
+        throw bad('permissions gecersiz.');
+      }
+      data.permissions = b.permissions;
+    }
+    if (b.isActive != null) {
+      data.isActive = Boolean(b.isActive);
+      // Son aktif PM rolunu pasiflestirmeyi engelle (PM tespiti bozulmasin).
+      if (role.key === 'pm' && b.isActive === false) {
+        throw bad('PM rolu pasiflestirilemez — PM tespiti bu role baglidir.');
+      }
+    }
+    if (Object.keys(data).length === 0) throw bad('Guncellenecek alan yok.');
+    const updated = await prisma.systemRole.update({ where: { key: req.params.key }, data });
+    await auditSystem('admin.system_role.update', {
+      userId: req.auth.userId,
+      roleKey: role.key,
+      fields: Object.keys(data),
+    });
+    res.json(systemRoleView(updated));
+  }),
+);
+
+app.delete(
+  '/api/admin/system-roles/:key',
+  requireAdmin,
+  wrap(async (req, res) => {
+    const role = await prisma.systemRole.findUnique({ where: { key: req.params.key } });
+    if (!role) throw bad('Rol bulunamadi.', 404);
+    if (role.isSystem) throw bad('Sistem rolleri silinemez; yalnizca pasiflestirilebilir.');
+    // Role bagli kullanici varsa silme.
+    const inUse = await prisma.user.count({ where: { roleKey: role.key } });
+    if (inUse > 0) throw bad(`Bu rol ${inUse} kullanici tarafindan kullaniliyor; once onlarin rolunu degistirin.`);
+    await prisma.systemRole.delete({ where: { key: role.key } });
+    await auditSystem('admin.system_role.delete', { userId: req.auth.userId, roleKey: role.key });
     res.status(204).end();
   }),
 );
@@ -724,44 +877,22 @@ app.get(
   }),
 );
 
-// --- Passcode ile personel girisi (proje-bagimsiz) --------------------------
-//  Personel passcode'unu girer -> dogrudan atandigi projeye + rolune duser.
-app.post(
-  '/api/auth/passcode',
-  loginLimiter,
-  wrap(async (req, res) => {
-    const raw = (req.body?.passcode || '').trim().toUpperCase();
-    if (!raw) throw bad('Passcode zorunlu.');
-    const p = await prisma.personnel.findUnique({
-      where: { passcode: raw },
-      include: { role: true, project: true },
-    });
-    if (!p) throw bad('Gecersiz passcode.', 401);
-    const token = signToken({
-      kind: 'personnel',
-      isPM: false,
-      personnelId: p.id,
-      projectId: p.projectId,
-      roleId: p.roleId,
-    });
-    res.json({
-      token,
-      personnel: { id: p.id, firstName: p.firstName, lastName: p.lastName, passcode: p.passcode },
-      role: { id: p.role.id, name: p.role.name, permissions: p.role.permissions || {} },
-      project: { id: p.project.id, name: p.project.name },
-    });
-  }),
-);
+// Issue #97: passcode/personel girisi KALDIRILDI — tek giris yolu
+// /api/auth/login (kullanici adi + sifre). Personnel/Role modelleri de kalkti.
 
-const safeUser = (u) => ({
+const safeUser = (u, extras = {}) => ({
   id: u.id,
   username: u.username,
   name: u.name,
   initials: u.initials,
   role: u.role,
+  // Issue #101: sistem rol anahtari — frontend izin eslemesi bunu kullanir.
+  roleKey: extras.roleKey ?? u.roleKey ?? null,
+  // Issue #101: izin matrisi SystemRole'den cozulur ve oturuma eklenir.
+  permissions: extras.permissions ?? null,
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
-  systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
+  // Issue #103: projectId kalkti — uyelikler GET /projects'ten (uyelik filtreli).
 });
 
 // Issue #88: admin panelinde gosterilen genis kullanici gorunumu (passwordHash ASLA).
@@ -771,12 +902,12 @@ const adminUser = (u) => ({
   name: u.name,
   initials: u.initials,
   role: u.role,
-  systemRole: u.systemRole,
+  roleKey: u.roleKey || null,
   clearanceLevel: u.clearanceLevel,
   isActive: u.isActive,
   failedAttempts: u.failedAttempts,
   lockedUntil: u.lockedUntil,
-  projectId: u.projectId,
+  // Issue #103: projectId kalkti — uyelikler /projects/:pid/members uzerinden.
   createdAt: u.createdAt,
 });
 
@@ -786,8 +917,9 @@ const adminUser = (u) => ({
 app.get(
   '/api/projects',
   wrap(async (req, res) => {
-    // Personel yalnizca kendi atandigi projeyi gorur; PM tumunu gorur.
-    const where = req.auth.isPM ? {} : { id: req.auth.projectId };
+    // Issue #103: PM tum projeleri; normal kullanici YALNIZCA uye oldugu
+    // projeleri gorur (uye olmadigi projenin varligi bile sızmaz).
+    const where = req.auth.roleKey === 'pm' ? {} : { members: { some: { userId: req.auth.userId } } };
     const projects = await prisma.project.findMany({
       where,
       orderBy: { updatedAt: 'desc' },
@@ -830,6 +962,146 @@ app.get(
     const project = await prisma.project.findUnique({ where: { id: req.params.pid } });
     if (!project) throw bad('Proje bulunamadi.', 404);
     res.json(project);
+  }),
+);
+
+// ===========================================================================
+//  MEMBERS (Issue #103: PM proje uyeliklerini yonetir — coktan-coga)
+//  Yetki: tum uclar PM'e ozel (requirePM). Admin bile uye ekleyemez —
+//  uyelik tamamen PM'in isi (spec Karar #2/#6).
+// ===========================================================================
+/** PM tespiti + SystemRole adini cozen yardimci (directory/members paylasir). */
+async function userWithRoleName(u) {
+  const sr = u.roleKey ? await prisma.systemRole.findUnique({ where: { key: u.roleKey } }) : null;
+  return {
+    id: u.id,
+    username: u.username,
+    name: u.name,
+    initials: u.initials,
+    roleKey: u.roleKey || null,
+    roleName: sr?.name || u.role || null,
+    clearanceLevel: u.clearanceLevel,
+  };
+}
+
+app.get(
+  '/api/projects/:pid/members',
+  requirePM,
+  wrap(async (req, res) => {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId: req.params.pid },
+      include: { user: true },
+      orderBy: { joinedAt: 'asc' },
+    });
+    const members = await Promise.all(
+      rows.map(async (m) => ({
+        ...(await userWithRoleName(m.user)),
+        userId: m.userId,
+        joinedAt: m.joinedAt,
+      })),
+    );
+    res.json(members);
+  }),
+);
+
+// Atanabilir kisiler (Issue #97/A) — atama User tabanli oldugu icin picker ve
+// gosterimler bu listeden beslenir. Uyelik yonetiminden FARKLI olarak PM
+// sarti YOKTUR: projeye erisimi olan herkes (guard gecer) okuyabilir, cunku
+// ayni listeyi atama arayuzu da kullanir.
+app.get(
+  '/api/projects/:pid/assignees',
+  wrap(async (req, res) => {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId: req.params.pid },
+      include: { user: { select: { id: true, name: true, role: true, roleKey: true, isActive: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+    const people = rows
+      .filter((m) => m.user && m.user.isActive !== false)
+      .map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        role: m.user.role,
+        roleKey: m.user.roleKey || null,
+      }));
+    res.json(people);
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/members',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const userId = String(req.body?.userId || '');
+    if (!userId) throw bad('userId zorunlu.');
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw bad('Kullanici bulunamadi.', 404);
+    // Karar #7: PM'ler uye olarak EKLENMEZ — zaten tum projelere erisirler.
+    if (isPMRole(user)) throw bad('PM kullanicilar uye olarak eklenmez; zaten tum projelere erisir.', 400);
+    if (!user.isActive) throw bad('Devre disi kullanici uye olarak eklenemez.', 400);
+    const existing = await prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId: pid, userId } },
+    });
+    if (existing) {
+      // Idempotent: ayni uye tekrar eklenmek istenirse mevcut kayit doner.
+      return res.json({ member: existing, alreadyMember: true });
+    }
+    const member = await prisma.projectMember.create({
+      data: { projectId: pid, userId },
+    });
+    await audit(pid, {
+      action: 'MEMBER_ADD',
+      entityType: 'member',
+      entityId: member.id,
+      actor: actorOf(req),
+      message: `Uye eklendi: "${user.name}".`,
+    });
+    res.status(201).json({ member, alreadyMember: false });
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/members/:userId',
+  requirePM,
+  wrap(async (req, res) => {
+    const pid = req.params.pid;
+    const userId = req.params.userId;
+    const existing = await prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId: pid, userId } },
+      include: { user: { select: { name: true } } },
+    });
+    if (!existing) throw bad('Uyelik kaydi bulunamadi.', 404);
+    await prisma.projectMember.delete({ where: { id: existing.id } });
+    // Karar #9: Approval kayitlarina DOKUNULMAZ — gecmis korunur; matrix
+    // 'departed' rozetiyle gosterir, konsensus havuzu aktif uyelerden kurulur.
+    await audit(pid, {
+      action: 'MEMBER_REMOVE',
+      entityType: 'member',
+      entityId: existing.id,
+      actor: actorOf(req),
+      message: `Uye cikarildi: "${existing.user?.name || userId}".`,
+    });
+    res.json({ ok: true });
+  }),
+);
+
+// Ekleme listesi icin kullanici dizini (yalnizca PM; PM-role kullanicilar
+// listelenmez cunku zaten uye olamazlar — Karar #7/#11).
+app.get(
+  '/api/users/directory',
+  requirePM,
+  wrap(async (_req, res) => {
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    const rows = [];
+    for (const u of users) {
+      if (isPMRole(u)) continue;
+      rows.push(await userWithRoleName(u));
+    }
+    res.json(rows);
   }),
 );
 
@@ -1209,6 +1481,8 @@ app.post(
       clearanceLevel = parent.clearanceLevel; // miras
     }
     if (clearanceLevel == null) clearanceLevel = 1;
+    // Issue #102: gereksinim seviyesi de 1..5 araliginda olmali (miras dahil).
+    if (!isValidClearanceLevel(clearanceLevel)) throw bad('clearanceLevel 1-5 arasinda olmali.');
     if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
     const created = await prisma.requirement.create({
       data: {
@@ -1390,7 +1664,19 @@ app.get(
       where: { projectId: pid, requirementId: req.params.id },
       orderBy: { version: 'desc' },
     });
-    res.json(flattenAll(history));
+    // Issue #97: Personnel listesi frontend'de artik yok; aktor (changedBy =
+    // User UUID) adini sunucu tarafi cozer ve changedByName olarak ekler.
+    const actorIds = [...new Set(history.map((h) => h.changedBy).filter(Boolean))];
+    const actors = actorIds.length
+      ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map(actors.map((a) => [a.id, a.name]));
+    res.json(
+      flattenAll(history).map((h) => ({
+        ...h,
+        changedByName: nameById.get(h.changedBy) || null,
+      })),
+    );
   }),
 );
 
@@ -2121,149 +2407,9 @@ app.post(
   }),
 );
 
-// ===========================================================================
-//  ROLES (proje bazli, dinamik roller + 12 kademeli izin)
-// ===========================================================================
-app.get(
-  '/api/projects/:pid/roles',
-  wrap(async (req, res) => {
-    const rows = await prisma.role.findMany({ where: { projectId: req.params.pid }, orderBy: { createdAt: 'asc' } });
-    res.json(rows);
-  }),
-);
-
-app.post(
-  '/api/projects/:pid/roles',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const { name, permissions } = req.body || {};
-    if (!name || !name.trim()) throw bad('Rol adi zorunlu.');
-    const row = await prisma.role.create({
-      data: { projectId: pid, name: name.trim(), permissions: permissions || {} },
-    });
-    await audit(pid, {
-      action: 'ROLE_CREATE',
-      entityType: 'role',
-      entityId: row.id,
-      message: `Rol olusturuldu: "${row.name}".`,
-    });
-    res.status(201).json(row);
-  }),
-);
-
-app.put(
-  '/api/projects/:pid/roles/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.role.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Rol bulunamadi.', 404);
-    const { name, permissions } = req.body || {};
-    const data = {};
-    if (name != null) data.name = name.trim();
-    if (permissions != null) data.permissions = permissions;
-    const row = await prisma.role.update({ where: { id: req.params.id }, data });
-    await audit(pid, {
-      action: 'ROLE_UPDATE',
-      entityType: 'role',
-      entityId: row.id,
-      message: `Rol guncellendi: "${row.name}".`,
-    });
-    // Izinler degistiginde onay durumlari etkilenebilir; yeniden hesapla.
-    await recomputeAllApprovals(pid);
-    res.json(row);
-  }),
-);
-
-app.delete(
-  '/api/projects/:pid/roles/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.role.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Rol bulunamadi.', 404);
-    const reason = requireReason(req);
-    await prisma.role.delete({ where: { id: req.params.id } });
-    await audit(pid, {
-      action: 'ROLE_DELETE',
-      entityType: 'role',
-      entityId: req.params.id,
-      message: `Rol silindi: "${before?.name || ''}".`,
-      reason,
-      actor: actorOf(req),
-    });
-    await recomputeAllApprovals(pid);
-    res.json({ ok: true });
-  }),
-);
-
-// ===========================================================================
-//  PERSONNEL (passcode ile giren atanmis kisiler)
-// ===========================================================================
-app.get(
-  '/api/projects/:pid/personnel',
-  wrap(async (req, res) => {
-    const rows = await prisma.personnel.findMany({
-      where: { projectId: req.params.pid },
-      include: { role: true },
-      orderBy: { createdAt: 'asc' },
-    });
-    // Passcode = giris kimlik bilgisi. Herkese donmek, bir personelin baska
-    // bir personelin (belki daha yetkili) kodunu okuyup onun adina giris
-    // yapmasina izin verirdi. Yalnizca PM gorur — Roller sayfasindaki
-    // "unutulan kodu kurtarma" akisi PM icindir ve calismaya devam eder.
-    if (req.auth?.isPM) return res.json(rows);
-    res.json(rows.map(({ passcode: _passcode, ...rest }) => rest));
-  }),
-);
-
-app.post(
-  '/api/projects/:pid/personnel',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const { firstName, lastName, roleId } = req.body || {};
-    if (!firstName || !firstName.trim()) throw bad('Ad zorunlu.');
-    if (!lastName || !lastName.trim()) throw bad('Soyad zorunlu.');
-    if (!roleId) throw bad('Rol zorunlu.');
-    const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!role || role.projectId !== pid) throw bad('Gecersiz rol.', 400);
-    const passcode = await generatePasscode();
-    const row = await prisma.personnel.create({
-      data: { projectId: pid, roleId, firstName: firstName.trim(), lastName: lastName.trim(), passcode },
-      include: { role: true },
-    });
-    await audit(pid, {
-      action: 'PERSONNEL_CREATE',
-      entityType: 'personnel',
-      entityId: row.id,
-      message: `Personel eklendi: "${row.firstName} ${row.lastName}" (${role.name}), passcode: ${passcode}.`,
-    });
-    await recomputeAllApprovals(pid);
-    res.status(201).json(row);
-  }),
-);
-
-app.delete(
-  '/api/projects/:pid/personnel/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.personnel.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Personel bulunamadi.', 404);
-    const reason = requireReason(req);
-    await prisma.personnel.delete({ where: { id: req.params.id } });
-    // Coklu atamada silinen kisi ILK sorumluysa legacy `assigneeId` kolonu
-    // SetNull ile bosalir; siradaki sorumlu otomatik yerine gecsin.
-    await resyncLegacyAssignee(prisma, pid);
-    await audit(pid, {
-      action: 'PERSONNEL_DELETE',
-      entityType: 'personnel',
-      entityId: req.params.id,
-      message: `Personel silindi: "${before?.firstName || ''} ${before?.lastName || ''}".`,
-      reason,
-      actor: actorOf(req),
-    });
-    await recomputeAllApprovals(pid);
-    res.json({ ok: true });
-  }),
-);
+// Issue #97: proje-bazli ROLES ve PERSONNEL CRUD uclari KALDIRILDI.
+// Rol/izin yonetimi admin konsolundaki SystemRole ekranindan (Issue #101)
+// yapilir; proje uyeligi ProjectMember tablosundan (Issue #103).
 
 // ===========================================================================
 //  APPROVALS (consensus onay + kilitleme)
@@ -2272,9 +2418,8 @@ app.delete(
 //  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu — oy havuzu
 //  1 kez okunur, bilesen basina 2 parametrik bulk UPDATE (toplam 12) calisir;
 //  degeri degismeyen kayitlara dokunulmaz.
-async function recomputeAllApprovals(pid) {
-  await recomputeApprovalsBulk(prisma, pid);
-}
+//  Issue #97: dogrudan recomputeApprovalsBulk cagriliyor (Role/Personnel CRUD
+//  kalktigi icin ara fonksiyona gerek kalmadi).
 
 app.get(
   '/api/projects/:pid/approvals',
@@ -2285,6 +2430,7 @@ app.get(
 );
 
 // Oy ver / geri cek (toggle). Kilitliyken yalnizca PM degistirebilir.
+// Issue #97: tamamen User tabanli — voterId her zaman User UUID.
 app.post(
   '/api/projects/:pid/approvals/vote',
   wrap(async (req, res) => {
@@ -2295,27 +2441,27 @@ app.post(
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    let voterId, voterName, personnelId, personnelPermissions;
-    if (req.auth.isPM) {
-      voterId = req.auth.userId;
-      voterName = req.auth.name || 'Proje Yöneticisi';
-      personnelId = null;
-    } else if (req.auth.kind === 'personnel') {
-      voterId = req.auth.personnelId;
-      personnelId = voterId;
-      const pers = await prisma.personnel.findUnique({
-        where: { id: voterId },
-        select: { firstName: true, lastName: true, role: { select: { permissions: true } } },
+    const userId = req.auth?.userId;
+    if (!userId) throw bad('Gecersiz kimlik.', 401);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw bad('Kullanici bulunamadi.', 401);
+    const isPM = isPMRole(user);
+    // Proje siniri: PM her projeye; normal kullanici yalnizca uyeyse (Issue #103).
+    if (!isPM) {
+      const membership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: pid, userId } },
+        select: { id: true },
       });
-      if (!pers) throw bad('Personel bulunamadi.', 404);
-      voterName = (pers.firstName + ' ' + pers.lastName).trim();
-      personnelPermissions = pers.role ? pers.role.permissions || {} : {};
-    } else throw bad('Gecersiz kimlik.', 401);
-    if (entity.locked && !req.auth.isPM)
-      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yöneticisi kilidi acabilir.', 403);
-    if (!req.auth.isPM) {
+      if (!membership) throw bad('Bu projeye erisim yetkiniz yok.', 403);
+    }
+    const voterId = user.id;
+    const voterName = user.name;
+    if (entity.locked && !isPM)
+      throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
+    if (!isPM) {
+      const resolved = await resolveUserRole(prisma, user);
+      const perm = (resolved.permissions || {}).approve || {};
       const compKey = componentKeyOf(entityType, entity.type);
-      const perm = personnelPermissions ? personnelPermissions.approve || {} : {};
       if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
         throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
     }
@@ -2338,7 +2484,6 @@ app.post(
           entityId,
           voterId,
           voterName: voterName || voterId,
-          personnelId: personnelId || null,
         },
       });
       await audit(pid, {
@@ -2368,7 +2513,7 @@ app.post(
     if (!entityId) throw bad('entityId zorunlu.');
     const entity = await prisma.testCase.findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    if (entity.locked && !req.auth.isPM)
+    if (entity.locked && req.auth?.roleKey !== 'pm')
       throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yöneticisi kilidi acabilir.', 403);
     await assertApprovePermission(req, pid, 'testcase', entity);
     const row = await prisma.testCase.update({
@@ -2414,6 +2559,7 @@ app.post(
 );
 
 // Onay detay matrisi (PM'e ozel): her gerekli oy verenin oy durumu.
+// Issue #97: oy verenler User tabanli (PM'ler + approve izinli uyeler).
 app.get(
   '/api/projects/:pid/approvals/matrix',
   wrap(async (req, res) => {
@@ -2423,33 +2569,37 @@ app.get(
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: String(entityId) } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    const { requiredPersonnel } = await requiredVotersFor(pid, entityType, entity);
-    // Bug fix: oylar PM'in GERCEK kullanici id'siyle saklanir (bkz. /approvals/vote:
-    // voterId = req.auth.userId), 'PM' sabit dizgesiyle degil — bu satir 'PM' sabiti
-    // kullaniyordu ve PM asla oy vermis GORUNMUYORDU (Issue #53'te cascade.js'te
-    // duzeltilen ayni sinif hata; matris ucundan atlanmisti). "PM" User
-    // tablosundaki HERHANGI bir hesaptir (role='Proje Yöneticisi' degil —
-    // bkz. recomputeApproval'daki ayni sinif duzeltme); birden fazla PM
-    // olabilir (co-PM kurulumlar), hepsi ayri satir olarak listelenir.
-    const [approvals, pmUsers] = await Promise.all([
-      prisma.approval.findMany({ where: { projectId: pid, entityType, entityId: String(entityId) } }),
-      prisma.user.findMany({ select: { id: true, name: true } }),
-    ]);
+    const { requiredVoters } = await requiredVotersFor(pid, entityType, entity);
+    const approvals = await prisma.approval.findMany({
+      where: { projectId: pid, entityType, entityId: String(entityId) },
+    });
     const votedIds = new Set(approvals.map((a) => a.voterId));
-    const voters = [
-      ...pmUsers.map((u) => ({
-        voterId: u.id,
-        name: u.name || 'Proje Yöneticisi',
-        role: 'Proje Yöneticisi',
-        voted: votedIds.has(u.id),
-      })),
-      ...requiredPersonnel.map((p) => ({
-        voterId: p.id,
-        name: `${p.firstName} ${p.lastName}`,
-        role: p.role?.name || '-',
-        voted: votedIds.has(p.id),
-      })),
-    ];
+    const voters = requiredVoters.map((v) => ({
+      voterId: v.id,
+      name: v.name,
+      role: v.roleName || '-',
+      voted: votedIds.has(v.id),
+    }));
+    // Issue #103 (Karar #9): oy vermis AMA artik oy havuzunda olmayan
+    // kullanicilar (projeden cikarilan uyeler) 'departed' olarak listeye
+    // eklenir — gecmis gorunur kalir, konsensus sayacina katilmaz.
+    const activeVoterIds = new Set(requiredVoters.map((v) => v.id));
+    const departedVoterIds = [...votedIds].filter((id) => !activeVoterIds.has(id));
+    if (departedVoterIds.length > 0) {
+      const departedUsers = await prisma.user.findMany({
+        where: { id: { in: departedVoterIds } },
+        select: { id: true, name: true, roleKey: true, role: true },
+      });
+      for (const du of departedUsers) {
+        voters.push({
+          voterId: du.id,
+          name: du.name,
+          role: du.roleKey || du.role || '-',
+          voted: true,
+          departed: true,
+        });
+      }
+    }
     res.json({
       approvalStatus: entity.approvalStatus,
       locked: entity.locked,
@@ -2466,9 +2616,19 @@ app.use((req, res) => res.status(404).json({ error: `Bulunamadi: ${req.method} $
 // Test ortaminda (node:test + supertest) dinlemeye kapilmayalim; app disa
 // aktarilir, supertest kendi portunu yonetir.
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
-  });
+  // Issue #101: sistem rollerini garanti altina al (idempotent) sonra dinle.
+  ensureSystemRoles(prisma)
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
+      });
+    })
+    .catch((e) => {
+      console.error('[system-roles] seed hatasi:', e);
+      app.listen(PORT, () => {
+        console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
+      });
+    });
   // Coklu atamaya gecis: eski tek atamalari (assigneeId) ara tabloya tasi.
   // Idempotenttir; zaten tasinmis kayitlara dokunmaz.
   backfillAssignees(prisma)

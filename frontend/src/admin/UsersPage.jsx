@@ -12,11 +12,13 @@ import {
   unlockUser,
   updateUser,
   deleteUser,
+  listSystemRoles,
 } from '../services/adminService.js'
-import { PM_ROLE } from '../services/authService.js'
+import { CLEARANCE_LEVELS, clearanceDisplay } from '../utils/clearance.js'
 
-const ROLE_OPTIONS = ['System Engineer', 'Developer', PM_ROLE]
-const SYSTEM_ROLES = ['USER', 'ADMIN']
+// Issue #101: rol `<select>` sabit ROLE_OPTIONS yerine aktif SystemRole
+// listesinden beslenir; backend `roleKey`'den display adi turettigi icin
+// forma ayrica `role` gonderilmez.
 
 function statusOf(u) {
   if (u.lockedUntil && new Date(u.lockedUntil) > new Date()) return 'locked'
@@ -38,15 +40,18 @@ function StatusBadge({ u, t }) {
 }
 
 // ---- Kullanici olusturma/duzenleme formu (modal) ---------------------------
-function UserForm({ mode, user, onClose, onSaved }) {
+//  Issue #101: rol secimi SystemRole listesinden beslenir; forma `roleKey`
+//  gonderilir, backend display `role` adini kendisi tureter.
+function UserForm({ mode, user, roles, onClose, onSaved }) {
   const { t } = useLang()
   const isEdit = mode === 'edit'
+  const activeRoles = (roles || []).filter((r) => r.isActive)
+  const defaultRoleKey = activeRoles[0]?.key || user?.roleKey || 'system_engineer'
   const [form, setForm] = useState({
     username: user?.username || '',
     password: '',
     name: user?.name || '',
-    role: user?.role || ROLE_OPTIONS[0],
-    systemRole: user?.systemRole || 'USER',
+    roleKey: user?.roleKey || defaultRoleKey,
     clearanceLevel: user?.clearanceLevel ?? 1,
   })
   const [error, setError] = useState('')
@@ -60,8 +65,7 @@ function UserForm({ mode, user, onClose, onSaved }) {
     try {
       const body = {
         name: form.name.trim(),
-        role: form.role,
-        systemRole: form.systemRole,
+        roleKey: form.roleKey,
         clearanceLevel: Number(form.clearanceLevel),
       }
       if (form.password) body.password = form.password
@@ -127,42 +131,41 @@ function UserForm({ mode, user, onClose, onSaved }) {
             <label className="label">{t('admin.role')}</label>
             <select
               className="input"
-              value={form.role}
-              onChange={(e) => set('role', e.target.value)}
+              value={form.roleKey}
+              onChange={(e) => set('roleKey', e.target.value)}
             >
-              {[...new Set([...ROLE_OPTIONS, form.role])].filter(Boolean).map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
+              {[
+                ...new Set([
+                  ...(roles || []).filter((r) => r.isActive).map((r) => r.key),
+                  form.roleKey,
+                ]),
+              ]
+                .filter(Boolean)
+                .map((k) => {
+                  const found = (roles || []).find((r) => r.key === k)
+                  return (
+                    <option key={k} value={k}>
+                      {found ? found.name : k}
+                    </option>
+                  )
+                })}
             </select>
           </div>
           <div>
-            <label className="label">{t('admin.systemRole')}</label>
+            <label className="label">{t('admin.clearance')}</label>
             <select
               className="input"
-              value={form.systemRole}
-              onChange={(e) => set('systemRole', e.target.value)}
+              value={form.clearanceLevel}
+              onChange={(e) => set('clearanceLevel', e.target.value)}
+              required
             >
-              {SYSTEM_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+              {CLEARANCE_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {clearanceDisplay(lvl, t)}
                 </option>
               ))}
             </select>
           </div>
-        </div>
-        <div>
-          <label className="label">{t('admin.clearance')}</label>
-          <input
-            className="input"
-            type="number"
-            min="1"
-            max="5"
-            value={form.clearanceLevel}
-            onChange={(e) => set('clearanceLevel', e.target.value)}
-            required
-          />
         </div>
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn-secondary" onClick={onClose}>
@@ -182,6 +185,7 @@ export default function UsersPage() {
   const { t } = useLang()
   const { currentUser } = useAuth()
   const [users, setUsers] = useState([])
+  const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null) // { mode, user }
@@ -190,7 +194,9 @@ export default function UsersPage() {
     setLoading(true)
     setError('')
     try {
-      setUsers(await listUsers())
+      const [u, r] = await Promise.all([listUsers(), listSystemRoles()])
+      setUsers(u)
+      setRoles(r)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -256,7 +262,6 @@ export default function UsersPage() {
                 <th className="px-4 py-3">{t('admin.username')}</th>
                 <th className="px-4 py-3">{t('admin.name')}</th>
                 <th className="px-4 py-3">{t('admin.role')}</th>
-                <th className="px-4 py-3">{t('admin.systemRole')}</th>
                 <th className="px-4 py-3">{t('admin.clearance')}</th>
                 <th className="px-4 py-3">{t('admin.status')}</th>
                 <th className="px-4 py-3">{t('admin.actions')}</th>
@@ -265,7 +270,7 @@ export default function UsersPage() {
             <tbody>
               {users.length === 0 && (
                 <tr>
-                  <td className="px-4 py-4 text-slate-400" colSpan={7}>
+                  <td className="px-4 py-4 text-slate-400" colSpan={6}>
                     {t('admin.noLogs')}
                   </td>
                 </tr>
@@ -280,9 +285,8 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{u.name}</td>
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{u.role}</td>
-                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{u.systemRole}</td>
                   <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
-                    {u.clearanceLevel}
+                    {clearanceDisplay(u.clearanceLevel, t)}
                   </td>
                   <td className="px-4 py-2.5">
                     <StatusBadge u={u} t={t} />
@@ -303,7 +307,7 @@ export default function UsersPage() {
                           {t('admin.unlock')}
                         </button>
                       )}
-                      {u.systemRole !== 'ADMIN' && (
+                      {u.roleKey !== 'admin' && (
                         <button
                           className="btn-secondary !px-2.5 !py-1 text-xs"
                           onClick={() => onToggleActive(u)}
@@ -311,7 +315,7 @@ export default function UsersPage() {
                           {u.isActive ? t('admin.deactivate') : t('admin.activate')}
                         </button>
                       )}
-                      {u.systemRole !== 'ADMIN' && u.id !== currentUser?.id && (
+                      {u.roleKey !== 'admin' && u.id !== currentUser?.id && (
                         <button
                           className="btn-ghost !px-2.5 !py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                           onClick={() => onDelete(u)}
@@ -332,6 +336,7 @@ export default function UsersPage() {
         <UserForm
           mode={modal.mode}
           user={modal.user}
+          roles={roles}
           onClose={() => setModal(null)}
           onSaved={() => {
             setModal(null)

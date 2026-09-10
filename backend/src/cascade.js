@@ -1,11 +1,14 @@
 // ============================================================================
 //  cascade.js  —  Issue #15: Toplu (bulk) durum ve onay yeniden hesabi.
 //  N+1 yerine sabit sayida sorgu: durum icin 1 okuma + <=3 updateMany + 1 audit;
-//  onay icin 1 personnel okuma + 12 parametrik bulk UPDATE (6 bilesen x 2).
+//  onay icin 1 user okuma + 12 parametrik bulk UPDATE (6 bilesen x 2).
 //  Sadece degeri DEGISEN satirlar yazilir ("sadece etkilenenler").
+//  Issue #97: Onay havuzu tamamen USER tabanlidir — Personnel/Role kalkti.
+//  Gerekli oy verenler = PM'ler + projeye atanmis (User.projectId) ve o
+//  bilesen icin approve izni olan kullanicilar (roleKey -> SystemRole).
 // ============================================================================
 import { Prisma } from '@prisma/client';
-import { REQ_TYPE, TEST_TYPE } from './constants.js';
+import { REQ_TYPE, TEST_TYPE, PM_ROLE } from './constants.js';
 
 // --- Bilesen -> varlik tip eslemesi (server.js'teki componentKeyOf ile ayni)
 const COMPONENT_TYPES = [
@@ -128,56 +131,70 @@ export async function recomputeStatusesBulk(prisma, pid) {
 }
 
 // ===========================================================================
-//  ONAY (consensus): approvalStatus/locked <- PM + yetkili personel oylari
-//  Gerekli oy verenler = PM + rolunde bu bilesen icin approve izni olanlar.
+//  ONAY (consensus): approvalStatus/locked <- PM + yetkili uye oylari
+//  Gerekli oy verenler = PM'ler + projede approve izni olan atanmis uyeler.
 //  Hepsi oy verdiyse Approved+locked; degilse Pending+unlocked.
 // ===========================================================================
-
 /**
- * Her bilesen icin gerekli oy veren id listesi (PM'ler her zaman dahil).
- * PM userId'leri artik veritabanindan cekilir — daha once kullanilan "PM" string
- * sentinel'i, gercek oy verenlerin UUID'leri ile uyusmadigi icin bulk onay
- * hesabini kiriliyordu (Issue #53).
+ * Issue #103: Oy veren havuzu = PM'ler + projenin AKTIF uyeleri.
+ *  - PM'ler (isPMRole) her bilesen icin GEREKLI oy verendir (PM oyu sart).
+ *  - ProjectMember uzerinden projenin uyeleri arasinda approve izni olanlar
+ *    (roleKey -> SystemRole) GEREKLI oy verendir.
+ *  - Projeden cikarilan uye havuzdan otomatik düşer (kayit silindigi icin);
+ *    eski Approval kayitlari ise kalir (gecmis — matrix 'departed' gösterir).
+ * @returns {Promise<Array<{id,name,roleName}>>} gerekli oy verenler
  */
-function requiredVotersFor(pmUserIds, personnel, componentKey) {
-  const voters = [...pmUserIds];
-  for (const p of personnel) {
-    const perm = p.role?.permissions?.approve;
-    if (perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(componentKey)) {
-      voters.push(p.id);
+export async function getRequiredVoters(prisma, pid, componentKey) {
+  // Issue #103: PM'ler ProjectMember kaydi TUTMAZ (Karar #1) — bu yuzden havuz
+  // PM kullanicilarini AYRI sorguyla toplar: her bahanede "PM oyu sart" (spec 4.3).
+  // 3 sorgu (N+1 yok): uyeler(+user) + tum sistem rolleri + PM kullanicilari.
+  // PM tespiti token 'pm' roleKey'i veya eski verilerde serbest-metin PM_ROLE.
+  const [members, roles, pmUsers] = await Promise.all([
+    prisma.projectMember.findMany({ where: { projectId: pid }, include: { user: true } }),
+    prisma.systemRole.findMany({ where: { isActive: true } }),
+    prisma.user.findMany({
+      where: { isActive: true, OR: [{ roleKey: 'pm' }, { role: PM_ROLE }] },
+      select: { id: true, name: true, roleKey: true, role: true, isActive: true },
+    }),
+  ]);
+  const roleByKey = new Map(roles.map((r) => [r.key, r]));
+  const voters = [];
+  const push = (v) => {
+    if (!voters.some((x) => x.id === v.id)) voters.push(v);
+  };
+  // 1) PM'ler — zaten her projeye erisirler; uyelik kaydindan bagimsiz.
+  for (const u of pmUsers) {
+    push({ id: u.id, name: u.name, roleName: u.roleKey || u.role });
+  }
+  // 2) ProjectMember uyeleri: PM'ler (kaydi varsa yinelenmez) + approve izinliler.
+  for (const m of members) {
+    const u = m.user;
+    if (!u || !u.isActive) continue;
+    const isPM = u.roleKey === 'pm' || u.role === PM_ROLE;
+    if (isPM) {
+      push({ id: u.id, name: u.name, roleName: u.roleKey || u.role });
+      continue;
+    }
+    // roleKey yoksa (eski veri) izin cozumlemesi yapilamaz -> oy havuzuna giremez.
+    if (!u.roleKey) continue;
+    const sr = roleByKey.get(u.roleKey);
+    if (!sr) continue;
+    const perm = (sr.permissions || {}).approve || {};
+    if (perm.enabled && Array.isArray(perm.components) && perm.components.includes(componentKey)) {
+      voters.push({ id: u.id, name: u.name, roleName: sr.name });
     }
   }
   return voters;
 }
 
-/**
- * Projedeki tum PM kullanicilarinin id'lerini tek sorguda getirir. "PM" User
- * tablosundaki HERHANGI bir hesaptir — auth.js requirePM ile ayni tanim
- * (req.auth.isPM, kullaniciadi/sifre ile giren HERKESE kosulsuz verilir,
- * bkz. /auth/login). User.role SADECE gorsel bir unvan (varsayilan "System
- * Engineer") ve erisim kontrolu icin KULLANILMAZ — eskiden bu sorgu
- * role==='Proje Yöneticisi' filtreliyordu; varsayilan admin hesabi
- * (seed-admin.mjs) role='System Engineer' ile olusturuldugu icin HICBIR
- * ZAMAN PM sayilmiyor, konsensus asla tamamlanamiyordu.
- * Birden fazla PM olabilir (co-PM'li kurulumlar) — hepsi sayilir.
- */
-async function getProjectManagerIds(prisma) {
-  const pms = await prisma.user.findMany({ select: { id: true } });
-  return pms.map((u) => u.id);
-}
-
 export async function recomputeApprovalsBulk(prisma, pid) {
-  // PM listesi ve oy veren havuzu projede TEK SEFERDE okunur (eskisi N kez okuyordu).
-  const [pmUserIds, personnel] = await Promise.all([
-    getProjectManagerIds(prisma),
-    prisma.personnel.findMany({ where: { projectId: pid }, include: { role: true } }),
-  ]);
-  // PM yoksa onay hesaplanamaz (her bilesen PM oyu sart) — bu projeyi atla.
-  if (pmUserIds.length === 0) return;
-
+  // Oy veren havuzu projede TEK SEFERDE bilesen basina okunur (eskisi N kez okuyordu).
   for (const comp of COMPONENT_TYPES) {
-    const voters = requiredVotersFor(pmUserIds, personnel, comp.key);
+    const voters = await getRequiredVoters(prisma, pid, comp.key);
+    const voterIds = voters.map((v) => v.id);
     const table = Prisma.raw(`"${comp.model}"`);
+    // Oy veren havuzu bos olabilir (proje uyesi yok) -> hicbir kayit Approved olamaz.
+    if (voterIds.length === 0) continue;
     // Eksik oyu olanlar -> Pending (sadece su an farkli olanlara yazar)
     await prisma.$executeRaw`
       UPDATE ${table}
@@ -189,9 +206,9 @@ export async function recomputeApprovalsBulk(prisma, pid) {
           SELECT a."entityId" FROM "Approval" a
           WHERE a."projectId" = ${pid}
             AND a."entityType" = ${comp.entityType}
-            AND a."voterId" = ANY(${voters}::text[])
+            AND a."voterId" = ANY(${voterIds}::text[])
           GROUP BY a."entityId"
-          HAVING COUNT(DISTINCT a."voterId") = ${voters.length}
+          HAVING COUNT(DISTINCT a."voterId") = ${voterIds.length}
         )`;
     // Tum gerekli oylar tamamlanmis olanlar -> Approved+locked
     await prisma.$executeRaw`
@@ -204,9 +221,9 @@ export async function recomputeApprovalsBulk(prisma, pid) {
           SELECT a."entityId" FROM "Approval" a
           WHERE a."projectId" = ${pid}
             AND a."entityType" = ${comp.entityType}
-            AND a."voterId" = ANY(${voters}::text[])
+            AND a."voterId" = ANY(${voterIds}::text[])
           GROUP BY a."entityId"
-          HAVING COUNT(DISTINCT a."voterId") = ${voters.length}
+          HAVING COUNT(DISTINCT a."voterId") = ${voterIds.length}
         )`;
   }
 }

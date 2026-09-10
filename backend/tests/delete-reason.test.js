@@ -15,7 +15,7 @@ const prisma = new PrismaClient();
 
 let proj;
 let pmToken;
-let personnelToken;
+let memberToken;
 
 before(async () => {
   resetDb();
@@ -27,17 +27,27 @@ before(async () => {
       passwordHash: await hashPassword('pm-pass'),
       name: 'PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
-  pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
+  // Issue #101: token'da kanonik alan `roleKey`'tir (kind/isPM kaldirildi).
+  pmToken = signToken({ userId: user.id, roleKey: 'pm', clearanceLevel: 5 });
 
   proj = await prisma.project.create({ data: { name: 'Gerekce Proje', description: 'Test' } });
 
-  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muhendis', permissions: {} } });
-  const person = await prisma.personnel.create({
-    data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'DR-1' },
+  // Issue #97/A: normal uye artik User'dir (Personnel kalkti); proje erisimi
+  // ProjectMember ile kurulur, yetki SystemRole'den (developer) gelir.
+  const member = await prisma.user.create({
+    data: {
+      username: 'member-delreason',
+      passwordHash: await hashPassword('member-pass'),
+      name: 'A B',
+      role: 'Developer',
+      roleKey: 'developer',
+    },
   });
-  personnelToken = signToken({ kind: 'personnel', isPM: false, projectId: proj.id, personnelId: person.id });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: member.id } });
+  memberToken = signToken({ userId: member.id, roleKey: 'developer', clearanceLevel: 1 });
 });
 
 after(async () => {
@@ -129,15 +139,17 @@ test('POST /requirements/batch-delete — gecerli reason ile silinir, her satira
   for (const l of logs) assert.equal(l.reason, 'Kapsam disi birakildi.');
 });
 
-// --- Rol -------------------------------------------------------------------
+// --- Sozluk terimi (Issue #97: proje-bazli Role CRUD kaldirildi) -------------
 
-test('DELETE /roles/:id — PM + gecerli reason ile silinir', async () => {
-  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Silinecek Rol 2', permissions: {} } });
+test('DELETE /glossary/:id — PM + gecerli reason ile silinir, AuditLog.reason yazilir', async () => {
+  const term = await prisma.glossaryTerm.create({
+    data: { projectId: proj.id, text_id: 'GLO-DEL-1', term: 'Silinecek Terim' },
+  });
   const res = await asPM(
-    request(app).delete(`/api/projects/${proj.id}/roles/${role.id}`).send({ reason: 'Artik kullanilmiyor.' }),
+    request(app).delete(`/api/projects/${proj.id}/glossary/${term.id}`).send({ reason: 'Artik kullanilmiyor.' }),
   );
   assert.equal(res.status, 200);
-  const log = await prisma.auditLog.findFirst({ where: { projectId: proj.id, entityId: role.id } });
+  const log = await prisma.auditLog.findFirst({ where: { projectId: proj.id, entityId: term.id } });
   assert.equal(log.reason, 'Artik kullanilmiyor.');
 });
 
@@ -163,7 +175,7 @@ test('DELETE /projects/:pid — gecerli reason ile silinir; ProjectDeletionLog K
 });
 
 test('GET /api/project-deletions — yalnizca PM erisebilir', async () => {
-  const asPersonnel = await request(app).get('/api/project-deletions').set('Authorization', `Bearer ${personnelToken}`);
+  const asPersonnel = await request(app).get('/api/project-deletions').set('Authorization', `Bearer ${memberToken}`);
   assert.equal(asPersonnel.status, 403);
 
   const asPmRes = await asPM(request(app).get('/api/project-deletions'));

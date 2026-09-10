@@ -22,7 +22,7 @@ const PM_CREDENTIALS = { username: 'pm-docs', password: 'pm-docs-pass-1234' };
 let pmToken = null;
 let projA = null;
 let projB = null;
-let personnelToken = null;
+let memberToken = null;
 
 // Icerik onemsiz; mimeType uzantidan belirlenir (tarayici tipine guvenilmez).
 const PDF_BYTES = Buffer.from('%PDF-1.4 sahte-pdf-icerigi');
@@ -43,6 +43,8 @@ before(async () => {
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
 
   await prisma.user.create({
     data: {
@@ -50,30 +52,32 @@ before(async () => {
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Dokuman Test PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
 
   projA = await prisma.project.create({ data: { name: 'Dokuman Projesi A' } });
   projB = await prisma.project.create({ data: { name: 'Dokuman Projesi B' } });
 
-  // Silme izni OLMAYAN personel (yalnizca okuma) — B projesine atanir.
-  const role = await prisma.role.create({
-    data: { projectId: projB.id, name: 'Okuyucu', permissions: { read: { enabled: true } } },
-  });
-  await prisma.personnel.create({
+  // Silme izni OLMAYAN uye (developer: read var, delete yok — SystemRole) —
+  // yalnizca B projesine uyedir (A projesinde uyeligi yok -> guard 403).
+  const member = await prisma.user.create({
     data: {
-      projectId: projB.id,
-      roleId: role.id,
-      firstName: 'Deniz',
-      lastName: 'Yilmaz',
-      passcode: 'DOC12',
+      username: 'member-docs',
+      passwordHash: await hashPassword('member-docs-pass-1234'),
+      name: 'Deniz Yilmaz',
+      role: 'Developer',
+      roleKey: 'developer',
     },
   });
+  await prisma.projectMember.create({ data: { projectId: projB.id, userId: member.id } });
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   pmToken = login.body.accessToken;
-  const pass = await request(app).post('/api/auth/passcode').send({ passcode: 'DOC12' });
-  personnelToken = pass.body.token;
+  const memberLogin = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'member-docs', password: 'member-docs-pass-1234' });
+  memberToken = memberLogin.body.accessToken;
 });
 
 after(async () => {
@@ -352,7 +356,7 @@ test('GET /documents — belgeler proje bazli izole edilir', async () => {
 test('GET /documents — personel baska projenin belgelerine erisemez', async () => {
   const res = await request(app)
     .get(`/api/projects/${projA.id}/documents`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 403);
 });
 
@@ -367,7 +371,7 @@ test('DELETE /documents/:id — silme izni olmayan personel 403 alir', async () 
 
   const res = await request(app)
     .delete(`/api/projects/${projB.id}/documents/${created.body.id}`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 403);
 
   const still = await request(app).get(`/api/projects/${projB.id}/documents`).set('Authorization', `Bearer ${pmToken}`);

@@ -15,7 +15,7 @@ import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
 const { appMock, authMock } = vi.hoisted(() => ({
   appMock: { requirements: [], testCases: [], links: [] },
-  authMock: { value: { isPM: false, currentUser: { personnelId: 'p1' }, can: () => true } },
+  authMock: { value: { isPM: false, currentUser: { id: 'p1' }, can: () => true } },
 }))
 
 vi.mock('../../context/AppContext.jsx', () => ({
@@ -85,7 +85,7 @@ const tc = (over = {}) => ({
 describe('MyAssignments — Bana Atananlar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMock.value = { isPM: false, currentUser: { personnelId: 'p1' }, can: () => true }
+    authMock.value = { isPM: false, currentUser: { id: 'p1' }, can: () => true }
     appMock.links = []
     appMock.requirements = [
       req({ id: 'r-1', text_id: 'EH-USR-001', assigneeId: 'p1' }),
@@ -174,7 +174,7 @@ describe('MyAssignments — Bana Atananlar', () => {
   it('kaydi okuma yetkisi olmayan kullanicida detay ACILMAZ', () => {
     authMock.value = {
       isPM: false,
-      currentUser: { personnelId: 'p1' },
+      currentUser: { id: 'p1' },
       can: (perm) => perm !== 'read',
     }
     renderPage()
@@ -182,10 +182,9 @@ describe('MyAssignments — Bana Atananlar', () => {
     expect(screen.queryByTestId('view-modal')).not.toBeInTheDocument()
   })
 
-  it('PM oturumunda is listesi yerine aciklama gosterilir', () => {
-    authMock.value = { isPM: true, currentUser: { id: 'u1' }, can: () => true }
+  it('PM oturumu da kendi atamalarini gorur (atama User tabanli)', () => {
+    authMock.value = { isPM: true, currentUser: { id: 'p1' }, can: () => true }
     renderPage()
-    expect(screen.queryByText('EH-USR-001')).not.toBeInTheDocument()
-    expect(screen.getByText(/personel oturumuna özeldir/i)).toBeInTheDocument()
+    expect(screen.getByText('EH-USR-001')).toBeInTheDocument()
   })
 })

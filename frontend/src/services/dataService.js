@@ -106,17 +106,21 @@ export const deleteGlossary = (pid, id, reason) =>
 export const bulkDeleteGlossary = (pid, ids, reason) =>
   api.post(`/projects/${pid}/glossary/batch-delete`, { ids, reason })
 
-// --- Roller (dinamik roller + 12 kademeli izin) -----------------------------
-export const listRoles = (pid) => api.get(`/projects/${pid}/roles`)
-export const createRole = (pid, data) => api.post(`/projects/${pid}/roles`, data)
-export const updateRole = (pid, id, data) => api.put(`/projects/${pid}/roles/${id}`, data)
-export const deleteRole = (pid, id, reason) => api.del(`/projects/${pid}/roles/${id}`, { reason })
+// Issue #97: proje-bazli Roles ve Personnel servisleri KALDIRILDI.
+// Rol/izin yonetimi admin konsolundaki SystemRole ekranindan (Issue #101);
+// proje uyeligi ProjectMember tablosundan yonetilir (#103 kapsami).
 
-// --- Personel (passcode ile giren atanmis kisiler) --------------------------
-export const listPersonnel = (pid) => api.get(`/projects/${pid}/personnel`)
-export const createPersonnel = (pid, data) => api.post(`/projects/${pid}/personnel`, data)
-export const deletePersonnel = (pid, id, reason) =>
-  api.del(`/projects/${pid}/personnel/${id}`, { reason })
+// --- Proje uyeligi (Issue #103) --------------------------------------------
+//  PM projeye uye ekler/cikarir; normal kullanici yalnizca uye oldugu projeleri
+//  gorur (backend GET /projects bu filtreyi zaten uygular).
+export const listMembers = (pid) => api.get(`/projects/${pid}/members`)
+export const addMember = (pid, userId) => api.post(`/projects/${pid}/members`, { userId })
+export const removeMember = (pid, userId) => api.del(`/projects/${pid}/members/${userId}`)
+//  PM'in uye ekleme listesi: aktif, PM-olmayan kullanicilar.
+export const listUserDirectory = () => api.get('/users/directory')
+//  Atanabilir kisiler (proje uyeleri) — Issue #97/A: Personnel yerine User.
+//  PM dahil tum oturumlar okuyabilir (picker/gosterim icin).
+export const listAssignees = (pid) => api.get(`/projects/${pid}/assignees`)
 
 // --- Onay (consensus onay + kilitleme) --------------------------------------
 export const listApprovals = (pid) => api.get(`/projects/${pid}/approvals`)

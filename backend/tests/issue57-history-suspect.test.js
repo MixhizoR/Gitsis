@@ -33,9 +33,9 @@ let childReq;
 let testCaseRow;
 let satisfiesLink;
 let verifiesLink;
-// Personel: approve izni olan + olmayan
-let approvePersonnelToken;
-let approvePersonnelId;
+// Uyeler: approve izni olan + olmayan (Issue #97: User tabanli)
+let approveMemberToken;
+let approveMemberId;
 let noApproveToken;
 
 async function createRequirement(overrides = {}) {
@@ -55,12 +55,16 @@ before(async () => {
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
+
   const u = await prisma.user.create({
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Issue57 PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
   pmUserId = u.id;
@@ -123,48 +127,45 @@ before(async () => {
     data: { projectId: proj.id, fromId: reqMain.id, toId: testCaseRow.id, type: 'Verifies' },
   });
 
-  // Roller + personel
-  const roleApprove = await prisma.role.create({
+  // Uyeler: approve izni olan (system_engineer) + olmayan (developer)
+  const mApprove = await prisma.user.create({
     data: {
-      projectId: proj.id,
-      name: 'Onayci Muhendis',
-      permissions: { approve: { enabled: true, components: ['req-system'] } },
+      username: 'member-approve-57',
+      passwordHash: await hashPassword('member-pass-57'),
+      name: 'Onay Uye',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
     },
   });
-  const pApprove = await prisma.personnel.create({
+  approveMemberId = mApprove.id;
+  // Issue #103: uyelik ProjectMember tablosuyla kurulur (User.projectId yok).
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: mApprove.id } });
+  const mObserver = await prisma.user.create({
     data: {
-      projectId: proj.id,
-      roleId: roleApprove.id,
-      firstName: 'Onay',
-      lastName: 'Personel',
-      passcode: 'K2X4M',
+      username: 'member-observer-57',
+      passwordHash: await hashPassword('observer-pass-57'),
+      name: 'Izin Siz',
+      role: 'Developer',
+      roleKey: 'developer',
     },
   });
-  approvePersonnelId = pApprove.id;
-  const roleNoApprove = await prisma.role.create({
-    data: { projectId: proj.id, name: 'Gozlemci', permissions: {} },
-  });
-  await prisma.personnel.create({
-    data: {
-      projectId: proj.id,
-      roleId: roleNoApprove.id,
-      firstName: 'Izin',
-      lastName: 'Siz',
-      passcode: 'Z7Y3N',
-    },
-  });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: mObserver.id } });
 
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');
   pmToken = t0.body.accessToken;
 
-  const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
-  assert.equal(t1.status, 200, 'approve personel login basarili olmali');
-  approvePersonnelToken = t1.body.token;
+  const t1 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'member-approve-57', password: 'member-pass-57' });
+  assert.equal(t1.status, 200, 'approve uye login basarili olmali');
+  approveMemberToken = t1.body.accessToken;
 
-  const t2 = await request(app).post('/api/auth/passcode').send({ passcode: 'Z7Y3N' });
+  const t2 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'member-observer-57', password: 'observer-pass-57' });
   assert.equal(t2.status, 200);
-  noApproveToken = t2.body.token;
+  noApproveToken = t2.body.accessToken;
 });
 
 // ============================================================================
@@ -282,15 +283,24 @@ test('status cascade ile degisince: history + suspect IKISI DE tetiklenmez', asy
   });
 
   // Test sonucu artik ELLE degil, onay aksiyonuyla belirlenir (bkz. server.js
-  // recomputeApproval). Bu bilesende (test-system) approve izinli personel
-  // yok, o yuzden PM'in tek oyu konsensus icin yeterli -> test 'Approved'
+  // recomputeApproval). Issue #103: oy havuzu = PM'ler + projede o bilesende
+  // approve izni olan uyeler. Bu projede test-system icin approve izinli bir
+  // uye (system_engineer) VAR; konsensus icin onun oyu da sarttir. Once
+  // yalnizca PM oy verir -> henuz 'In Review'; uye de oy verince 'Approved'
   // olur -> cascade gereksinimin durumunu ayni deger ile updateMany eder.
   const r = await request(app)
     .post(`/api/projects/${proj.id}/approvals/vote`)
     .set('Authorization', `Bearer ${pmToken}`)
     .send({ entityType: 'testcase', entityId: tc.id });
   assert.equal(r.status, 200);
-  assert.equal(r.body.status, 'Approved', "PM tek basina onaylayinca test sonucu 'Approved' olmali");
+  assert.equal(r.body.status, 'In Review', 'tek basina PM oyu konsensusa YETMEZ (approve izinli uye de oy vermeli)');
+
+  const r2 = await request(app)
+    .post(`/api/projects/${proj.id}/approvals/vote`)
+    .set('Authorization', `Bearer ${approveMemberToken}`)
+    .send({ entityType: 'testcase', entityId: tc.id });
+  assert.equal(r2.status, 200);
+  assert.equal(r2.body.status, 'Approved', 'tam konsensus -> test Approved olmali');
 
   const updated = await prisma.requirement.findUnique({ where: { id: req.id } });
   assert.equal(updated.status, 'Approved', 'cascade statusu guncellemeli');
@@ -336,7 +346,7 @@ test('clear-suspect (gereksinim bazli): approve izni olmayan 403, olan 200 + aud
 
   const ok = await request(app)
     .post(`/api/projects/${proj.id}/requirements/${reqMain.id}/clear-suspect`)
-    .set('Authorization', `Bearer ${approvePersonnelToken}`);
+    .set('Authorization', `Bearer ${approveMemberToken}`);
   assert.equal(ok.status, 200, `approve izni olan 200 olmali, gelen: ${ok.status} ${JSON.stringify(ok.body)}`);
   assert.equal(ok.body.cleared, 2, 'iki suspect link temizlenmeli');
 
@@ -350,7 +360,7 @@ test('clear-suspect (gereksinim bazli): approve izni olmayan 403, olan 200 + aud
     orderBy: { createdAt: 'desc' },
   });
   assert.ok(auditRow, 'SUSPECT_CLEAR audit kaydi olmali');
-  assert.equal(auditRow.actor, approvePersonnelId, 'audit actor = approve personel id');
+  assert.equal(auditRow.actor, approveMemberId, 'audit actor = approve uye id (User UUID)');
 });
 
 test('clear-suspect (link bazli): yetkisiz 403, yetkili 200', async () => {
@@ -367,7 +377,7 @@ test('clear-suspect (link bazli): yetkisiz 403, yetkili 200', async () => {
 
   const ok = await request(app)
     .post(`/api/projects/${proj.id}/links/${verifiesLink.id}/clear-suspect`)
-    .set('Authorization', `Bearer ${approvePersonnelToken}`);
+    .set('Authorization', `Bearer ${approveMemberToken}`);
   assert.equal(ok.status, 200);
   const link = await prisma.traceabilityLink.findUnique({ where: { id: verifiesLink.id } });
   assert.equal(link.isSuspect, false, 'link supheli durumdan cikarilmali');

@@ -20,7 +20,6 @@ import PbsTree from './pages/PbsTree.jsx'
 import MyAssignments from './pages/MyAssignments.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
-import Roles from './pages/Roles.jsx'
 import Traceability from './pages/Traceability.jsx'
 import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
@@ -41,7 +40,7 @@ const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
 export default function App() {
   const { loading, nav } = useApp()
   const { currentUser } = useAuth()
-  const { activeProjectId, openProject } = useProject()
+  const { activeProjectId, closeProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
   // Issue #57: suspect gostergesinden gelindiginde vurgulanacak kayit id'si.
@@ -57,12 +56,14 @@ export default function App() {
   }, [nav, page])
   const pageKey = navItem?.pageKey || page
 
-  // Issue #87: projeye atanmis oturum (personel veya regular user) her zaman
-  // atandigi projeye kilitlenir (proje secim yok). PM/projesiz kullanici secim yapar.
-  const forcedProjectId = currentUser?.projectId || null
+  // Issue #103: uyelik DB'den canli dogrulanir; guard PROJECT_ACCESS_DENIED
+  // dondugunde (uyelikten cikarildi) calisma alanini kapatip ProjectSelect'e
+  // dusururuz. ProjectSelect artik PM harici uyeler icin de gosterilir.
   useEffect(() => {
-    if (forcedProjectId && activeProjectId !== forcedProjectId) openProject(forcedProjectId)
-  }, [forcedProjectId, activeProjectId, openProject])
+    const onAccessDenied = () => closeProject()
+    window.addEventListener('ehsim:project-access-denied', onAccessDenied)
+    return () => window.removeEventListener('ehsim:project-access-denied', onAccessDenied)
+  }, [closeProject])
 
   // 1) Giris kapisi
   if (!currentUser) return <Login />
@@ -71,17 +72,12 @@ export default function App() {
   //  ekranlarini HIC GORMEZ — yalnizca sistem yonetim konsoluna (kullanici
   //  yonetimi + denetim kayitlari) dusur. "User yonetimi" ile "proje
   //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
-  if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
+  if (currentUser.roleKey === 'admin') return <AdminLayout />
 
-  // 2) Proje secim kapisi — YALNIZCA PM icin. Personel dogrudan projesine gider.
-  if (!activeProjectId || (forcedProjectId && activeProjectId !== forcedProjectId)) {
-    if (currentUser.isPM) return <ProjectSelect />
-    // Personel projesi baglaniyor
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
-      </div>
-    )
+  // 2) Proje secim kapisi — PM ve normal uyeler icin. Backend GET /projects
+  //  uyeligi filtreler; normal kullanici yalnizca uye oldugu projeleri gorur.
+  if (!activeProjectId) {
+    return <ProjectSelect />
   }
 
   // Sayfa degisiminde suspect vurgusunu sifirla (sidebar tiklamasiyla).
@@ -114,7 +110,6 @@ export default function App() {
         <Topbar active={pageKey} titleOverride={navItem?.label || null} />
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
-          {page === 'roles' && <Roles />}
           {page === 'pbs-tree' && <PbsTree />}
           {page === 'my-work' && <MyAssignments />}
           {REQ_KEYS.includes(pageKey) && (

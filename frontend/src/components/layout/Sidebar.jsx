@@ -14,7 +14,6 @@ import {
   IconHistory,
   IconSparkle,
   IconChevron,
-  IconUsers,
   IconDoc,
   IconAlert,
   IconPlus,
@@ -81,7 +80,7 @@ export default function Sidebar({ active, onNavigate }) {
   const { activeProject, closeProject } = useProject()
   const { nav, addNavItem, materializeNav } = useApp()
   const { t } = useLang()
-  const { isPM, can } = useAuth()
+  const { isPM } = useAuth()
   // Kapali gruplarin id'leri (varsayilan: hepsi acik).
   const [closedGroups, setClosedGroups] = useState(() => new Set())
   const [navMgrOpen, setNavMgrOpen] = useState(false)
@@ -95,7 +94,6 @@ export default function Sidebar({ active, onNavigate }) {
   const [quickAddBusy, setQuickAddBusy] = useState(false)
   const [quickAddError, setQuickAddError] = useState('')
 
-  const canSeeRoles = isPM || can('manage_roles')
   const groups = nav?.groups || []
   const ungrouped = nav?.ungrouped || []
   // Materialize edilmemis varsayilan gruplarin etiketi i18n'den gelir;
@@ -197,28 +195,18 @@ export default function Sidebar({ active, onNavigate }) {
           />
         ))}
 
-        {/* Bana Atananlar — YALNIZCA personel oturumunda. PM'in personel
-            kimligi olmadigi icin kendisine atanmis is de olamaz. */}
-        {!isPM && (
-          <NavButton
-            key="my-work"
-            active={active === 'my-work'}
-            onClick={() => onNavigate('my-work')}
-            Icon={IconTarget}
-            label={t('nav.myWork')}
-          />
-        )}
+        {/* Issue #97: proje-bazli Roller sayfasi KALDIRILDI — rol/izin yonetimi
+            admin konsolundaki SystemRole ekranindan (Issue #101) yapilir. */}
 
-        {/* Roller — Dashboard ile Hiyerarsi ARASINDA (yalnizca yetkiliye) */}
-        {canSeeRoles && (
-          <NavButton
-            key="roles"
-            active={active === 'roles'}
-            onClick={() => onNavigate('roles')}
-            Icon={IconUsers}
-            label={t('nav.roles')}
-          />
-        )}
+        {/* Bana Atananlar — atama User tabanlidir (#97/A): PM dahil herkes
+            kendisine atanmis isleri gorebilir (personel kimligi gerekmez). */}
+        <NavButton
+          key="my-work"
+          active={active === 'my-work'}
+          onClick={() => onNavigate('my-work')}
+          Icon={IconTarget}
+          label={t('nav.myWork')}
+        />
 
         {/* Menu gruplari (proje bazli, kullanici yonetimli — Issue #9/6) */}
         {groups.map((g, gi) => {

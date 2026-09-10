@@ -19,14 +19,14 @@ FastAPI Bridge (ai-bridge:8008) ──► LM Studio + Gemma (:1234)
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
 | Frontend | React 18 + Vite + Tailwind | UI; all data access via `src/services/apiClient.js` |
-| Backend | Node.js + Express + Prisma | Project-isolated REST API; JWT auth; **IDOR protection** (`projectAccessGuard` — personnel only access assigned projects); audit log |
+| Backend | Node.js + Express + Prisma | Project-isolated REST API; JWT auth; **IDOR protection** (`projectAccessGuard` — members only access assigned projects); audit log |
 | Database | PostgreSQL 15 (Docker volume) | Persistent storage; `docker compose down -v` wipes data |
 | AI Bridge (optional) | Python FastAPI (`ai-bridge/`) | PDF/text → requirement drafts; only calls LM Studio, no DB connection |
 
 **Key architectural decisions:**
 - **Project isolation**: All data scoped to `projectId`; cascading deletes on project removal
 - **Backend-owned cascade**: Requirement status computed from linked test results (bulk SQL, not N+1)
-- **Consensus approvals**: PM + authorized personnel must all vote → `Approved` + `locked`
+- **Consensus approvals**: PM + authorized members (approve permission via SystemRole) must all vote → `Approved` + `locked`. Fully user-based since Issue #97 (Personnel/passcode model removed)
 - **Text ID immutability**: Once generated, a `text_id` is never reused (audit log preserves deleted IDs)
 - **Two AI engines**: Offline (browser regex heuristics) vs Online (Gemma via FastAPI bridge)
 
@@ -152,17 +152,17 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 ### Dependency Injection / State Management
 - **Backend**: Single `PrismaClient` instance at module top; passed to cascade functions
 - **Frontend**: Four React Context providers (Language → Auth → Project → App)
-  - `AuthContext`: `currentUser` (PM or personnel), `login`, `passcodeLogin`, `can(perm, component)`
+  - `AuthContext`: `currentUser` (PM or assigned member; single login path since #97), `login`, `can(perm, component)`
   - `ProjectContext`: `projects[]`, `activeProjectId`, `openProject`, `createProject`
-  - `AppContext`: All collections for active project (`requirements`, `testCases`, `links`, `glossary`, `auditLog`, `roles`, `personnel`, `approvals`, `snapshots`) + `refresh()` + CRUD actions
+  - `AppContext`: All collections for active project (`requirements`, `testCases`, `links`, `glossary`, `auditLog`, `approvals`, `snapshots`) + `refresh()` + CRUD actions. (Project-scoped `roles`/`personnel` collections removed in #97)
   - `LanguageContext`: `t(key)` i18n, `toggleLang()`
 
 ### Security
 - **JWT_SECRET required**: Backend throws on startup if missing (no fallback in production)
 - **Rate limiting**: `/api/auth` endpoints limited
-- **IDOR protection**: `app.param('pid', projectAccessGuard)` — personnel restricted to assigned project
+- **IDOR protection**: `app.param('pid', projectAccessGuard)` — non-PM users restricted to their assigned project
 - **Register endpoint closed by default**: Requires `PM_REGISTRATION_KEY` env + `x-registration-key` header
-- **Personnel auth**: 5-char passcode (no ambiguous chars), direct project drop-in
+- **Member auth**: single login path (`/api/auth/login`, username + password). The 5-char passcode / `Personnel` model was removed in Issue #97 — members are regular `User`s assigned to a project via `User.projectId`
 
 ## Important Files
 
@@ -172,7 +172,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 | `backend/src/auth.js` | JWT sign/verify, bcrypt, middleware (`requireAuth`, `requirePM`, `projectAccessGuard`) |
 | `backend/src/cascade.js` | Bulk status (`recomputeStatusesBulk`) & approval (`recomputeApprovalsBulk`) recomputation |
 | `backend/src/constants.js` | Single source of truth for taxonomy, hierarchy rules, link rules |
-| `backend/prisma/schema.prisma` | Full DB schema (User, Project, Requirement, TestCase, TraceabilityLink, GlossaryTerm, Role, Personnel, Approval, ProjectSnapshot, AuditLog, ProjectField) |
+| `backend/prisma/schema.prisma` | Full DB schema (User, SystemRole, Project, Requirement, TestCase, TraceabilityLink, GlossaryTerm, Approval, ProjectSnapshot, AuditLog, ProjectField) — `Role`/`Personnel` removed in #97 |
 | `backend/src/seed.js` | Default Drone/IHA demo project (auto-runs on empty DB via Docker `migrate` service) |
 | `frontend/src/main.jsx` | Provider nesting order, font imports, `?reset` URL param clears localStorage |
 | `frontend/src/App.jsx` | Three-gate routing: Login → ProjectSelect (PM only) → Workspace |
@@ -196,7 +196,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 ## Testing & QA
 
 ### Backend Tests (`backend/tests/`)
-- `api.test.js`: Auth (login, passcode), IDOR protection (personnel cross-project access), register guard
+- `api.test.js`: Auth (login, removed passcode endpoint), IDOR protection (member cross-project access), register guard
 - Run locally: `docker compose up -d db` then `pnpm test` (uses `localhost:5433`)
 - CI: PostgreSQL service container, `TEST_DATABASE_URL` + `DATABASE_URL` env
 
@@ -236,4 +236,4 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 2. Backend owns cascade/approval recomputation — frontend only refreshes
 3. `text_id` never reused (audit log blacklist)
 4. JWT_SECRET mandatory at startup
-5. Personnel can only access their assigned project
+5. Non-PM users can only access their assigned project (`User.projectId`)

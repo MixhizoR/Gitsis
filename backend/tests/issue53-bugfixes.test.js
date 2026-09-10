@@ -4,7 +4,9 @@ let r6 = null;
 //  TDD: Bu testler önce yazıldı (kırmızı), sonra düzeltmeler uygulandı.
 //
 //  Bug 1: vote/unlock — voterId body'den değil JWT'den türetilmeli;
-//          'PM' sentinel kaldırılmalı; audit actor gerçek id; unlock yalnızca PM
+//          audit actor gerçek id; unlock yalnızca PM
+//  Issue #97: Personnel/passcode KALDIRILDI — onay oy verenleri User
+//  (roleKey -> SystemRole approve izni) üzerinden test edilir.
 //  Bug 2: impact.js findUnique → 500
 //  Bug 3: glossary POST/PUT cleanRichText + audit
 //  Bug 4: server.js'deki ölü reqif route + fazladan } silinmeli
@@ -30,20 +32,24 @@ let projA;
 let projB;
 let reqA;
 let reqB;
-let personnelToken;
-let personnelA; // kendi oy hakkı olan personel (approve enabled + comp)
-let _personnelB = null; // yetkisiz personel (approve yok)
-let _personnelBToken;
+let memberToken; // approve izni OLAN uye (system_engineer)
+let memberA; // kendi oy hakkı olan uye
+let _memberB = null; // izni olmayan uye (developer)
+let _memberBToken;
 before(async () => {
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
+
   const u = await prisma.user.create({
     data: {
       username: PM_CREDENTIALS.username,
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Issue53 PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
   pmUserId = u.id;
@@ -58,52 +64,47 @@ before(async () => {
     data: { projectId: projB.id, text_id: 'REQ-SYS-B01', title: 'B gereksinimi', type: 'System Requirement' },
   });
 
-  // A projesi: approve izni olan rol + personel
-  const roleApprove = await prisma.role.create({
+  // A projesi: approve izni olan uye (system_engineer: approve=ALL_COMPONENTS)
+  memberA = await prisma.user.create({
     data: {
-      projectId: projA.id,
-      name: 'Sistem Muhendisi',
-      permissions: {
-        approve: { enabled: true, components: ['req-system'] },
-      },
+      username: 'member-issue53',
+      passwordHash: await hashPassword('member-pass-issue53'),
+      name: 'Onay Uye',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
     },
   });
-  personnelA = await prisma.personnel.create({
-    data: {
-      projectId: projA.id,
-      roleId: roleApprove.id,
-      firstName: 'Onay',
-      lastName: 'Personel',
-      passcode: 'K2X4M',
-    },
-  });
+  // Issue #103: uyelik User.projectId degil — ProjectMember kaydı ile kurulur.
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: memberA.id } });
 
   // PM token al
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');
   pmToken = t0.body.accessToken;
 
-  // Personel token al
-  const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'K2X4M' });
-  assert.equal(t1.status, 200, 'personel passcode login basarili olmali');
-  personnelToken = t1.body.token;
-  // Aynı projede approve izni OLMAYAN ikinci personel
-  const roleNoApprove = await prisma.role.create({
-    data: { projectId: projA.id, name: 'Gozlemci', permissions: {} },
-  });
-  const p2 = await prisma.personnel.create({
+  // Uye token al (kendi sifresiyle — passcode yok)
+  const t1 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'member-issue53', password: 'member-pass-issue53' });
+  assert.equal(t1.status, 200, 'uye login basarili olmali');
+  memberToken = t1.body.accessToken;
+
+  // Aynı projede approve izni OLMAYAN ikinci uye (developer: approve kapali)
+  _memberB = await prisma.user.create({
     data: {
-      projectId: projA.id,
-      roleId: roleNoApprove.id,
-      firstName: 'Izin',
-      lastName: 'Siz',
-      passcode: 'Z7Y3N',
+      username: 'observer-issue53',
+      passwordHash: await hashPassword('observer-pass'),
+      name: 'Izin Siz',
+      role: 'Developer',
+      roleKey: 'developer',
     },
   });
-  const t2 = await request(app).post('/api/auth/passcode').send({ passcode: 'Z7Y3N' });
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: _memberB.id } });
+  const t2 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'observer-issue53', password: 'observer-pass' });
   assert.equal(t2.status, 200);
-  _personnelB = p2;
-  _personnelBToken = t2.body.token;
+  _memberBToken = t2.body.accessToken;
 });
 
 test('vote: body voterId PM beyan etse bile kayit PM userId ile yazilir (kimlik client beyanina dayanmaz)', async () => {
@@ -129,29 +130,29 @@ test('vote: body voterId PM beyan etse bile kayit PM userId ile yazilir (kimlik 
   assert.notEqual(appr.voterId, 'PM');
 });
 
-test('vote: personel kendi userId ile oy atar (personnelId body ile değil JWT ile)', async () => {
+test('vote: uye kendi userId ile oy atar (voterId body ile değil JWT ile)', async () => {
   const r3 = await prisma.requirement.create({
     data: {
       projectId: projA.id,
       text_id: 'REQ-SYS-A03',
-      title: 'Personel oy gereksinim',
+      title: 'Uye oy gereksinim',
       type: 'System Requirement',
     },
   });
   const r = await request(app)
     .post(`/api/projects/${projA.id}/approvals/vote`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ entityType: 'requirement', entityId: r3.id });
   assert.equal(r.status, 200);
   const appr = await prisma.approval.findFirst({
     where: { projectId: projA.id, entityType: 'requirement', entityId: r3.id },
   });
   assert.ok(appr);
-  assert.equal(appr.voterId, personnelA.id, 'voterId = personelin kendi idsi');
+  assert.equal(appr.voterId, memberA.id, 'voterId = uyenin kendi idsi (User UUID)');
   assert.notEqual(appr.voterId, 'PM');
 });
 
-test('vote: izni olmayan personel oy atamaz (403)', async () => {
+test('vote: izni olmayan uye oy atamaz (403)', async () => {
   const r4 = await prisma.requirement.create({
     data: {
       projectId: projA.id,
@@ -162,7 +163,7 @@ test('vote: izni olmayan personel oy atamaz (403)', async () => {
   });
   const r = await request(app)
     .post(`/api/projects/${projA.id}/approvals/vote`)
-    .set('Authorization', `Bearer ${_personnelBToken}`)
+    .set('Authorization', `Bearer ${_memberBToken}`)
     .send({ entityType: 'requirement', entityId: r4.id });
   assert.equal(r.status, 403, `403 olmali, gelen: ${r.status}`);
 });
@@ -178,12 +179,12 @@ test('vote: aynı kişi çift oy atamaz (toggle) → ikinci oy mevcut oyu siler'
   });
   const first = await request(app)
     .post(`/api/projects/${projA.id}/approvals/vote`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ entityType: 'requirement', entityId: r5.id });
   assert.equal(first.status, 200);
   const second = await request(app)
     .post(`/api/projects/${projA.id}/approvals/vote`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ entityType: 'requirement', entityId: r5.id });
   assert.equal(second.status, 200);
   const count = await prisma.approval.count({
@@ -208,17 +209,17 @@ test('unlock: yalnızca PM token ile çalışır (personel 403 alır)', async ()
     .send({ entityType: 'requirement', entityId: r6.id });
   await request(app)
     .post(`/api/projects/${projA.id}/approvals/vote`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ entityType: 'requirement', entityId: r6.id });
   const locked = await prisma.requirement.findUnique({ where: { id: r6.id } });
   assert.equal(locked.locked, true, 'Tum oylar tamam, kilitli olmali');
 
-  // Personel unlock denerse 403
-  const personelUnlock = await request(app)
+  // Uye unlock denerse 403
+  const memberUnlock = await request(app)
     .post(`/api/projects/${projA.id}/approvals/unlock`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ entityType: 'requirement', entityId: r6.id });
-  assert.equal(personelUnlock.status, 403, `Personel unlock 403 olmali, gelen: ${personelUnlock.status}`);
+  assert.equal(memberUnlock.status, 403, `Uye unlock 403 olmali, gelen: ${memberUnlock.status}`);
 
   // PM unlock başarılı
   const pmUnlock = await request(app)

@@ -26,10 +26,17 @@ before(async () => {
     },
   });
   const proj = await prisma.project.create({ data: { name: 'Impact Proje', description: 'Test' } });
-  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muhendis', permissions: {} } });
-  await prisma.personnel.create({
-    data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'IMP-1234' },
+  // Issue #103: projeye atanmis uye — User.projectId yerine ProjectMember.
+  const memberImpact = await prisma.user.create({
+    data: {
+      username: 'member-impact',
+      passwordHash: await hashPassword('member-pass'),
+      name: 'Impact Member',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
+    },
   });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: memberImpact.id } });
   await prisma.requirement.create({
     data: {
       projectId: proj.id,
@@ -78,7 +85,7 @@ test('GET /api/projects/:pid/impact — zincir korunur, root bulunur', async () 
 test('GET /api/projects/:pid/impact — reqId eksik -> 400', async () => {
   const { signToken } = await import('../src/auth.js');
   const user = await prisma.user.findFirst({ where: { username: 'pm-impact' } });
-  const token = signToken({ kind: 'pm', isPM: true, userId: user.id });
+  const token = signToken({ userId: user.id, roleKey: 'pm' });
   const proj = await prisma.project.findFirst({ where: { name: 'Impact Proje' } });
   const res = await request(app).get(`/api/projects/${proj.id}/impact`).set('Authorization', `Bearer ${token}`);
   assert.equal(res.status, 400);

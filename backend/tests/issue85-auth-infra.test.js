@@ -41,7 +41,7 @@ before(async () => {
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Issue85 PM',
       role: 'Proje Yöneticisi',
-      systemRole: 'ADMIN',
+      roleKey: 'pm',
       clearanceLevel: 5,
       isActive: true,
     },
@@ -53,10 +53,10 @@ after(async () => {
 });
 
 // --- 1) User reshape: login payload yeni alanlari icerir --------------------
-test('POST /api/auth/login — user payload systemRole + clearanceLevel dondurur', async () => {
+test('POST /api/auth/login — user payload roleKey + clearanceLevel dondurur', async () => {
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(res.status, 200);
-  assert.equal(res.body.user.systemRole, 'ADMIN');
+  assert.equal(res.body.user.roleKey, 'pm');
   assert.equal(res.body.user.clearanceLevel, 5);
   // Guvenlik: hash asla yazilmamaz.
   assert.equal(res.body.user.passwordHash, undefined);

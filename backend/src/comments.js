@@ -21,6 +21,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireReason } from './reason.js';
 import { componentKeyOf } from './constants.js';
+import { resolveUserRole } from './systemRoles.js';
 
 const prisma = new PrismaClient();
 const router = express.Router({ mergeParams: true });
@@ -60,32 +61,22 @@ async function audit(projectId, entry) {
  * @returns {Promise<{id:string, name:string, role:string|null, isPM:boolean}>}
  */
 async function resolveAuthor(req) {
-  if (req.auth?.isPM) {
-    const u = await prisma.user.findUnique({
-      where: { id: req.auth.userId },
-      select: { id: true, name: true, role: true },
-    });
-    return {
-      id: req.auth.userId,
-      name: u?.name || 'Proje Yöneticisi',
-      role: u?.role || 'Proje Yöneticisi',
-      isPM: true,
-    };
-  }
-  if (req.auth?.kind === 'personnel') {
-    const p = await prisma.personnel.findUnique({
-      where: { id: req.auth.personnelId },
-      select: { id: true, firstName: true, lastName: true, role: { select: { name: true } } },
-    });
-    if (!p) throw bad('Gecersiz kimlik.', 401);
-    return {
-      id: p.id,
-      name: `${p.firstName} ${p.lastName}`.trim(),
-      role: p.role?.name || null,
-      isPM: false,
-    };
-  }
-  throw bad('Gecersiz kimlik.', 401);
+  // Issue #97: tek kimlik dunyasi — yazan her zaman User'dir (PM dahil).
+  const userId = req.auth?.userId;
+  if (!userId) throw bad('Gecersiz kimlik.', 401);
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, role: true, roleKey: true },
+  });
+  if (!u) throw bad('Gecersiz kimlik.', 401);
+  // Rol GORUNUMU SystemRole'den cozulur (#101); cozulemezse serbest metin `role`.
+  const resolved = await resolveUserRole(prisma, u);
+  return {
+    id: u.id,
+    name: u.name,
+    role: resolved?.key ? resolved.name : u.role || null,
+    isPM: req.auth?.roleKey === 'pm',
+  };
 }
 
 /**
@@ -112,13 +103,14 @@ async function assertEntityInProject(pid, entityType, entityId) {
  * bulunmali. Sozlukte bilesen ayrimi yoktur, `read` acik olmasi yeterlidir.
  */
 async function assertCanComment(req, entityType, entity) {
-  if (req.auth?.isPM) return;
-  if (req.auth?.kind !== 'personnel') throw bad('Gecersiz kimlik.', 401);
-  const pers = await prisma.personnel.findUnique({
-    where: { id: req.auth.personnelId },
-    select: { role: { select: { permissions: true } } },
+  if (req.auth?.roleKey === 'pm') return;
+  const u = await prisma.user.findUnique({
+    where: { id: req.auth?.userId },
+    select: { role: true, roleKey: true },
   });
-  const perm = (pers?.role?.permissions || {}).read || {};
+  if (!u) throw bad('Gecersiz kimlik.', 401);
+  const resolved = await resolveUserRole(prisma, u);
+  const perm = (resolved?.permissions || {}).read || {};
   if (!perm.enabled) throw bad('Bu kayda yorum yapma yetkiniz yok.', 403);
   if (entityType === 'glossary') return; // bilesen ayrimi yok
   const compKey = componentKeyOf(entityType, entity.type);
