@@ -9,7 +9,10 @@
 //  RBAC: atama, kaydi PM'in acikca bu kisiye VERMESIDIR; bu yuzden liste
 //  ayri bir izne baglanmaz — kisi kendi is kuyrugunu daima gorur. Satirdaki
 //  DETAY (goz) aksiyonu ise diger sayfalardaki ile ayni 'read' iznine
-//  baglidir, boylece izin matrisi tek kaynak olarak kalir.
+//  baglidir, boylece izin matrisi tek kaynak olarak kalir. Yorum yazma da
+//  ayni kapidan gecer: backend "kaydi OKUYABILEN yorum yazabilir" kuralini
+//  uygular (bkz. comments.js assertCanComment), yani modali acabilen kisi
+//  yorum da yazabilir.
 //
 //  Sayfa PM oturumunda menude GORUNMEZ (bkz. Sidebar.jsx): PM'in personel
 //  kimligi yoktur, dolayisiyla kendisine atanmis is de olamaz.
@@ -27,7 +30,9 @@ export default function MyAssignments() {
   const { requirements, testCases, links } = useApp()
   const { currentUser, can, isPM } = useAuth()
   const { t } = useLang()
-  const [viewRow, setViewRow] = useState(null)
+  // Modal iki bolum tarafindan paylasilir; yorum sekmesi dogru varlik turunu
+  // bilmek zorunda oldugu icin satirla birlikte tur de tasinir.
+  const [viewTarget, setViewTarget] = useState(null) // { row, entityType } | null
 
   const myId = currentUser?.personnelId || null
 
@@ -72,7 +77,6 @@ export default function MyAssignments() {
           rows={rows}
           columns={['type', 'field', 'status', 'links']}
           linkCountFor={linkCountFor}
-          onView={setViewRow}
           canEditRow={never}
           canDeleteRow={never}
           canManageLinksRow={never}
@@ -98,20 +102,28 @@ export default function MyAssignments() {
         attributeEntityType: 'requirement',
         statusLabel: t('tbl.th.verification'),
         verifiedFor,
-        onView: (r) => (canReadRequirement(r) ? setViewRow(r) : null),
+        onView: (r) =>
+          canReadRequirement(r) ? setViewTarget({ row: r, entityType: 'requirement' }) : null,
       })}
 
       {section('myWork.tests', myTests, {
         attributeEntityType: 'testcase',
         statusLabel: t('tbl.th.testResult'),
-        onView: (tc) => (canReadTest(tc) ? setViewRow(tc) : null),
+        onView: (tc) =>
+          canReadTest(tc) ? setViewTarget({ row: tc, entityType: 'testcase' }) : null,
       })}
 
+      {/* Aciklama salt okunur (duzenleme kendi sayfasindan yapilir), ancak
+          YORUM sekmesi acilir: atanan kisi kayda sorulani okuyup cevap
+          yazabilsin. Gereksinimlerde durum rozeti gizlenir — orada durum
+          kaydin kendisinden degil, DOGRULAYAN testten turetilir. */}
       <ViewModal
-        open={Boolean(viewRow)}
-        row={viewRow}
+        open={Boolean(viewTarget)}
+        row={viewTarget?.row || null}
         canWrite={false}
-        onClose={() => setViewRow(null)}
+        showStatus={viewTarget?.entityType !== 'requirement'}
+        commentEntityType={viewTarget?.entityType || null}
+        onClose={() => setViewTarget(null)}
       />
     </div>
   )

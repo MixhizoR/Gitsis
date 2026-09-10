@@ -9,7 +9,7 @@
 //     kimligi yoktur, dolayisiyla atamasi da olamaz)
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
@@ -34,7 +34,20 @@ vi.mock('../../context/AuthContext.jsx', () => ({
   AuthProvider: ({ children }) => children,
 }))
 
-vi.mock('../../components/common/ViewModal.jsx', () => ({ default: () => null }))
+// ViewModal'in kendi testi ayri; burada HANGI props ile acildigi onemli —
+// ozellikle yorum sekmesini acan commentEntityType.
+vi.mock('../../components/common/ViewModal.jsx', () => ({
+  default: ({ open, row, commentEntityType, canWrite }) =>
+    open ? (
+      <div
+        data-testid="view-modal"
+        data-entity-type={commentEntityType || ''}
+        data-can-write={String(canWrite)}
+      >
+        {row?.text_id}
+      </div>
+    ) : null,
+}))
 
 import MyAssignments from '../MyAssignments.jsx'
 
@@ -114,6 +127,46 @@ describe('MyAssignments — Bana Atananlar', () => {
     renderPage()
     expect(screen.getByText('EH-USR-009')).toBeInTheDocument()
     expect(screen.getByTestId('mywork-total')).toHaveTextContent('1')
+  })
+
+  // Yorumlar: atanan kisi kendi isindeki tartismayi buradan okuyup
+  // cevaplayabilmeli — backend "kaydi okuyabilen yorum yazabilir" der.
+  const openDetail = (textId) => {
+    const row = screen.getByText(textId).closest('tr')
+    fireEvent.click(within(row).getByTitle('Görüntüle'))
+  }
+
+  it('gereksinim detayi YORUM sekmesiyle acilir', () => {
+    renderPage()
+    expect(screen.queryByTestId('view-modal')).not.toBeInTheDocument()
+
+    openDetail('EH-USR-001')
+    const modal = screen.getByTestId('view-modal')
+    expect(modal).toHaveTextContent('EH-USR-001')
+    expect(modal).toHaveAttribute('data-entity-type', 'requirement')
+  })
+
+  it('test senaryosu detayi testcase yorumlariyla acilir', () => {
+    renderPage()
+    openDetail('EH-TC-ACC-001')
+    expect(screen.getByTestId('view-modal')).toHaveAttribute('data-entity-type', 'testcase')
+  })
+
+  it('aciklama salt okunurdur; duzenleme kendi sayfasindan yapilir', () => {
+    renderPage()
+    openDetail('EH-USR-001')
+    expect(screen.getByTestId('view-modal')).toHaveAttribute('data-can-write', 'false')
+  })
+
+  it('kaydi okuma yetkisi olmayan kullanicida detay ACILMAZ', () => {
+    authMock.value = {
+      isPM: false,
+      currentUser: { personnelId: 'p1' },
+      can: (perm) => perm !== 'read',
+    }
+    renderPage()
+    openDetail('EH-USR-001')
+    expect(screen.queryByTestId('view-modal')).not.toBeInTheDocument()
   })
 
   it('PM oturumunda is listesi yerine aciklama gosterilir', () => {
