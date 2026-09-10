@@ -229,7 +229,7 @@ export function parseReqIF(xmlContent) {
   try {
     parsed = parser.parse(xmlContent);
   } catch (e) {
-    throw new Error(`XML ayristirilamadi: ${e.message}`);
+    throw new Error(`XML ayristirilamadi: ${e.message}`, { cause: e });
   }
 
   // Kok: ReqIF <REQ-IF><CORE-CONTENT><REQ-IF-CONTENT>, ya da DOORS classic

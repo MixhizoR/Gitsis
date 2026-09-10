@@ -17,8 +17,8 @@ export function ExportModal({ isOpen, onClose, projectId }) {
     setSuccess(false)
 
     try {
-      let endpoint;
-      let defaultFilename;
+      let endpoint
+      let defaultFilename
       if (exportFormat === 'reqif') {
         const params = new URLSearchParams()
         if (reqifLayer !== 'all') params.set('layer', reqifLayer)
@@ -183,7 +183,9 @@ export function ExportModal({ isOpen, onClose, projectId }) {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Dosya Formatı</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Dosya Formatı
+                </label>
                 <select
                   value={reqifFileFormat}
                   onChange={(e) => setReqifFileFormat(e.target.value)}
@@ -201,7 +203,7 @@ export function ExportModal({ isOpen, onClose, projectId }) {
             <p className="text-sm text-blue-800">
               💡 <strong>İpucu:</strong>{' '}
               {exportFormat === 'reqif'
-                ? 'Dosya DOORS\'a aktarıldıktan sonra tekrar Gitsis\'e yüklenirse başlık, açıklama, alan, yazar, öznitelikler ve Satisfies/Verifies bağları kayıpsız geri gelir.'
+                ? "Dosya DOORS'a aktarıldıktan sonra tekrar Gitsis'e yüklenirse başlık, açıklama, alan, yazar, öznitelikler ve Satisfies/Verifies bağları kayıpsız geri gelir."
                 : 'Dosya tüm gereksinimler ve test bağlantılarını içerecektir. Özet sayfası kapsama oranını gösterecektir.'}
             </p>
           </div>
