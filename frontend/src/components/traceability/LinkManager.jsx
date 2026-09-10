@@ -212,7 +212,12 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
           key: 'assigned-to',
           type: LINK_TYPE.ASSIGNED_TO,
           label: t('link.assignedTo'),
-          typeChoices: buildTypeChoices([REQ_TYPE.USER, REQ_TYPE.SYSTEM, REQ_TYPE.SOFTWARE, REQ_TYPE.HARDWARE]),
+          typeChoices: buildTypeChoices([
+            REQ_TYPE.USER,
+            REQ_TYPE.SYSTEM,
+            REQ_TYPE.SOFTWARE,
+            REQ_TYPE.HARDWARE,
+          ]),
           candidates,
           toStore: (tid) => ({ fromId: tid, toId: subject.id, type: LINK_TYPE.ASSIGNED_TO }),
         },
@@ -275,18 +280,24 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
   const resolveOption = (option) => {
     const sel = selections[option.key] || {}
     const topChoices = option.typeChoices
-    const topNode = topChoices.length === 1 ? topChoices[0] : topChoices.find((c) => c.key === sel.top) || null
+    const topNode =
+      topChoices.length === 1 ? topChoices[0] : topChoices.find((c) => c.key === sel.top) || null
     if (!topNode) return { topChoices, topNode: null, subChoices: null, subNode: null, type: null }
-    if (!topNode.children) return { topChoices, topNode, subChoices: null, subNode: null, type: topNode.type }
+    if (!topNode.children)
+      return { topChoices, topNode, subChoices: null, subNode: null, type: topNode.type }
     const subChoices = topNode.children
-    const subNode = subChoices.length === 1 ? subChoices[0] : subChoices.find((c) => c.key === sel.sub) || null
+    const subNode =
+      subChoices.length === 1 ? subChoices[0] : subChoices.find((c) => c.key === sel.sub) || null
     return { topChoices, topNode, subChoices, subNode, type: subNode?.type || null }
   }
 
   const setTop = (option, key) =>
     setSelections((prev) => ({ ...prev, [option.key]: { top: key, sub: '', target: '' } }))
   const setSub = (option, key) =>
-    setSelections((prev) => ({ ...prev, [option.key]: { ...prev[option.key], sub: key, target: '' } }))
+    setSelections((prev) => ({
+      ...prev,
+      [option.key]: { ...prev[option.key], sub: key, target: '' },
+    }))
   const setTarget = (option, id) =>
     setSelections((prev) => ({ ...prev, [option.key]: { ...prev[option.key], target: id } }))
 

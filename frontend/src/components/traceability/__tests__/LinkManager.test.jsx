@@ -14,11 +14,36 @@ import { LanguageProvider } from '../../../context/LanguageContext.jsx'
 const link = vi.fn()
 const unlink = vi.fn()
 
-const USER_REQ = { id: 'r-user-1', text_id: 'REQ-USR-001', title: 'Kullanıcı gereksinimi', type: 'User Requirement' }
-const SYS_REQ = { id: 'r-sys-1', text_id: 'REQ-SYS-001', title: 'Sistem gereksinimi', type: 'System Requirement' }
-const SYS_REQ_2 = { id: 'r-sys-2', text_id: 'REQ-SYS-002', title: 'Sistem gereksinimi 2', type: 'System Requirement' }
-const SW_REQ = { id: 'r-sw-1', text_id: 'REQ-SW-001', title: 'Yazılım gereksinimi', type: 'Software Requirement' }
-const HW_REQ = { id: 'r-hw-1', text_id: 'REQ-HW-001', title: 'Donanım gereksinimi', type: 'Hardware Requirement' }
+const USER_REQ = {
+  id: 'r-user-1',
+  text_id: 'REQ-USR-001',
+  title: 'Kullanıcı gereksinimi',
+  type: 'User Requirement',
+}
+const SYS_REQ = {
+  id: 'r-sys-1',
+  text_id: 'REQ-SYS-001',
+  title: 'Sistem gereksinimi',
+  type: 'System Requirement',
+}
+const SYS_REQ_2 = {
+  id: 'r-sys-2',
+  text_id: 'REQ-SYS-002',
+  title: 'Sistem gereksinimi 2',
+  type: 'System Requirement',
+}
+const SW_REQ = {
+  id: 'r-sw-1',
+  text_id: 'REQ-SW-001',
+  title: 'Yazılım gereksinimi',
+  type: 'Software Requirement',
+}
+const HW_REQ = {
+  id: 'r-hw-1',
+  text_id: 'REQ-HW-001',
+  title: 'Donanım gereksinimi',
+  type: 'Hardware Requirement',
+}
 
 // requirements/links'i her testte kendi ihtiyacına göre ayarlayabilmek için
 // mutable bir kutu içinde tutuyoruz (module-level vi.mock closure'ı erken
@@ -86,7 +111,9 @@ describe('LinkManager — Satisfies: yukarı + aşağı başlatma, kademeli tip 
     await renderSubject(USER_REQ)
     const downPanel = screen.getByTestId('link-option-satisfies-down')
 
-    fireEvent.change(within(downPanel).getByTestId('link-type-select'), { target: { value: 'subsystem' } })
+    fireEvent.change(within(downPanel).getByTestId('link-type-select'), {
+      target: { value: 'subsystem' },
+    })
 
     const subTypeSelect = within(downPanel).getByTestId('link-subtype-select')
     expect(optionTextsOf(subTypeSelect)).toEqual(
