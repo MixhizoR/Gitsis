@@ -16,9 +16,9 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
-import { STATUS, PM_ROLE } from './constants.js';
+import { STATUS } from './constants.js';
 import { validateLink } from './logic.js';
-import { recomputeStatusesBulk, recomputeApprovalsBulk } from './cascade.js';
+import { recomputeStatusesBulk, getRequiredVoters } from './cascade.js';
 import {
   requireAuth,
   requirePM,
@@ -231,54 +231,43 @@ function componentKeyOf(entityType, type) {
 }
 
 // --- Issue #57: approve izni denetimi ---------------------------------------
-//  Clear-suspect islemleri icin: PM her zaman yetkili; personel ise yalnizca
-//  rolunde o bilesen icin approve izni varsa yetkilidir (vote handler ile ayni
-//  kural, tek kaynak: componentKeyOf + role.permissions.approve).
+//  Clear-suspect islemleri icin: PM her zaman yetkili; normal kullanici ise
+//  yalnizca SystemRole'unde o bilesen icin approve izni varsa yetkilidir
+//  (vote handler ile ayni kural, tek kaynak: componentKeyOf + SystemRole
+//  permissions.approve). Issue #97: Personnel kalkti, kimlik User.
 async function assertApprovePermission(req, pid, entityType, entity) {
   if (req.auth?.isPM) return;
-  if (req.auth?.kind !== 'personnel') throw bad('Gecersiz kimlik.', 401);
-  const pers = await prisma.personnel.findUnique({
-    where: { id: req.auth.personnelId },
-    select: { role: { select: { permissions: true } } },
+  const userId = req.auth?.userId;
+  if (!userId) throw bad('Gecersiz kimlik.', 401);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { roleKey: true, role: true, projectId: true },
   });
-  const perm = (pers?.role?.permissions || {}).approve || {};
+  if (!user) throw bad('Kullanici bulunamadi.', 401);
+  // Proje siniri: kullanici bu projeye atanmis ya da PM olmali.
+  const isPM = isPMRole(user);
+  if (!isPM && user.projectId !== pid) throw bad('Bu projeye erisim yetkiniz yok.', 403);
+  const resolved = await resolveUserRole(prisma, user);
+  const perm = (resolved.permissions || {}).approve || {};
   const compKey = componentKeyOf(entityType, entity.type);
   if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
     throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
 }
 
 // --- Aktor (kim degistirdi) -------------------------------------------------
-//  PM -> userId; personel -> personnelId; bilinmeyen -> 'unknown'.
+//  Issue #97: tek kimlik dunyasi — her zaman User UUID.
 function actorOf(req) {
-  if (req.auth?.isPM) return req.auth.userId;
-  if (req.auth?.kind === 'personnel') return req.auth.personnelId;
   return req.auth?.userId || 'unknown';
 }
 
-// --- Benzersiz 5 karakterlik passcode ureteci -------------------------------
-//  Karisik gorunumlu harf/rakamlar (0/O, 1/I) haric tutulur.
-async function generatePasscode() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  for (let attempt = 0; attempt < 100; attempt++) {
-    let code = '';
-    for (let i = 0; i < 5; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-    const existing = await prisma.personnel.findUnique({ where: { passcode: code } });
-    if (!existing) return code;
-  }
-  throw bad('Passcode uretilemedi; lutfen tekrar deneyin.', 500);
-}
-
 // --- Bir kaydin onay durumunu (consensus) yeniden hesapla -------------------
-//  Gerekli oy verenler = PM + (o bileseni onaylama yetkisi olan tum personel).
+//  Issue #97: Gerekli oy verenler = PM'ler + projeye atanmis, o bilesende
+//  approve izni olan kullanicilar (tek kaynak: cascade.js getRequiredVoters).
 //  Hepsi oy verdiyse -> Approved (kilitli). Aksi halde -> Pending.
 async function requiredVotersFor(pid, entityType, entity) {
   const compKey = componentKeyOf(entityType, entity.type);
-  const personnel = await prisma.personnel.findMany({ where: { projectId: pid }, include: { role: true } });
-  const requiredPersonnel = personnel.filter((p) => {
-    const perm = (p.role?.permissions || {}).approve;
-    return perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(compKey);
-  });
-  return { requiredPersonnel, requiredVoterIds: requiredPersonnel.map((p) => p.id) };
+  const voters = await getRequiredVoters(prisma, pid, compKey);
+  return { requiredVoters: voters, requiredVoterIds: voters.map((v) => v.id) };
 }
 
 async function recomputeApproval(pid, entityType, entityId) {
@@ -286,15 +275,17 @@ async function recomputeApproval(pid, entityType, entityId) {
   const entity = await prisma[model].findUnique({ where: { id: entityId } });
   if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
   const { requiredVoterIds } = await requiredVotersFor(pid, entityType, entity);
+  if (requiredVoterIds.length === 0) {
+    await prisma[model].update({
+      where: { id: entityId },
+      data: { approvalStatus: 'Pending', locked: false },
+    });
+    return { approvalStatus: 'Pending', locked: false };
+  }
   const approvals = await prisma.approval.findMany({ where: { projectId: pid, entityType, entityId } });
   const votedIds = new Set(approvals.map((a) => a.voterId));
-  const allPersonnelVoted = requiredVoterIds.every((v) => votedIds.has(v));
-  const pmUsers = await prisma.user.findMany({
-    where: { id: { in: Array.from(votedIds) }, role: PM_ROLE },
-    select: { id: true },
-  });
-  const pmVoted = pmUsers.length > 0;
-  const approved = allPersonnelVoted && pmVoted;
+  const allVoted = requiredVoterIds.every((v) => votedIds.has(v));
+  const approved = allVoted;
   await prisma[model].update({
     where: { id: entityId },
     data: { approvalStatus: approved ? 'Approved' : 'Pending', locked: approved },
@@ -815,34 +806,8 @@ app.get(
   }),
 );
 
-// --- Passcode ile personel girisi (proje-bagimsiz) --------------------------
-//  Personel passcode'unu girer -> dogrudan atandigi projeye + rolune duser.
-app.post(
-  '/api/auth/passcode',
-  loginLimiter,
-  wrap(async (req, res) => {
-    const raw = (req.body?.passcode || '').trim().toUpperCase();
-    if (!raw) throw bad('Passcode zorunlu.');
-    const p = await prisma.personnel.findUnique({
-      where: { passcode: raw },
-      include: { role: true, project: true },
-    });
-    if (!p) throw bad('Gecersiz passcode.', 401);
-    const token = signToken({
-      kind: 'personnel',
-      isPM: false,
-      personnelId: p.id,
-      projectId: p.projectId,
-      roleId: p.roleId,
-    });
-    res.json({
-      token,
-      personnel: { id: p.id, firstName: p.firstName, lastName: p.lastName, passcode: p.passcode },
-      role: { id: p.role.id, name: p.role.name, permissions: p.role.permissions || {} },
-      project: { id: p.project.id, name: p.project.name },
-    });
-  }),
-);
+// Issue #97: passcode/personel girisi KALDIRILDI — tek giris yolu
+// /api/auth/login (kullanici adi + sifre). Personnel/Role modelleri de kalkti.
 
 const safeUser = (u) => ({
   id: u.id,
@@ -855,6 +820,8 @@ const safeUser = (u) => ({
   // Issue #85: auth yazilmasi bu alanlari da donderir (passwordHash ASLA).
   systemRole: u.systemRole,
   clearanceLevel: u.clearanceLevel,
+  // Issue #97: proje uyeligi — atanmis uye dogrudan kendi projesine duser.
+  projectId: u.projectId || null,
 });
 
 // Issue #88: admin panelinde gosterilen genis kullanici gorunumu (passwordHash ASLA).
@@ -1421,7 +1388,19 @@ app.get(
       where: { projectId: pid, requirementId: req.params.id },
       orderBy: { version: 'desc' },
     });
-    res.json(flattenAll(history));
+    // Issue #97: Personnel listesi frontend'de artik yok; aktor (changedBy =
+    // User UUID) adini sunucu tarafi cozer ve changedByName olarak ekler.
+    const actorIds = [...new Set(history.map((h) => h.changedBy).filter(Boolean))];
+    const actors = actorIds.length
+      ? await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } })
+      : [];
+    const nameById = new Map(actors.map((a) => [a.id, a.name]));
+    res.json(
+      flattenAll(history).map((h) => ({
+        ...h,
+        changedByName: nameById.get(h.changedBy) || null,
+      })),
+    );
   }),
 );
 
@@ -2093,135 +2072,9 @@ app.post(
   }),
 );
 
-// ===========================================================================
-//  ROLES (proje bazli, dinamik roller + 12 kademeli izin)
-// ===========================================================================
-app.get(
-  '/api/projects/:pid/roles',
-  wrap(async (req, res) => {
-    const rows = await prisma.role.findMany({ where: { projectId: req.params.pid }, orderBy: { createdAt: 'asc' } });
-    res.json(rows);
-  }),
-);
-
-app.post(
-  '/api/projects/:pid/roles',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const { name, permissions } = req.body || {};
-    if (!name || !name.trim()) throw bad('Rol adi zorunlu.');
-    const row = await prisma.role.create({
-      data: { projectId: pid, name: name.trim(), permissions: permissions || {} },
-    });
-    await audit(pid, {
-      action: 'ROLE_CREATE',
-      entityType: 'role',
-      entityId: row.id,
-      message: `Rol olusturuldu: "${row.name}".`,
-    });
-    res.status(201).json(row);
-  }),
-);
-
-app.put(
-  '/api/projects/:pid/roles/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.role.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Rol bulunamadi.', 404);
-    const { name, permissions } = req.body || {};
-    const data = {};
-    if (name != null) data.name = name.trim();
-    if (permissions != null) data.permissions = permissions;
-    const row = await prisma.role.update({ where: { id: req.params.id }, data });
-    await audit(pid, {
-      action: 'ROLE_UPDATE',
-      entityType: 'role',
-      entityId: row.id,
-      message: `Rol guncellendi: "${row.name}".`,
-    });
-    // Izinler degistiginde onay durumlari etkilenebilir; yeniden hesapla.
-    await recomputeAllApprovals(pid);
-    res.json(row);
-  }),
-);
-
-app.delete(
-  '/api/projects/:pid/roles/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.role.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Rol bulunamadi.', 404);
-    await prisma.role.delete({ where: { id: req.params.id } });
-    await audit(pid, {
-      action: 'ROLE_DELETE',
-      entityType: 'role',
-      entityId: req.params.id,
-      message: `Rol silindi: "${before?.name || ''}".`,
-    });
-    await recomputeAllApprovals(pid);
-    res.json({ ok: true });
-  }),
-);
-
-// ===========================================================================
-//  PERSONNEL (passcode ile giren atanmis kisiler)
-// ===========================================================================
-app.get(
-  '/api/projects/:pid/personnel',
-  wrap(async (req, res) => {
-    const rows = await prisma.personnel.findMany({
-      where: { projectId: req.params.pid },
-      include: { role: true },
-      orderBy: { createdAt: 'asc' },
-    });
-    res.json(rows);
-  }),
-);
-
-app.post(
-  '/api/projects/:pid/personnel',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const { firstName, lastName, roleId } = req.body || {};
-    if (!firstName || !firstName.trim()) throw bad('Ad zorunlu.');
-    if (!lastName || !lastName.trim()) throw bad('Soyad zorunlu.');
-    if (!roleId) throw bad('Rol zorunlu.');
-    const role = await prisma.role.findUnique({ where: { id: roleId } });
-    if (!role || role.projectId !== pid) throw bad('Gecersiz rol.', 400);
-    const passcode = await generatePasscode();
-    const row = await prisma.personnel.create({
-      data: { projectId: pid, roleId, firstName: firstName.trim(), lastName: lastName.trim(), passcode },
-      include: { role: true },
-    });
-    await audit(pid, {
-      action: 'PERSONNEL_CREATE',
-      entityType: 'personnel',
-      entityId: row.id,
-      message: `Personel eklendi: "${row.firstName} ${row.lastName}" (${role.name}), passcode: ${passcode}.`,
-    });
-    await recomputeAllApprovals(pid);
-    res.status(201).json(row);
-  }),
-);
-
-app.delete(
-  '/api/projects/:pid/personnel/:id',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const before = await prisma.personnel.findUnique({ where: { id: req.params.id } });
-    if (!before || before.projectId !== pid) throw bad('Personel bulunamadi.', 404);
-    await prisma.personnel.delete({ where: { id: req.params.id } });
-    await audit(pid, {
-      action: 'PERSONNEL_DELETE',
-      entityType: 'personnel',
-      entityId: req.params.id,
-      message: `Personel silindi: "${before?.firstName || ''} ${before?.lastName || ''}".`,
-    });
-    await recomputeAllApprovals(pid);
-    res.json({ ok: true });
-  }),
-);
+// Issue #97: proje-bazli ROLES ve PERSONNEL CRUD uclari KALDIRILDI.
+// Rol/izin yonetimi admin konsolundaki SystemRole ekranindan (Issue #101)
+// yapilir; proje uyeligi User.projectId uzerinden yonetilir (#103 kapsami).
 
 // ===========================================================================
 //  APPROVALS (consensus onay + kilitleme)
@@ -2230,9 +2083,8 @@ app.delete(
 //  Issue #15: N+1 dongu yerine cascade.js'teki toplu SQL yolu — oy havuzu
 //  1 kez okunur, bilesen basina 2 parametrik bulk UPDATE (toplam 12) calisir;
 //  degeri degismeyen kayitlara dokunulmaz.
-async function recomputeAllApprovals(pid) {
-  await recomputeApprovalsBulk(prisma, pid);
-}
+//  Issue #97: dogrudan recomputeApprovalsBulk cagriliyor (Role/Personnel CRUD
+//  kalktigi icin ara fonksiyona gerek kalmadi).
 
 app.get(
   '/api/projects/:pid/approvals',
@@ -2243,6 +2095,7 @@ app.get(
 );
 
 // Oy ver / geri cek (toggle). Kilitliyken yalnizca PM degistirebilir.
+// Issue #97: tamamen User tabanli — voterId her zaman User UUID.
 app.post(
   '/api/projects/:pid/approvals/vote',
   wrap(async (req, res) => {
@@ -2253,27 +2106,21 @@ app.post(
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: entityId } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    let voterId, voterName, personnelId, personnelPermissions;
-    if (req.auth.isPM) {
-      voterId = req.auth.userId;
-      voterName = req.auth.name || 'Proje Yoneticisi';
-      personnelId = null;
-    } else if (req.auth.kind === 'personnel') {
-      voterId = req.auth.personnelId;
-      personnelId = voterId;
-      const pers = await prisma.personnel.findUnique({
-        where: { id: voterId },
-        select: { firstName: true, lastName: true, role: { select: { permissions: true } } },
-      });
-      if (!pers) throw bad('Personel bulunamadi.', 404);
-      voterName = (pers.firstName + ' ' + pers.lastName).trim();
-      personnelPermissions = pers.role ? pers.role.permissions || {} : {};
-    } else throw bad('Gecersiz kimlik.', 401);
-    if (entity.locked && !req.auth.isPM)
+    const userId = req.auth?.userId;
+    if (!userId) throw bad('Gecersiz kimlik.', 401);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw bad('Kullanici bulunamadi.', 401);
+    const isPM = isPMRole(user);
+    // Proje siniri: PM her projeye; digerleri yalnizca atandigi projeye.
+    if (!isPM && user.projectId !== pid) throw bad('Bu projeye erisim yetkiniz yok.', 403);
+    const voterId = user.id;
+    const voterName = user.name;
+    if (entity.locked && !isPM)
       throw bad('Bu kayit onaylandi ve kilitli. Yalnizca Proje Yoneticisi kilidi acabilir.', 403);
-    if (!req.auth.isPM) {
+    if (!isPM) {
+      const resolved = await resolveUserRole(prisma, user);
+      const perm = (resolved.permissions || {}).approve || {};
       const compKey = componentKeyOf(entityType, entity.type);
-      const perm = personnelPermissions ? personnelPermissions.approve || {} : {};
       if (!perm.enabled || !Array.isArray(perm.components) || !perm.components.includes(compKey))
         throw bad('Bu bilesen icin onaylama yetkiniz yok.', 403);
     }
@@ -2296,7 +2143,6 @@ app.post(
           entityId,
           voterId,
           voterName: voterName || voterId,
-          personnelId: personnelId || null,
         },
       });
       await audit(pid, {
@@ -2338,6 +2184,7 @@ app.post(
 );
 
 // Onay detay matrisi (PM'e ozel): her gerekli oy verenin oy durumu.
+// Issue #97: oy verenler User tabanli (PM'ler + approve izinli uyeler).
 app.get(
   '/api/projects/:pid/approvals/matrix',
   wrap(async (req, res) => {
@@ -2347,20 +2194,17 @@ app.get(
     const model = entityType === 'requirement' ? 'requirement' : 'testCase';
     const entity = await prisma[model].findUnique({ where: { id: String(entityId) } });
     if (!entity || entity.projectId !== pid) throw bad('Varlik bulunamadi.', 404);
-    const { requiredPersonnel } = await requiredVotersFor(pid, entityType, entity);
+    const { requiredVoters } = await requiredVotersFor(pid, entityType, entity);
     const approvals = await prisma.approval.findMany({
       where: { projectId: pid, entityType, entityId: String(entityId) },
     });
     const votedIds = new Set(approvals.map((a) => a.voterId));
-    const voters = [
-      { voterId: 'PM', name: 'Proje Yoneticisi', role: 'Proje Yoneticisi', voted: votedIds.has('PM') },
-      ...requiredPersonnel.map((p) => ({
-        voterId: p.id,
-        name: `${p.firstName} ${p.lastName}`,
-        role: p.role?.name || '-',
-        voted: votedIds.has(p.id),
-      })),
-    ];
+    const voters = requiredVoters.map((v) => ({
+      voterId: v.id,
+      name: v.name,
+      role: v.roleName || '-',
+      voted: votedIds.has(v.id),
+    }));
     res.json({
       approvalStatus: entity.approvalStatus,
       locked: entity.locked,

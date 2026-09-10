@@ -11,8 +11,9 @@
 //      deneme sayaci / hesap kilidi / audit, giris route'unda islenir.
 //    - Express middleware'leri: requireAuth (her istekte token zorunlu,
 //      birkac genel yol haric), requirePM (yalnizca Proje Yoneticisi),
-//      projectAccessGuard (app.param('pid', ...) — personel yalnizca
+//      projectAccessGuard (app.param('pid', ...) — kullanici yalnizca
 //      kendi atandigi projeye erisebilir; PM her projeye erisebilir).
+//    Issue #97: personnel/passcode kimlik turu KALDIRILDI — tek kimlik User.
 // ============================================================================
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -145,13 +146,8 @@ export function configurePassport(prisma) {
 
 // Token gerektirmeyen tek yollar: saglik kontrolu + auth uclari.
 // (refresh ve logout, Bearer yerine body'deki refresh token ile dogrulanir.)
-const PUBLIC_PATHS = new Set([
-  '/api/health',
-  '/api/auth/login',
-  '/api/auth/passcode',
-  '/api/auth/refresh',
-  '/api/auth/logout',
-]);
+// Issue #97: /api/auth/passcode KALDIRILDI — tek giris yolu /api/auth/login.
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout']);
 
 export function requireAuth(req, res, next) {
   if (PUBLIC_PATHS.has(req.path)) return next();
@@ -182,9 +178,9 @@ export function requireAdmin(req, res, next) {
 export function projectAccessGuard(req, res, next, pid) {
   if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
   if (req.auth.isPM) return next();
-  // PM degilse yalnizca atanmis projeye erisilebilir. Regular User (kind='user')
-  // ve passcode personeli (kind='personnel') icin ayni kural: projectId === pid.
-  if ((req.auth.kind === 'personnel' || req.auth.kind === 'user') && req.auth.projectId === pid) return next();
+  // Issue #97: Personnel kalkti — normal kullanici yalnizca atandigi projeye
+  // (User.projectId === pid) erisebilir.
+  if (req.auth.kind === 'user' && req.auth.projectId === pid) return next();
   return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.' });
 }
 

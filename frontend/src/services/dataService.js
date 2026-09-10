@@ -100,16 +100,9 @@ export const deleteGlossary = (pid, id) => api.del(`/projects/${pid}/glossary/${
 export const bulkDeleteGlossary = (pid, ids) =>
   api.post(`/projects/${pid}/glossary/batch-delete`, { ids })
 
-// --- Roller (dinamik roller + 12 kademeli izin) -----------------------------
-export const listRoles = (pid) => api.get(`/projects/${pid}/roles`)
-export const createRole = (pid, data) => api.post(`/projects/${pid}/roles`, data)
-export const updateRole = (pid, id, data) => api.put(`/projects/${pid}/roles/${id}`, data)
-export const deleteRole = (pid, id) => api.del(`/projects/${pid}/roles/${id}`)
-
-// --- Personel (passcode ile giren atanmis kisiler) --------------------------
-export const listPersonnel = (pid) => api.get(`/projects/${pid}/personnel`)
-export const createPersonnel = (pid, data) => api.post(`/projects/${pid}/personnel`, data)
-export const deletePersonnel = (pid, id) => api.del(`/projects/${pid}/personnel/${id}`)
+// Issue #97: proje-bazli Roles ve Personnel servisleri KALDIRILDI.
+// Rol/izin yonetimi admin konsolundaki SystemRole ekranindan (Issue #101);
+// proje uyeligi User.projectId uzerinden yonetilir (#103 kapsami).
 
 // --- Onay (consensus onay + kilitleme) --------------------------------------
 export const listApprovals = (pid) => api.get(`/projects/${pid}/approvals`)

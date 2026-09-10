@@ -80,7 +80,8 @@ export default function PbsTree() {
   const [dragNode, setDragNode] = useState(null)
   const [prefixOpen, setPrefixOpen] = useState(false)
 
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
+  // Issue #97: tek kimlik dunyasi — oy veren kimligi her zaman kullanici id'si.
+  const myVoterId = currentUser?.id
 
   // --- Izin cozumleyiciler (gereksinim tipine gore bilesen anahtari) --------
   const compOf = (r) => componentKeyOf('requirement', r.type)
@@ -128,8 +129,7 @@ export default function PbsTree() {
       entityType: 'requirement',
       entityId: r.id,
       voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
+      voterName: currentUser?.name || '',
     })
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 

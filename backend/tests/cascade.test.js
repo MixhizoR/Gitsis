@@ -1,7 +1,7 @@
 // ============================================================================
 //  cascade.test.js — Issue #15: bulk cascade + bulk approval integration.
-//  Red-Green: Bu testler cascade.js olmadan yazildi; once basarisiz olduklari
-//  gorulecek, sonra cascade.js minimum kodu yazilacak.
+//  Issue #97: onay havuzu tamamen USER tabanli — PM + projeye atanmis,
+//  approve izinli SystemRole kullanicilari. Personnel/Role kalkti.
 // ============================================================================
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
@@ -21,10 +21,14 @@ const PM_CREDENTIALS = { username: 'pm-cas', password: 'pm-pass-1234' };
 let proj;
 let pmToken;
 let pmUserId;
+let approverA;
+let approverB;
 before(async () => {
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
 
   await prisma.user.create({
     data: {
@@ -32,39 +36,31 @@ before(async () => {
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Cascade Test PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
 
   proj = await prisma.project.create({ data: { name: 'Cascade Bulk' } });
 
-  // PM rolü (approve izni: req-system + test-system)
-  const role = await prisma.role.create({
+  // 2 yetkili uye: projeye atanmis, approve izni req-system + test-system.
+  approverA = await prisma.user.create({
     data: {
+      username: 'approver-a',
+      passwordHash: await hashPassword('approver-pass'),
+      name: 'Ali Veli',
+      role: 'System Engineer',
+      roleKey: 'system_engineer', // approve: ALL_COMPONENTS (systemRoles.js)
       projectId: proj.id,
-      name: 'Muhendis',
-      permissions: {
-        approve: { enabled: true, components: ['req-system', 'test-system'] },
-      },
     },
   });
-
-  // 2 yetkili personel
-  await prisma.personnel.create({
+  approverB = await prisma.user.create({
     data: {
+      username: 'approver-b',
+      passwordHash: await hashPassword('approver-pass'),
+      name: 'Ayse Kara',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
       projectId: proj.id,
-      roleId: role.id,
-      firstName: 'Ali',
-      lastName: 'Veli',
-      passcode: 'CASC-0001',
-    },
-  });
-  await prisma.personnel.create({
-    data: {
-      projectId: proj.id,
-      roleId: role.id,
-      firstName: 'Ayse',
-      lastName: 'Kara',
-      passcode: 'CASC-0002',
     },
   });
 
@@ -113,8 +109,7 @@ test('recomputeStatusesBulk: tüm Verifies testleri Approved → req Approved, a
   assert.equal(audit.newValue, STATUS.APPROVED);
 });
 
-test('recomputeStatusesBulk: bir test Rejected → req Rejected, sadece o req güncellenir', async () => {
-  // İzole test: ayrı req + 2 test
+test('recomputeStatusesBulk: bir test Rejected → req Rejected', async () => {
   const reqRow = await prisma.requirement.create({
     data: {
       projectId: proj.id,
@@ -195,7 +190,7 @@ test('recomputeStatusesBulk: zaten doğru olan req yazılmaz (updatedAt değişm
 
 // --- recomputeApprovalsBulk -------------------------------------------------
 
-test('recomputeApprovalsBulk: PM + 2 personel oyu → requirement Approved+locked', async () => {
+test('recomputeApprovalsBulk: PM + 2 uye oyu → requirement Approved+locked', async () => {
   const reqRow = await prisma.requirement.create({
     data: {
       projectId: proj.id,
@@ -215,18 +210,15 @@ test('recomputeApprovalsBulk: PM + 2 personel oyu → requirement Approved+locke
       voterName: 'PM',
     },
   });
-  // 2 personel oyu
-  const personnel = await prisma.personnel.findMany({ where: { projectId: proj.id } });
-  assert.equal(personnel.length, 2);
-  for (const p of personnel) {
+  // 2 uye oyu (User tabanli — voterId = User UUID)
+  for (const u of [approverA, approverB]) {
     await prisma.approval.create({
       data: {
         projectId: proj.id,
         entityType: 'requirement',
         entityId: reqRow.id,
-        voterId: p.id,
-        voterName: `${p.firstName} ${p.lastName}`,
-        personnelId: p.id,
+        voterId: u.id,
+        voterName: u.name,
       },
     });
   }
@@ -248,25 +240,23 @@ test('recomputeApprovalsBulk: bir oy eksik → Pending, unlocked', async () => {
     },
   });
 
-  // Sadece PM + 1 personel (2. eksik)
+  // Sadece PM + 1 uye (2. eksik)
   await prisma.approval.create({
     data: {
       projectId: proj.id,
       entityType: 'requirement',
       entityId: reqRow.id,
-      voterId: 'PM',
+      voterId: pmUserId,
       voterName: 'PM',
     },
   });
-  const [first] = await prisma.personnel.findMany({ where: { projectId: proj.id } });
   await prisma.approval.create({
     data: {
       projectId: proj.id,
       entityType: 'requirement',
       entityId: reqRow.id,
-      voterId: first.id,
-      voterName: `${first.firstName} ${first.lastName}`,
-      personnelId: first.id,
+      voterId: approverA.id,
+      voterName: approverA.name,
     },
   });
 

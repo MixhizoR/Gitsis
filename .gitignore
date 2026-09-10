@@ -26,3 +26,4 @@ ISSUE85_AUTH_INFRA_PLAN.md
 repomix-output.md
 .reasonix/
 reasonix.toml
+pre-push-log.txt

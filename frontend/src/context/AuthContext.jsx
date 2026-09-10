@@ -1,29 +1,22 @@
 // ============================================================================
 //  AuthContext.jsx  —  Kimlik doğrulama + RBAC (rol bazlı erişim).
-//  İki oturum türü:
-//    1) PM (Proje Yöneticisi): kullanıcı adı + şifre. Tam yetki.
-//    2) Personel: 5 karakterlik passcode. Rolüne tanımlı 12 kademeli izin.
+//  Issue #97: TEK oturum türü — User (kullanıcı adı + şifre). Passcode girişi
+//  ve Personnel dünyası KALDIRILDI. PM (roleKey='pm') tüm projelere erişir;
+//  normal kullanıcı yalnızca atandığı projeye (User.projectId).
 //  Yalnızca OTURUM bilgisi tarayıcıda (LocalStorage) tutulur.
 //  Issue #101: `roleKey` oturuma kaydedilir (PM tespiti ve rol/izin eslemesi
 //  icin kanonik kaynak).
 // ============================================================================
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import {
-  ROLES,
-  PM_ROLE,
-  authenticate,
-  passcodeAuthenticate,
-  logoutRefresh,
-  toInitials,
-} from '../services/authService.js'
+import { ROLES, PM_ROLE, authenticate, logoutRefresh, toInitials } from '../services/authService.js'
 import { hasPermission } from '../utils/permissions.js'
 
 const SESSION_KEY = 'ehsim_auth_session'
 
+const AuthContext = createContext(null)
+
 // Geriye donuk uyumluluk: ROLES bazi bilesenlerce buradan import ediliyor.
 export { ROLES }
-
-const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -41,7 +34,7 @@ export function AuthProvider({ children }) {
     return session
   }
 
-  // --- PM / normal kullanici girisi (kullanici adi + sifre) ----------------
+  // --- Kullanici girisi (kullanici adi + sifre) ----------------------------
   const login = useCallback(async (username, password) => {
     const res = await authenticate(username, password)
     const { accessToken, refreshToken, user } = res || {}
@@ -63,28 +56,6 @@ export function AuthProvider({ children }) {
       // Issue #101: sistem rol anahtari — rol/izin eslemesi icin kanonik kaynak.
       roleKey: user.roleKey || null,
       projectId: user.projectId || null,
-    })
-  }, [])
-
-  // --- Personel girişi (passcode) -------------------------------------------
-  const passcodeLogin = useCallback(async (passcode) => {
-    const res = await passcodeAuthenticate(passcode)
-    const { token, personnel, role, project } = res || {}
-    if (!token || !personnel || !role || !project) throw new Error('Geçersiz passcode.')
-    const name = `${personnel.firstName} ${personnel.lastName}`.trim()
-    return persist({
-      kind: 'personnel',
-      isPM: false,
-      token,
-      personnelId: personnel.id,
-      passcode: personnel.passcode,
-      name,
-      initials: toInitials(name),
-      role: role.name,
-      roleId: role.id,
-      permissions: role.permissions || {},
-      projectId: project.id,
-      projectName: project.name,
     })
   }, [])
 
@@ -115,7 +86,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   // --- Yetki kontrolü -------------------------------------------------------
-  //  can(permKey, componentKey?) — PM her zaman true. Personel için rol izni.
+  //  can(permKey, componentKey?) — PM her zaman true. Normal kullanici icin
+  //  rol izni (roleKey -> SystemRole semasi). Issue #97: personnel kaldirildi.
   const can = useCallback(
     (permKey, componentKey = null) => {
       if (!currentUser) return false
@@ -128,7 +100,7 @@ export function AuthProvider({ children }) {
   const isPM = Boolean(currentUser?.isPM)
 
   return (
-    <AuthContext.Provider value={{ currentUser, isPM, login, passcodeLogin, logout, can, ROLES }}>
+    <AuthContext.Provider value={{ currentUser, isPM, login, logout, can, ROLES }}>
       {children}
     </AuthContext.Provider>
   )

@@ -20,10 +20,7 @@ export const STRINGS = {
     // --- Login ---
     'login.tab.login': 'Giriş Yap',
     'login.tab.register': 'Kayıt Ol',
-    'login.tab.manager': 'Proje Yöneticisi',
-    'login.tab.passcode': 'Passcode',
-    'login.passcode': 'Passcode',
-    'login.passcodeHint': '5 karakterlik personel kodunuzu girin.',
+    // Issue #97: passcode tab'i KALDIRILDI — tek giris: kullanici adi + sifre.
     'login.username': 'Kullanıcı Adı',
     'login.password': 'Şifre',
     'login.passwordConfirm': 'Şifre Tekrar',
@@ -45,7 +42,6 @@ export const STRINGS = {
 
     // --- Sidebar / nav ---
     'nav.dashboard': 'Gösterge Paneli',
-    'nav.roles': 'Roller',
     'nav.requirements': 'Gereksinimler',
     'nav.traceability': 'İzlenebilirlik Matrisi',
     'nav.traceabilityExport': 'İzlenebilirlik Dışa Aktarımı',
@@ -775,10 +771,7 @@ export const STRINGS = {
     // --- Login ---
     'login.tab.login': 'Sign In',
     'login.tab.register': 'Sign Up',
-    'login.tab.manager': 'Project Manager',
-    'login.tab.passcode': 'Passcode',
-    'login.passcode': 'Passcode',
-    'login.passcodeHint': 'Enter your 5-character personnel code.',
+    // Issue #97: passcode tab removed — single entry: username + password.
     'login.username': 'Username',
     'login.password': 'Password',
     'login.passwordConfirm': 'Confirm Password',
@@ -800,7 +793,6 @@ export const STRINGS = {
 
     // --- Sidebar / nav ---
     'nav.dashboard': 'Dashboard',
-    'nav.roles': 'Roles',
     'nav.requirements': 'Requirements',
     'nav.traceability': 'Traceability Matrix',
     'nav.traceabilityExport': 'Traceability Export',

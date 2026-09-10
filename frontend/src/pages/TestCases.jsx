@@ -56,7 +56,8 @@ export default function TestCases({
   const [attrMgr, setAttrMgr] = useState(false)
 
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
+  // Issue #97: tek kimlik dunyasi — oy veren kimligi her zaman kullanici id'si.
+  const myVoterId = currentUser?.id
   const canRead = can('read', comp)
   const canAdd = can('add_test', comp)
   const canFields = can('manage_fields')
@@ -103,8 +104,7 @@ export default function TestCases({
       entityType: 'testcase',
       entityId: r.id,
       voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
+      voterName: currentUser?.name || '',
     })
   }
 

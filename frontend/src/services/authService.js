@@ -74,7 +74,8 @@ export async function getUsers() {
 }
 
 /**
- * Kullanici adi + sifre dogrular (backend). Basarili ise kullaniciyi dondurur.
+ * Kullanici adi + sifre dogrular (backend). Basarili ise
+ * { accessToken, refreshToken, user } dondurur.
  * @throws sunucu hatasi / gecersiz kimlik.
  */
 export async function authenticate(username, password) {
@@ -90,13 +91,8 @@ export async function createUser({ username, password, name, role }) {
   return api.post('/auth/register', { username, password, name, role })
 }
 
-/**
- * Passcode ile personel girisi. Basarili ise { personnel, role, project }
- * dondurur (rol izinleriyle birlikte). Gecersizse 401 firlatir.
- */
-export async function passcodeAuthenticate(passcode) {
-  return api.post('/auth/passcode', { passcode })
-}
+// Issue #97: passcodeAuthenticate KALDIRILDI — tek giris yolu /auth/login.
+// Personnel (passcode ile giren kisiler) modeli backend'den de kaldirildi.
 
 /**
  * Refresh token'i sunucuda revoke eder (logout). Basarisiz olsa da cagiran

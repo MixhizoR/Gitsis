@@ -2,9 +2,12 @@
 //  schema.prisma  —  EHSIM - GITSIS / RMT veri tabani semasi (PostgreSQL).
 //  Tum veri PROJE bazli izole edilir (project-isolated). Bir proje silinince
 //  ona ait tum kayitlar cascade ile temizlenir.
-//  Tablolar: Users, Projects, ProjectFields, Requirements, TestCases,
-//            TraceabilityLinks, GlossaryTerms, AuditLogs, RefreshTokens,
-//            SystemAuditLogs.
+//  Tablolar: Users, SystemRoles, Projects, ProjectFields, Requirements,
+//            TestCases, TraceabilityLinks, GlossaryTerms, AuditLogs,
+//            RefreshTokens, SystemAuditLogs.
+//  Issue #97: Personnel (passcode) ve proje-bazli Role modelleri KALDIRILDI.
+//  Tek kimlik dunyasi: User (sifre ile) -> SystemRole (roleKey, izinler).
+//  Onay oylari tamamen User tabanlidir (voterId = User UUID).
 //  Issue #85: User password -> passwordHash; sistem geneli auth olaylari
 //            SystemAuditLog'a, refresh token ozetleri RefreshToken'a yazilir.
 // ============================================================================
@@ -118,8 +121,6 @@ model Project {
   links        TraceabilityLink[]
   glossary     GlossaryTerm[]
   audit        AuditLog[]
-  roles        Role[]
-  personnel    Personnel[]
   users        User[] @relation("UserProject")
   approvals    Approval[]
   snapshots    ProjectSnapshot[]
@@ -159,55 +160,20 @@ model SnapshotItem {
   @@index([snapshotId, entityType])
 }
 
-// --- Roller (proje bazli, dinamik) -----------------------------------------
-//  permissions: 12 kademeli izin JSON'u. Her izin { enabled, components[] }
-//  seklinde saklanir (components = hangi hiyerarsi bilesenleri kapsar).
-model Role {
-  id          String      @id @default(uuid())
-  projectId   String
-  name        String
-  permissions Json        @default("{}")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  personnel   Personnel[]
-
-  @@unique([projectId, name])
-  @@index([projectId])
-}
-
-// --- Personel (passcode ile giris yapan atanmis kisiler) -------------------
-model Personnel {
-  id         String   @id @default(uuid())
-  projectId  String
-  roleId     String
-  firstName  String
-  lastName   String
-  passcode   String   @unique
-  createdAt  DateTime @default(now())
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  approvals  Approval[]
-
-  @@index([projectId])
-  @@index([roleId])
-}
-
-// --- Onay oylari (consensus) -----------------------------------------------
-//  Bir gereksinim/test icin bir oy verenin (personel veya PM) onayi.
-//  voterId: personel id'si veya 'PM' (proje yoneticisi). entityType:
-//  'requirement' | 'testcase'.
+// --- Onay oylari (consensus, Issue #97: tamamen User tabanli) ---------------
+//  Bir gereksinim/test icin bir kullanicinin onayi. voterId artik HER ZAMAN
+//  User UUID'sidir (eski 'PM' sentinel'i ve personnelId kaldirildi). Gerekli
+//  oy verenler = PM'ler + projeye atanmis, o bilesende approve izni olan
+//  uyeler (bkz. backend/src/cascade.js getRequiredVoters).
 model Approval {
-  id          String     @id @default(uuid())
+  id          String   @id @default(uuid())
   projectId   String
   entityType  String
   entityId    String
   voterId     String
   voterName   String
-  personnelId String?
-  createdAt   DateTime   @default(now())
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  personnel   Personnel? @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, entityType, entityId, voterId])
   @@index([projectId, entityType, entityId])

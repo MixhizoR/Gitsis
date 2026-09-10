@@ -14,7 +14,6 @@ import {
   IconHistory,
   IconSparkle,
   IconChevron,
-  IconUsers,
   IconDoc,
   IconAlert,
   IconPlus,
@@ -77,12 +76,11 @@ export default function Sidebar({ active, onNavigate }) {
   const { activeProject, closeProject } = useProject()
   const { nav } = useApp()
   const { t } = useLang()
-  const { isPM, can } = useAuth()
+  const { isPM } = useAuth()
   // Kapali gruplarin id'leri (varsayilan: hepsi acik).
   const [closedGroups, setClosedGroups] = useState(() => new Set())
   const [navMgrOpen, setNavMgrOpen] = useState(false)
 
-  const canSeeRoles = isPM || can('manage_roles')
   const groups = nav?.groups || []
   const ungrouped = nav?.ungrouped || []
   // Materialize edilmemis varsayilan gruplarin etiketi i18n'den gelir;
@@ -133,16 +131,8 @@ export default function Sidebar({ active, onNavigate }) {
           />
         ))}
 
-        {/* Roller — Dashboard ile Hiyerarsi ARASINDA (yalnizca yetkiliye) */}
-        {canSeeRoles && (
-          <NavButton
-            key="roles"
-            active={active === 'roles'}
-            onClick={() => onNavigate('roles')}
-            Icon={IconUsers}
-            label={t('nav.roles')}
-          />
-        )}
+        {/* Issue #97: proje-bazli Roller sayfasi KALDIRILDI — rol/izin yonetimi
+            admin konsolundaki SystemRole ekranindan (Issue #101) yapilir. */}
 
         {/* Menu gruplari (proje bazli, kullanici yonetimli — Issue #9/6) */}
         {groups.map((g, gi) => {

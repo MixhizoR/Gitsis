@@ -1,11 +1,14 @@
 // ============================================================================
 //  cascade.js  —  Issue #15: Toplu (bulk) durum ve onay yeniden hesabi.
 //  N+1 yerine sabit sayida sorgu: durum icin 1 okuma + <=3 updateMany + 1 audit;
-//  onay icin 1 personnel okuma + 12 parametrik bulk UPDATE (6 bilesen x 2).
+//  onay icin 1 user okuma + 12 parametrik bulk UPDATE (6 bilesen x 2).
 //  Sadece degeri DEGISEN satirlar yazilir ("sadece etkilenenler").
+//  Issue #97: Onay havuzu tamamen USER tabanlidir — Personnel/Role kalkti.
+//  Gerekli oy verenler = PM'ler + projeye atanmis (User.projectId) ve o
+//  bilesen icin approve izni olan kullanicilar (roleKey -> SystemRole).
 // ============================================================================
 import { Prisma } from '@prisma/client';
-import { REQ_TYPE, TEST_TYPE, PM_ROLE } from './constants.js';
+import { REQ_TYPE, TEST_TYPE } from './constants.js';
 
 // --- Bilesen -> varlik tip eslemesi (server.js'teki componentKeyOf ile ayni)
 const COMPONENT_TYPES = [
@@ -128,52 +131,55 @@ export async function recomputeStatusesBulk(prisma, pid) {
 }
 
 // ===========================================================================
-//  ONAY (consensus): approvalStatus/locked <- PM + yetkili personel oylari
-//  Gerekli oy verenler = PM + rolunde bu bilesen icin approve izni olanlar.
+//  ONAY (consensus): approvalStatus/locked <- PM + yetkili uye oylari
+//  Gerekli oy verenler = PM'ler + projede approve izni olan atanmis uyeler.
 //  Hepsi oy verdiyse Approved+locked; degilse Pending+unlocked.
 // ===========================================================================
 
 /**
- * Her bilesen icin gerekli oy veren id listesi (PM'ler her zaman dahil).
- * PM userId'leri artik veritabanindan cekilir — daha once kullanilan "PM" string
- * sentinel'i, gercek oy verenlerin UUID'leri ile uyusmadigi icin bulk onay
- * hesabini kiriliyordu (Issue #53).
+ * Issue #97: Oy veren havuzu Tamamen User tabanlidir.
+ *  - PM'ler (isPMRole) her bilesen icin GEREKLI oy verendir (PM oyu sart).
+ *  - Projeye atanmis (projectId = pid) diger kullanicilarin approve izni,
+ *    roleKey -> SystemRole.permissions.approve uzerinden cozulur; izni acik
+ *    ve bilesen kapsaminda ise GEREKLI oy verendir.
+ * @returns {Promise<Array<{id,name,roleName}>>} gerekli oy verenler
  */
-function requiredVotersFor(pmUserIds, personnel, componentKey) {
-  const voters = [...pmUserIds];
-  for (const p of personnel) {
-    const perm = p.role?.permissions?.approve;
-    if (perm && perm.enabled && Array.isArray(perm.components) && perm.components.includes(componentKey)) {
-      voters.push(p.id);
+export async function getRequiredVoters(prisma, pid, componentKey) {
+  // 2 sorgu: aday kullanilar + tum sistem rolleri (N+1 yerine).
+  const [users, roles] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true, OR: [{ projectId: pid }, { roleKey: 'pm' }] },
+    }),
+    prisma.systemRole.findMany({ where: { isActive: true } }),
+  ]);
+  const roleByKey = new Map(roles.map((r) => [r.key, r]));
+  const voters = [];
+  for (const u of users) {
+    const isPM = u.roleKey === 'pm' || u.role === 'Proje Yöneticisi';
+    if (isPM) {
+      voters.push({ id: u.id, name: u.name, roleName: u.roleKey || u.role });
+      continue;
+    }
+    // roleKey yoksa (eski veri) izin cozumlemesi yapilamaz -> oy havuzuna giremez.
+    if (!u.roleKey) continue;
+    const sr = roleByKey.get(u.roleKey);
+    if (!sr) continue;
+    const perm = (sr.permissions || {}).approve || {};
+    if (perm.enabled && Array.isArray(perm.components) && perm.components.includes(componentKey)) {
+      voters.push({ id: u.id, name: u.name, roleName: sr.name });
     }
   }
   return voters;
 }
 
-/**
- * Projedeki tum "Proje Yoneticisi" kullanicilarinin id'lerini tek sorguda getirir.
- * Birden fazla PM olabilir (co PM'li kurulumlar).
- */
-async function getProjectManagerIds(prisma) {
-  const pms = await prisma.user.findMany({
-    where: { role: PM_ROLE },
-    select: { id: true },
-  });
-  return pms.map((u) => u.id);
-}
-
 export async function recomputeApprovalsBulk(prisma, pid) {
-  // PM listesi ve oy veren havuzu projede TEK SEFERDE okunur (eskisi N kez okuyordu).
-  const [pmUserIds, personnel] = await Promise.all([
-    getProjectManagerIds(prisma),
-    prisma.personnel.findMany({ where: { projectId: pid }, include: { role: true } }),
-  ]);
-  // PM yoksa onay hesaplanamaz (her bilesen PM oyu sart) — bu projeyi atla.
-  if (pmUserIds.length === 0) return;
-
+  // Oy veren havuzu projede TEK SEFERDE bilesen basina okunur (eskisi N kez okuyordu).
   for (const comp of COMPONENT_TYPES) {
-    const voters = requiredVotersFor(pmUserIds, personnel, comp.key);
+    const voters = await getRequiredVoters(prisma, pid, comp.key);
+    const voterIds = voters.map((v) => v.id);
     const table = Prisma.raw(`"${comp.model}"`);
+    // Oy veren havuzu bos olabilir (proje uyesi yok) -> hicbir kayit Approved olamaz.
+    if (voterIds.length === 0) continue;
     // Eksik oyu olanlar -> Pending (sadece su an farkli olanlara yazar)
     await prisma.$executeRaw`
       UPDATE ${table}
@@ -185,9 +191,9 @@ export async function recomputeApprovalsBulk(prisma, pid) {
           SELECT a."entityId" FROM "Approval" a
           WHERE a."projectId" = ${pid}
             AND a."entityType" = ${comp.entityType}
-            AND a."voterId" = ANY(${voters}::text[])
+            AND a."voterId" = ANY(${voterIds}::text[])
           GROUP BY a."entityId"
-          HAVING COUNT(DISTINCT a."voterId") = ${voters.length}
+          HAVING COUNT(DISTINCT a."voterId") = ${voterIds.length}
         )`;
     // Tum gerekli oylar tamamlanmis olanlar -> Approved+locked
     await prisma.$executeRaw`
@@ -200,9 +206,9 @@ export async function recomputeApprovalsBulk(prisma, pid) {
           SELECT a."entityId" FROM "Approval" a
           WHERE a."projectId" = ${pid}
             AND a."entityType" = ${comp.entityType}
-            AND a."voterId" = ANY(${voters}::text[])
+            AND a."voterId" = ANY(${voterIds}::text[])
           GROUP BY a."entityId"
-          HAVING COUNT(DISTINCT a."voterId") = ${voters.length}
+          HAVING COUNT(DISTINCT a."voterId") = ${voterIds.length}
         )`;
   }
 }

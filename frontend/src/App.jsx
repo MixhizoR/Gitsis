@@ -19,7 +19,6 @@ import Hierarchy from './pages/Hierarchy.jsx'
 import PbsTree from './pages/PbsTree.jsx'
 import TestCases from './pages/TestCases.jsx'
 import Glossary from './pages/Glossary.jsx'
-import Roles from './pages/Roles.jsx'
 import Traceability from './pages/Traceability.jsx'
 import CoverageReport from './pages/CoverageReport.jsx'
 import DocumentAnalysis from './pages/DocumentAnalysis.jsx'
@@ -71,10 +70,11 @@ export default function App() {
   //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
   if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
 
-  // 2) Proje secim kapisi — YALNIZCA PM icin. Personel dogrudan projesine gider.
+  // 2) Proje secim kapisi — YALNIZCA PM icin. Atanmis uyeler dogrudan
+  //  projesine gider (Issue #97: passcode personeli yerine atanmis User).
   if (!activeProjectId || (forcedProjectId && activeProjectId !== forcedProjectId)) {
     if (currentUser.isPM) return <ProjectSelect />
-    // Personel projesi baglaniyor
+    // Uyenin projesi baglaniyor
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
@@ -112,7 +112,6 @@ export default function App() {
         <Topbar active={pageKey} titleOverride={navItem?.label || null} />
         <main className="flex-1 overflow-y-auto p-6">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
-          {page === 'roles' && <Roles />}
           {page === 'pbs-tree' && <PbsTree />}
           {REQ_KEYS.includes(pageKey) && (
             <Hierarchy

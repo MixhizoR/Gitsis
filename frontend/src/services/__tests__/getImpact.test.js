@@ -32,9 +32,6 @@ import {
   createGlossary,
   updateGlossary,
   deleteGlossary,
-  listRoles,
-  createRole,
-  listPersonnel,
   voteApproval,
   unlockApproval,
   listAudit,
@@ -135,20 +132,8 @@ describe('dataService CRUD helperlari', () => {
     expect(api.del).toHaveBeenCalledWith('/projects/p-1/glossary/g-1')
   })
 
-  it('listRoles GET /projects/:pid/roles', async () => {
-    await listRoles('p-1')
-    expect(api.get).toHaveBeenCalledWith('/projects/p-1/roles')
-  })
-
-  it('createRole POST /projects/:pid/roles', async () => {
-    await createRole('p-1', { name: 'R' })
-    expect(api.post).toHaveBeenCalledWith('/projects/p-1/roles', { name: 'R' })
-  })
-
-  it('listPersonnel GET /projects/:pid/personnel', async () => {
-    await listPersonnel('p-1')
-    expect(api.get).toHaveBeenCalledWith('/projects/p-1/personnel')
-  })
+  // Issue #97: listRoles/createRole/listPersonnel KALDIRILDI — rol yonetimi
+  // admin konsolunda SystemRole ekraninda, uyelik User.projectId uzerinden.
 
   it('voteApproval POST /projects/:pid/approvals/vote', async () => {
     await voteApproval('p-1', { entityType: 'requirement', entityId: 'r-1' })

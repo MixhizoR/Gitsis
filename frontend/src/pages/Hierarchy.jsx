@@ -65,7 +65,8 @@ export default function Hierarchy({
   const types = useMemo(() => cfg?.typeOptions || [], [cfg])
 
   // --- Izin cozumleyiciler ---------------------------------------------------
-  const myVoterId = isPM ? 'PM' : currentUser?.personnelId
+  // Issue #97: tek kimlik dunyasi — oy veren kimligi her zaman kullanici id'si.
+  const myVoterId = currentUser?.id
   const canRead = can('read', comp)
   const canAdd = can('add_requirement', comp)
   const canFields = can('manage_fields')
@@ -112,8 +113,7 @@ export default function Hierarchy({
       entityType: 'requirement',
       entityId: r.id,
       voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yoneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
+      voterName: currentUser?.name || '',
     })
   }
 

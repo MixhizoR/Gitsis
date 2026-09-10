@@ -1,7 +1,9 @@
 // ============================================================================
 //  api.test.js — Backend API regresyon testleri (node:test + supertest).
-//  Kapsam: kimlik dogrulama (/auth/login, /auth/passcode) ve proje sinirini
-//  asma (IDOR) korumasi (projectAccessGuard).
+//  Kapsam: kimlik dogrulama (/auth/login) ve proje sinirini asma (IDOR)
+//  korumasi (projectAccessGuard).
+//  Issue #97: passcode/Personnel dunyasi KALDIRILDI — IDOR testleri artik
+//  projeye atanmis normal User (User.projectId) uzerinden yapilir.
 //
 //  Calistirma on kosullari:
 //    Yerel: docker compose up -d db   (test DB'si otomatik olusturulur)
@@ -24,14 +26,17 @@ const prisma = new PrismaClient();
 
 // --- Seed sabitleri -----------------------------------------------------------
 const PM_CREDENTIALS = { username: 'pm-test', password: 'pm-pass-1234' };
+const MEMBER_CREDENTIALS = { username: 'member-test', password: 'member-pass-1234' };
 let projA;
 let projB;
-let personnelToken = null;
+let memberToken = null;
 before(async () => {
   // Test veritabanini sifirdan kur (ortak yardimci).
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
 
   await prisma.user.create({
     data: {
@@ -39,22 +44,22 @@ before(async () => {
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Test Proje Yöneticisi',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
 
   projA = await prisma.project.create({ data: { name: 'IDOR Proje A' } });
   projB = await prisma.project.create({ data: { name: 'IDOR Proje B' } });
 
-  const roleA = await prisma.role.create({
-    data: { projectId: projA.id, name: 'Muhendis', permissions: {} },
-  });
-  await prisma.personnel.create({
+  // Issue #97: proje üyesi — User.projectId ile projaya atanir (passcode yok).
+  await prisma.user.create({
     data: {
+      username: MEMBER_CREDENTIALS.username,
+      passwordHash: await hashPassword(MEMBER_CREDENTIALS.password),
+      name: 'Ali Veli',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
       projectId: projA.id,
-      roleId: roleA.id,
-      firstName: 'Ali',
-      lastName: 'Veli',
-      passcode: 'TEST-1234',
     },
   });
 
@@ -108,32 +113,39 @@ test('GET /api/users — sahte token 401 dondurur', async () => {
   assert.equal(res.status, 401);
 });
 
-// --- Personel passcode girisi ---------------------------------------------------
+// --- Uye girisi (Issue #97: passcode KALDIRILDI, tek giris /auth/login) --------
 
-test('POST /api/auth/passcode — personel kendi projesine dusur', async () => {
+test('POST /api/auth/passcode — endpoint KALDIRILDI (401: auth kapisi yolun onunde)', async () => {
+  // requireAuth PUBLIC_PATHS listesinde olmadigi icin 401 doner (route'a ulasamaz).
   const res = await request(app).post('/api/auth/passcode').send({ passcode: 'TEST-1234' });
+  assert.equal(res.status, 401);
+});
+
+test('POST /api/auth/login — atanmis uye kendi projesine girer', async () => {
+  const res = await request(app).post('/api/auth/login').send(MEMBER_CREDENTIALS);
   assert.equal(res.status, 200);
-  assert.ok(res.body.token);
-  assert.equal(res.body.project.name, 'IDOR Proje A');
-  personnelToken = res.body.token;
+  assert.ok(res.body.accessToken);
+  assert.equal(res.body.user.projectId, projA.id);
+  assert.notEqual(res.body.user.roleKey, 'pm');
+  memberToken = res.body.accessToken;
 });
 
 // --- IDOR korumasi (projectAccessGuard) -----------------------------------------
 
-test('IDOR — personel KENDI projesindeki gereksinimleri gorebilir', async () => {
-  assert.ok(personnelToken, 'passcode testi token uretmiş olmali');
+test('IDOR — uye KENDI projesindeki gereksinimleri gorebilir', async () => {
+  assert.ok(memberToken, 'uye giris testi token uretmis olmali');
   const res = await request(app)
     .get(`/api/projects/${projA.id}/requirements`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 200);
   assert.equal(res.body.length, 1);
   assert.equal(res.body[0].text_id, 'REQ-SYS-901');
 });
 
-test('IDOR — personel BASKA projeye erisemez (403)', async () => {
+test('IDOR — uye BASKA projeye erisemez (403)', async () => {
   const res = await request(app)
     .get(`/api/projects/${projB.id}/requirements`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 403);
 });
 
@@ -142,7 +154,7 @@ test('IDOR — personel BASKA projeye erisemez (403)', async () => {
 test('POST /api/projects/:pid/audit — endpoint kaldirildi (404)', async () => {
   const res = await request(app)
     .post(`/api/projects/${projA.id}/audit`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ action: 'TEST', entityType: 'requirement', entityId: 'test', message: 'deneme' });
   assert.equal(res.status, 404);
 });
@@ -152,23 +164,23 @@ test('POST /api/projects/:pid/audit — endpoint kaldirildi (404)', async () => 
 test('POST /api/auth/register — PM olmayan kullanici 403 alir', async () => {
   const res = await request(app)
     .post('/api/auth/register')
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ username: 'yeni-kullanici', password: 'sifre123', name: 'Yeni Kullanici' });
   assert.equal(res.status, 403);
 });
 
 // --- Security: traceability IDOR korumasi -----------------------------------
 
-test('IDOR — personel BASKA projenin traceability matrixine erisemez (403)', async () => {
+test('IDOR — uye BASKA projenin traceability matrixine erisemez (403)', async () => {
   const res = await request(app)
     .get(`/api/projects/${projB.id}/traceability/matrix`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 403);
 });
 
-test('IDOR — personel KENDI projesinin traceability matrixine erisebilir (200)', async () => {
+test('IDOR — uye KENDI projesinin traceability matrixine erisebilir (200)', async () => {
   const res = await request(app)
     .get(`/api/projects/${projA.id}/traceability/matrix`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+    .set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 200);
 });

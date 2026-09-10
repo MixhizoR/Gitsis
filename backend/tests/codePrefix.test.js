@@ -17,22 +17,35 @@ const { nextTextId } = await import('../src/idGen.js');
 
 let proj;
 let pmToken;
-let personnelToken;
+let memberToken;
 
 before(async () => {
   resetDb();
 
   const { hashPassword, signToken } = await import('../src/auth.js');
   const user = await prisma.user.create({
-    data: { username: 'pm-prefix', passwordHash: await hashPassword('p'), name: 'PM', role: 'Proje Yöneticisi' },
+    data: {
+      username: 'pm-prefix',
+      passwordHash: await hashPassword('p'),
+      name: 'PM',
+      role: 'Proje Yöneticisi',
+      roleKey: 'pm',
+    },
   });
   pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
   proj = await prisma.project.create({ data: { name: 'Prefix Proje' } });
-  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muh', permissions: {} } });
-  const person = await prisma.personnel.create({
-    data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'PRE-1' },
+  // Issue #97: Personnel kalkti — projeye atanmis uye User kullan.
+  const member = await prisma.user.create({
+    data: {
+      username: 'member-prefix',
+      passwordHash: await hashPassword('m'),
+      name: 'A B',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
+      projectId: proj.id,
+    },
   });
-  personnelToken = signToken({ kind: 'personnel', isPM: false, projectId: proj.id, personnelId: person.id });
+  memberToken = signToken({ kind: 'user', isPM: false, projectId: proj.id, userId: member.id });
 });
 
 beforeEach(async () => {
@@ -134,7 +147,7 @@ test('gecersiz onek (bosluk / ozel karakter) 400 doner', async () => {
 test('PM olmayan kullanici onegi degistiremez (403)', async () => {
   const res = await request(app)
     .post(`/api/projects/${proj.id}/code-prefix`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ codePrefix: 'OLMAZ' });
   assert.equal(res.status, 403);
 });
