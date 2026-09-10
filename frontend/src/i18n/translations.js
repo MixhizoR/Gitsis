@@ -604,6 +604,8 @@ export const STRINGS = {
     // --- Ürün Ağacı (PBS) ---
     'page.pbsTree.title': 'Bağlantı Ağacı',
     'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
+    'page.myWork.title': 'Bana Atananlar',
+    'page.myWork.sub': 'Sorumlusu olduğunuz gereksinimler ve test senaryoları',
     'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
     'tree.expand': 'Alt kırılımları aç',
     'tree.collapse': 'Alt kırılımları kapat',
@@ -1353,6 +1355,8 @@ export const STRINGS = {
     // --- Product Tree (PBS) ---
     'page.pbsTree.title': 'Link Tree',
     'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
+    'page.myWork.title': 'My Assignments',
+    'page.myWork.sub': 'Requirements and test cases you are responsible for',
     'tree.search': 'Search requirements (id or title) — click a result to reveal it',
     'tree.expand': 'Expand children',
     'tree.collapse': 'Collapse children',
