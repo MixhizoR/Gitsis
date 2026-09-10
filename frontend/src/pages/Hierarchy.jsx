@@ -34,7 +34,7 @@ import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
 import {
-  selectAttrDefs,
+  filterableAttrDefs,
   requirementStatusOptions,
   requirementStatusOf,
 } from '../utils/filterOptions.js'
@@ -90,11 +90,13 @@ export default function Hierarchy({
   // bunun yerine baslik yaninda tek bir rozet olarak gosterilir. Gereksinimler
   // artik KENDI baslarina onaylanmaz (Issue: onay tuslari kaldirildi) — Durum
   // sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir.
+  // ATANAN KISI sutunu yoktur: atama coklu oldugu icin satiri sisirirdi;
+  // atananlar goz (Read) ikonuyla acilan ViewModal'da sirayla gorunur.
   const tableColumns = useMemo(
     () =>
       effectiveCfg?.lockedType
-        ? ['field', 'status', 'assignee', 'links']
-        : ['type', 'field', 'status', 'assignee', 'links'],
+        ? ['field', 'status', 'links']
+        : ['type', 'field', 'status', 'links'],
     [effectiveCfg],
   )
   // Bu gereksinimi dogrulayan (Verifies) en az bir test bagli mi? Degilse
@@ -117,7 +119,7 @@ export default function Hierarchy({
   // runtime'da eklenip silinebilir; Tip yalnizca sayfa tek tipe kilitli
   // DEGILSE anlamlidir (tablo 'type' sutunuyla ayni kural, bkz. tableColumns).
   const filterAttrDefs = useMemo(
-    () => selectAttrDefs(attributeDefs, 'requirement'),
+    () => filterableAttrDefs(attributeDefs, 'requirement'),
     [attributeDefs],
   )
   const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
@@ -127,11 +129,11 @@ export default function Hierarchy({
     return requirements
       .filter((r) => types.includes(r.type))
       .filter((r) => !fieldFilter || r.field === fieldFilter)
-      .filter((r) => matchesFilters(r, fx.filters, statusOf))
+      .filter((r) => matchesFilters(r, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
     // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requirements, types, fx.filters, fieldFilter, links])
+  }, [requirements, types, fx.filters, fieldFilter, links, filterAttrDefs])
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])

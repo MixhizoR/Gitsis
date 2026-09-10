@@ -74,6 +74,9 @@ const renderPage = (props = {}) =>
     </LanguageProvider>,
   )
 
+// Filtre menusunu acar — cubukta yalnizca arama ve tek buton durur.
+const openFilters = () => fireEvent.click(screen.getByTestId('filter-toggle'))
+
 const codes = () =>
   screen
     .getAllByText(/^EH-TC-ACC-\d+$/)
@@ -122,12 +125,14 @@ describe('TestCases — ortak filtre cubugu', () => {
 
   it('sayfa tek tipe kilitli oldugu icin Tip filtresi gosterilmez', () => {
     renderPage()
+    openFilters()
     expect(screen.queryByTestId('filter-type')).not.toBeInTheDocument()
     expect(codes()).toEqual(['EH-TC-ACC-001', 'EH-TC-ACC-002'])
   })
 
   it('Durum filtresi test sonucuna gore calisir', () => {
     renderPage()
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'Rejected' } })
     expect(codes()).toEqual(['EH-TC-ACC-002'])
 
@@ -137,12 +142,14 @@ describe('TestCases — ortak filtre cubugu', () => {
 
   it('Durum filtresinde "Doğrulanamaz" secenegi bulunmaz', () => {
     renderPage()
+    openFilters()
     const options = [...screen.getByTestId('filter-status').options].map((o) => o.value)
     expect(options).not.toContain('__unverifiable__')
   })
 
   it('Alan + oznitelik olcutleri AND ile birlesir', () => {
     renderPage()
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-field'), {
       target: { value: 'Yazilim / Kontrol' },
     })
@@ -155,6 +162,7 @@ describe('TestCases — ortak filtre cubugu', () => {
 
   it('Temizle tum olcutleri sifirlar', () => {
     renderPage()
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-search'), { target: { value: 'rapor' } })
     expect(screen.getByTestId('filter-active-badge')).toHaveTextContent('1 filtre aktif')
 
@@ -164,15 +172,23 @@ describe('TestCases — ortak filtre cubugu', () => {
 
   it('filtreler sayfaya donuldugunde korunur ve gereksinim sayfalarindan ayridir', () => {
     renderPage({ navKey: 'test-acceptance' })
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'Rejected' } })
     cleanup()
 
     renderPage({ navKey: 'test-acceptance' })
+    openFilters()
     expect(screen.getByTestId('filter-status')).toHaveValue('Rejected')
     expect(codes()).toEqual(['EH-TC-ACC-002'])
 
     cleanup()
     renderPage({ navKey: 'test-system' })
+    openFilters()
     expect(screen.getByTestId('filter-status')).toHaveValue('')
+  })
+
+  it("tabloda Atanan Kişi SUTUNU YOKTUR (coklu atama ViewModal'da gosterilir)", () => {
+    renderPage()
+    expect(screen.queryByRole('columnheader', { name: /Atanan Kişi/i })).not.toBeInTheDocument()
   })
 })
