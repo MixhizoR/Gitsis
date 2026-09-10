@@ -509,24 +509,16 @@ export const STRINGS = {
     // --- Bağ yöneticisi (LinkManager) ---
     'link.title': 'İzlenebilirlik Bağları',
     'link.close': 'Kapat',
-    'link.newTitle': 'Yeni Bağ Kur (alttan üste)',
-    'link.linkType': 'Bağ Tipi',
     'link.targetLabel': 'Hedef',
+    'link.selectType': 'Tip',
+    'link.selectSubType': 'Alt Sistem Tipi',
     'link.select': 'Seçiniz…',
     'link.linkBtn': 'Bağla',
     'link.noCandidates': 'Bu tip için uygun (ve henüz bağlı olmayan) hedef bulunmuyor.',
-    'link.topLevelNote':
-      '{type} en üst katman bir gereksinimdir; yukarı doğru bağ başlatamaz. Alt bileşenler (Yazılım / Donanım / Test Senaryosu) bu gereksinime aşağıdan bağlanır.',
-    'link.sec.satisfiedBy': 'Karşılayan Yazılım/Donanım Gereksinimleri (Satisfies)',
-    'link.sec.satisfies': 'Karşıladığı Sistem Gereksinimleri',
+    'link.sec.satisfiedBy': 'Karşılayan Alt Gereksinimler (Satisfies)',
     'link.sec.verifiedBy': 'Doğrulayan Test Senaryoları (Verifies)',
     'link.sec.verifies': 'Doğruladığı Gereksinimler',
-    'link.empty.satisfiedBy': 'Henüz karşılayan alt gereksinim yok.',
-    'link.empty.satisfies': 'Henüz bir sistem gereksinimine bağlanmamış.',
-    'link.empty.verifiedBy': 'Henüz doğrulayan test senaryosu yok (kapsam dışı!).',
-    'link.empty.verifies': 'Henüz bir gereksinime bağlanmamış.',
     'link.unlinkTitle': 'Bağı kopar',
-    'link.unlinkMsg': 'Bağ koparıldı: {a} «{verb}» {b}.',
 
     // --- Yeni navigasyon (hiyerarşi + projeler) ---
     'nav.hierarchy': 'Hiyerarşi',
@@ -751,14 +743,13 @@ export const STRINGS = {
     'glo.deleteConfirm': '"{term}" terimi silinecek. Onaylıyor musunuz?',
 
     // --- Bağ yöneticisi (yeni taksonomi) ---
-    'link.satisfiesUp': 'Karşıladığı {parent} Gereksinimi (Satisfies)',
-    'link.verifies': 'Doğruladığı Gereksinim ({types})',
+    'link.satisfiesUp': 'Karşıladığı Üst Gereksinim Ekle (Satisfies)',
+    'link.satisfiesDown': 'Bunu Karşılayan Alt Gereksinim Ekle (Satisfies)',
+    'link.verifies': 'Doğruladığı Gereksinim Ekle (Verifies)',
     'link.assignedTo': 'Gereksinime Ata (Assigned To)',
     'link.testStatus': 'Test Durumu',
     'link.selectStatus': 'Durum seçiniz…',
     'link.statusRequired': 'Test durumu seçilmelidir.',
-    'link.testAlready':
-      'Bu test zaten bir gereksinimi doğruluyor. Yeni bağ için önce mevcut bağı koparın.',
     'link.sec.satisfiesUp': 'Karşıladığı Üst Gereksinim',
     'link.sec.assignedGlossary': 'Atanan Sözlük Terimleri',
     'link.sec.assignedTo': 'Atandığı Gereksinimler',
@@ -1239,24 +1230,16 @@ export const STRINGS = {
     // --- Link manager ---
     'link.title': 'Traceability Links',
     'link.close': 'Close',
-    'link.newTitle': 'Create New Link (bottom-up)',
-    'link.linkType': 'Link Type',
     'link.targetLabel': 'Target',
+    'link.selectType': 'Type',
+    'link.selectSubType': 'Sub-system Type',
     'link.select': 'Select…',
     'link.linkBtn': 'Link',
     'link.noCandidates': 'No suitable (and not yet linked) target for this type.',
-    'link.topLevelNote':
-      '{type} is a top-layer requirement; it cannot initiate links upward. Lower components (Software / Hardware / Test Case) link to it from below.',
-    'link.sec.satisfiedBy': 'Satisfying Software/Hardware Requirements (Satisfies)',
-    'link.sec.satisfies': 'System Requirements It Satisfies',
+    'link.sec.satisfiedBy': 'Satisfying Child Requirements (Satisfies)',
     'link.sec.verifiedBy': 'Verifying Test Cases (Verifies)',
     'link.sec.verifies': 'Requirements It Verifies',
-    'link.empty.satisfiedBy': 'No satisfying lower requirement yet.',
-    'link.empty.satisfies': 'Not linked to a system requirement yet.',
-    'link.empty.verifiedBy': 'No verifying test case yet (uncovered!).',
-    'link.empty.verifies': 'Not linked to a requirement yet.',
     'link.unlinkTitle': 'Remove link',
-    'link.unlinkMsg': 'Link removed: {a} «{verb}» {b}.',
 
     // --- New navigation (hierarchy + projects) ---
     'nav.hierarchy': 'Hierarchy',
@@ -1480,14 +1463,13 @@ export const STRINGS = {
     'glo.deleteConfirm': 'Term "{term}" will be deleted. Are you sure?',
 
     // --- Link manager (new taxonomy) ---
-    'link.satisfiesUp': 'The {parent} Requirement It Satisfies (Satisfies)',
-    'link.verifies': 'The Requirement It Verifies ({types})',
+    'link.satisfiesUp': 'Add the Parent Requirement It Satisfies (Satisfies)',
+    'link.satisfiesDown': 'Add a Child Requirement That Satisfies This (Satisfies)',
+    'link.verifies': 'Add the Requirement It Verifies (Verifies)',
     'link.assignedTo': 'Assign to Requirement (Assigned To)',
     'link.testStatus': 'Test Status',
     'link.selectStatus': 'Select status…',
     'link.statusRequired': 'A test status must be selected.',
-    'link.testAlready':
-      'This test already verifies a requirement. Remove the existing link before creating a new one.',
     'link.sec.satisfiesUp': 'Parent Requirement It Satisfies',
     'link.sec.assignedGlossary': 'Assigned Glossary Terms',
     'link.sec.assignedTo': 'Requirements It Is Assigned To',
