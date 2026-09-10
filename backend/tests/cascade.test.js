@@ -2,6 +2,7 @@
 //  cascade.test.js — Issue #15: bulk cascade + bulk approval integration.
 //  Issue #97: onay havuzu tamamen USER tabanli — PM + projeye atanmis,
 //  approve izinli SystemRole kullanicilari. Personnel/Role kalkti.
+//  Issue #103: uyelik User.projectId yerine ProjectMember tablosundan gelir.
 // ============================================================================
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
@@ -42,7 +43,8 @@ before(async () => {
 
   proj = await prisma.project.create({ data: { name: 'Cascade Bulk' } });
 
-  // 2 yetkili uye: projeye atanmis, approve izni req-system + test-system.
+  // 2 yetkili uye: projeye ProjectMember ile atanmis (Issue #103 — tek-proje
+  // kolonu User.projectId YOK), approve izni req-system + test-system.
   approverA = await prisma.user.create({
     data: {
       username: 'approver-a',
@@ -50,9 +52,9 @@ before(async () => {
       name: 'Ali Veli',
       role: 'System Engineer',
       roleKey: 'system_engineer', // approve: ALL_COMPONENTS (systemRoles.js)
-      projectId: proj.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: approverA.id } });
   approverB = await prisma.user.create({
     data: {
       username: 'approver-b',
@@ -60,9 +62,9 @@ before(async () => {
       name: 'Ayse Kara',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: proj.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: approverB.id } });
 
   // PM login
   const res = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);

@@ -175,13 +175,28 @@ export function requireAdmin(req, res, next) {
 }
 
 /** app.param('pid', projectAccessGuard) — proje sinirini asma (IDOR) korumasi. */
-export function projectAccessGuard(req, res, next, pid) {
-  if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
-  if (req.auth.isPM) return next();
-  // Issue #97: Personnel kalkti — normal kullanici yalnizca atandigi projeye
-  // (User.projectId === pid) erisebilir.
-  if (req.auth.kind === 'user' && req.auth.projectId === pid) return next();
-  return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.' });
+// Issue #103: uyelik DB'den canli okunur (ProjectMember). Token'da projectId
+// tasimayiz — uye cikarimi ANINDA etkili olur; eski token proje uclarinda
+// is gormez (maks 15 dk access TTL'i zaten kisitliyor).
+export function makeProjectAccessGuard(prisma) {
+  return async function projectAccessGuard(req, res, next, pid) {
+    if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
+    if (req.auth.isPM) return next();
+    try {
+      const membership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: pid, userId: req.auth.userId } },
+        include: { user: { select: { isActive: true } } },
+      });
+      // Uyelik kaydi + aktif kullanici: erisim ver. Admin kullaniciyi devre
+      // disi birakirsa (isActive=false) kayit olsa bile erisim kesilir.
+      if (membership && membership.user?.isActive !== false) return next();
+    } catch (e) {
+      console.error('[guard] uyelik okunamadi:', e?.message || e);
+    }
+    // code: frontend'de "proje erisimi kalkti" akisini (403 -> ProjectSelect'e
+    // donus) diger 403'lerden ayirt etmek icin kullanilir.
+    return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.', code: 'PROJECT_ACCESS_DENIED' });
+  };
 }
 
 export { MAX_LOGIN_ATTEMPTS, LOCK_DURATION_MS, REFRESH_TOKEN_TTL_MS, passport };

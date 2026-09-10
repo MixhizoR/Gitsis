@@ -26,17 +26,17 @@ before(async () => {
     },
   });
   const proj = await prisma.project.create({ data: { name: 'Impact Proje', description: 'Test' } });
-  // Issue #97: Personnel kalkti — projeye atanmis bir uye User olustur.
-  await prisma.user.create({
+  // Issue #103: projeye atanmis uye — User.projectId yerine ProjectMember.
+  const memberImpact = await prisma.user.create({
     data: {
       username: 'member-impact',
       passwordHash: await hashPassword('member-pass'),
       name: 'Impact Member',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: proj.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: memberImpact.id } });
   await prisma.requirement.create({
     data: {
       projectId: proj.id,

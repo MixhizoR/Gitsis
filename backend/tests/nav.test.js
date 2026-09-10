@@ -38,7 +38,7 @@ before(async () => {
   proj = await prisma.project.create({ data: { name: 'Nav Proje', description: 'Test' } });
   otherProj = await prisma.project.create({ data: { name: 'Nav Baska Proje', description: 'Test' } });
 
-  // Uye: yalnizca `proj`e atanmis (PM degil). Issue #97: passcode/Personnel yok.
+  // Uye: yalnizca `proj`e atanmis (PM degil). Issue #103: ProjectMember ile.
   const member = await prisma.user.create({
     data: {
       username: 'member-nav',
@@ -46,10 +46,11 @@ before(async () => {
       name: 'A B',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: proj.id,
     },
   });
-  memberToken = signToken({ kind: 'user', isPM: false, projectId: proj.id, userId: member.id });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: member.id } });
+  // Issue #103: token'da projectId tasinmaz — uyelik DB'den dogrulanir.
+  memberToken = signToken({ kind: 'user', isPM: false, userId: member.id });
 });
 
 beforeEach(async () => {

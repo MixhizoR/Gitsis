@@ -72,9 +72,10 @@ before(async () => {
       name: 'Onay Uye',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: projA.id,
     },
   });
+  // Issue #103: uyelik User.projectId degil — ProjectMember kaydı ile kurulur.
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: memberA.id } });
 
   // PM token al
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
@@ -96,9 +97,9 @@ before(async () => {
       name: 'Izin Siz',
       role: 'Developer',
       roleKey: 'developer',
-      projectId: projA.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: _memberB.id } });
   const t2 = await request(app)
     .post('/api/auth/login')
     .send({ username: 'observer-issue53', password: 'observer-pass' });

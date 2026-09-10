@@ -135,20 +135,21 @@ before(async () => {
       name: 'Onay Uye',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: proj.id,
     },
   });
   approveMemberId = mApprove.id;
-  await prisma.user.create({
+  // Issue #103: uyelik ProjectMember tablosuyla kurulur (User.projectId yok).
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: mApprove.id } });
+  const mObserver = await prisma.user.create({
     data: {
       username: 'member-observer-57',
       passwordHash: await hashPassword('observer-pass-57'),
       name: 'Izin Siz',
       role: 'Developer',
       roleKey: 'developer',
-      projectId: proj.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: mObserver.id } });
 
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200, 'PM login basarili olmali');

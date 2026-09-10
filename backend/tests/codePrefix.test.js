@@ -34,7 +34,7 @@ before(async () => {
   });
   pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
   proj = await prisma.project.create({ data: { name: 'Prefix Proje' } });
-  // Issue #97: Personnel kalkti — projeye atanmis uye User kullan.
+  // Issue #103: projeye atanmis uye — User.projectId yerine ProjectMember.
   const member = await prisma.user.create({
     data: {
       username: 'member-prefix',
@@ -42,10 +42,11 @@ before(async () => {
       name: 'A B',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: proj.id,
     },
   });
-  memberToken = signToken({ kind: 'user', isPM: false, projectId: proj.id, userId: member.id });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: member.id } });
+  // Issue #103: token'da projectId tasinmaz — uyelik guard'da DB'den okunur.
+  memberToken = signToken({ kind: 'user', isPM: false, userId: member.id });
 });
 
 beforeEach(async () => {

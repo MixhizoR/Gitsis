@@ -51,17 +51,17 @@ before(async () => {
   projA = await prisma.project.create({ data: { name: 'IDOR Proje A' } });
   projB = await prisma.project.create({ data: { name: 'IDOR Proje B' } });
 
-  // Issue #97: proje üyesi — User.projectId ile projaya atanir (passcode yok).
-  await prisma.user.create({
+  // Issue #103: proje üyesi — ProjectMember ile atanir (tek-proje kolonu yok).
+  const member = await prisma.user.create({
     data: {
       username: MEMBER_CREDENTIALS.username,
       passwordHash: await hashPassword(MEMBER_CREDENTIALS.password),
       name: 'Ali Veli',
       role: 'System Engineer',
       roleKey: 'system_engineer',
-      projectId: projA.id,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: member.id } });
 
   await prisma.requirement.create({
     data: {
@@ -121,11 +121,11 @@ test('POST /api/auth/passcode — endpoint KALDIRILDI (401: auth kapisi yolun on
   assert.equal(res.status, 401);
 });
 
-test('POST /api/auth/login — atanmis uye kendi projesine girer', async () => {
+test('POST /api/auth/login — atanmis uye giris yapar (uyelik JWT icinde tasinmaz)', async () => {
   const res = await request(app).post('/api/auth/login').send(MEMBER_CREDENTIALS);
   assert.equal(res.status, 200);
   assert.ok(res.body.accessToken);
-  assert.equal(res.body.user.projectId, projA.id);
+  assert.equal(res.body.user.projectId, undefined, 'token/user payloadinda projectId YOK (Issue #103)');
   assert.notEqual(res.body.user.roleKey, 'pm');
   memberToken = res.body.accessToken;
 });

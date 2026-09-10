@@ -63,31 +63,33 @@ before(async () => {
       isActive: true,
     },
   });
-  // L1 / L3: normal kullanici, atanmis proje (projectId) ile erisir.
-  await prisma.user.create({
+  // L1 / L3: normal kullanici, uyelik (ProjectMember) ile erisir (Issue #103).
+  const l1 = await prisma.user.create({
     data: {
       username: L1.username,
       passwordHash: await hashPassword(L1.password),
       name: 'L1',
       role: 'System Engineer',
+      roleKey: 'system_engineer',
       systemRole: 'USER',
       clearanceLevel: 1,
-      projectId: pid,
       isActive: true,
     },
   });
-  await prisma.user.create({
+  await prisma.projectMember.create({ data: { projectId: pid, userId: l1.id } });
+  const l3 = await prisma.user.create({
     data: {
       username: L3.username,
       passwordHash: await hashPassword(L3.password),
       name: 'L3',
       role: 'System Engineer',
+      roleKey: 'system_engineer',
       systemRole: 'USER',
       clearanceLevel: 3,
-      projectId: pid,
       isActive: true,
     },
   });
+  await prisma.projectMember.create({ data: { projectId: pid, userId: l3.id } });
 
   pmToken = await login(PM);
   l1Token = await login(L1);

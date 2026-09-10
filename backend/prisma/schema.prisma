@@ -47,12 +47,29 @@ model User {
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  // Issue #87: normal (PM olmayan) kullanicinin atandigi proje. PM (isPM)
-  // tum projelere erisir; bu alan regular user icin proje-ceperli erisim saglar.
-  projectId      String?
-  project        Project?  @relation("UserProject", fields: [projectId], references: [id], onDelete: SetNull)
+  // Issue #103: proje uyeligi User.projectId yerine coktan-coga ProjectMember
+  // uzerinden modellenir. PM'ler uyelik kaydi OLMADAN tum projelere erisir.
+  memberships    ProjectMember[]
 
   refreshTokens  RefreshToken[]
+}
+
+// --- Proje uyeligi (Issue #103, coktan-coga) --------------------------------
+//  PM (roleKey='pm') uyelik kaydi TUTMAZ — erisimi isPM yoluyla saglanir.
+//  Normal kullanici yalnizca buradaki kayitlarla projelere girer; uyeligi
+//  olmayan kullanici hicbir projeyi goremez (liste + guard 403). Yetki
+//  kaynagi User.roleKey -> SystemRole kalir (proje-bazli override YOK).
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  joinedAt  DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 // --- Sistem-geneli sabit roller (Issue #101) --------------------------------
@@ -121,7 +138,7 @@ model Project {
   links        TraceabilityLink[]
   glossary     GlossaryTerm[]
   audit        AuditLog[]
-  users        User[] @relation("UserProject")
+  members      ProjectMember[]
   approvals    Approval[]
   snapshots    ProjectSnapshot[]
   navGroups    NavGroup[]
