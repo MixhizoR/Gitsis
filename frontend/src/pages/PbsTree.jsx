@@ -64,6 +64,7 @@ export default function PbsTree() {
     links,
     fields,
     attributeDefs,
+    personnel,
     editRequirement,
     bulkRemoveRequirements,
     refresh,
@@ -313,6 +314,7 @@ export default function PbsTree() {
         types={PBS_FORM_CONFIG.typeOptions}
         fields={fields}
         statusOptions={statusOptions}
+        assignees={personnel}
         attrDefs={filterAttrDefs}
         activeCount={fx.activeCount}
       />
@@ -378,7 +380,7 @@ export default function PbsTree() {
       ) : (
         <EntityTable
           rows={rows}
-          columns={['type', 'field', 'status', 'links']}
+          columns={['type', 'field', 'status', 'assignee', 'links']}
           // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
           // gereksinim sayfalariyla AYNI sekilde dinamik sutun olarak gelir.
           attributeEntityType="requirement"

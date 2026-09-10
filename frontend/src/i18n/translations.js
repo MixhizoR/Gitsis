@@ -208,6 +208,8 @@ export const STRINGS = {
     'filt.uncoveredBadge': 'Testi eksik (kapsam dışı)',
     'filt.clear': 'Temizle',
     'filt.active': '{n} filtre aktif',
+    'filt.assignee': 'Atanan Kişi',
+    'filt.unassigned': '(atanmamış)',
     'filt.treeFlat':
       'Filtre aktif — sonuçlar proje genelinde düz liste olarak gösteriliyor; ağaç görünümü filtreler temizlenince geri gelir.',
 
@@ -221,6 +223,7 @@ export const STRINGS = {
     'tbl.th.priority': 'Öncelik',
     'tbl.th.status': 'Durum',
     'tbl.th.verification': 'Doğrulama Durumu',
+    'tbl.th.assignee': 'Atanan Kişi',
     'tbl.unverifiable': 'Doğrulanamaz',
     'tbl.unverifiableHint': 'Bu gereksinimi doğrulayan (Verifies) bir test senaryosu bağlı değil.',
     'tbl.th.dal': 'DAL',
@@ -548,6 +551,13 @@ export const STRINGS = {
     'nav.glossary': 'Sözlük',
     'nav.projects': 'Projeler',
     'nav.pbsTree': 'Bağlantı Ağacı',
+    'nav.myWork': 'Bana Atananlar',
+    'myWork.records': 'atanmış kayıt',
+    'myWork.requirements': 'Gereksinimler',
+    'myWork.tests': 'Test Senaryoları',
+    'myWork.empty': 'Size atanmış kayıt yok.',
+    'myWork.pmNote':
+      'Bu sayfa personel oturumuna özeldir: atamalar personele yapılır, proje yöneticisine değil.',
     'nav.groupRequirements': 'Gereksinimler',
     'nav.groupTests': 'Testler',
     'nav.manageMenu': 'Menüyü düzenle',
@@ -594,6 +604,8 @@ export const STRINGS = {
     // --- Ürün Ağacı (PBS) ---
     'page.pbsTree.title': 'Bağlantı Ağacı',
     'page.pbsTree.sub': 'Hiyerarşik ürün ağacı — alt kırılımlar açtıkça yüklenir',
+    'page.myWork.title': 'Bana Atananlar',
+    'page.myWork.sub': 'Sorumlusu olduğunuz gereksinimler ve test senaryoları',
     'tree.search': 'Gereksinim ara (kod veya başlık) — sonuca tıkla, ağaçta aç',
     'tree.expand': 'Alt kırılımları aç',
     'tree.collapse': 'Alt kırılımları kapat',
@@ -689,6 +701,8 @@ export const STRINGS = {
     // --- Alan (Field) yöneticisi ---
     'form.field': 'Alan',
     'form.fieldNone': '(alan yok)',
+    'form.assignee': 'Atanan Kişi',
+    'form.assigneeNone': '(atanmamış)',
     'form.typeLocked': 'Tip bu sayfada sabittir',
     'form.relatedDocs': 'İlgili Doküman(lar)',
     'form.relatedDocsPh': 'Örn: SRS v2.1, ICD-014',
@@ -987,6 +1001,8 @@ export const STRINGS = {
     'filt.uncoveredBadge': 'Missing test (uncovered)',
     'filt.clear': 'Clear',
     'filt.active': '{n} filters active',
+    'filt.assignee': 'Assignee',
+    'filt.unassigned': '(unassigned)',
     'filt.treeFlat':
       'Filter active — results are shown as a flat, project-wide list; the tree view returns once filters are cleared.',
 
@@ -1000,6 +1016,7 @@ export const STRINGS = {
     'tbl.th.priority': 'Priority',
     'tbl.th.status': 'Status',
     'tbl.th.verification': 'Verification Status',
+    'tbl.th.assignee': 'Assignee',
     'tbl.unverifiable': 'Unverifiable',
     'tbl.unverifiableHint': 'No test case verifying (Verifies) this requirement is linked.',
     'tbl.th.dal': 'DAL',
@@ -1286,6 +1303,13 @@ export const STRINGS = {
     'nav.glossary': 'Glossary',
     'nav.projects': 'Projects',
     'nav.pbsTree': 'Link Tree',
+    'nav.myWork': 'My Assignments',
+    'myWork.records': 'assigned records',
+    'myWork.requirements': 'Requirements',
+    'myWork.tests': 'Test Cases',
+    'myWork.empty': 'Nothing is assigned to you.',
+    'myWork.pmNote':
+      'This page is for personnel sessions: assignments go to personnel, not to the project manager.',
     'nav.groupRequirements': 'Requirements',
     'nav.groupTests': 'Tests',
     'nav.manageMenu': 'Edit menu',
@@ -1331,6 +1355,8 @@ export const STRINGS = {
     // --- Product Tree (PBS) ---
     'page.pbsTree.title': 'Link Tree',
     'page.pbsTree.sub': 'Hierarchical product breakdown — children load as you expand',
+    'page.myWork.title': 'My Assignments',
+    'page.myWork.sub': 'Requirements and test cases you are responsible for',
     'tree.search': 'Search requirements (id or title) — click a result to reveal it',
     'tree.expand': 'Expand children',
     'tree.collapse': 'Collapse children',
@@ -1426,6 +1452,8 @@ export const STRINGS = {
     // --- Field manager ---
     'form.field': 'Field',
     'form.fieldNone': '(no field)',
+    'form.assignee': 'Assignee',
+    'form.assigneeNone': '(unassigned)',
     'form.typeLocked': 'Type is fixed on this page',
     'form.relatedDocs': 'Related Document(s)',
     'form.relatedDocsPh': 'E.g.: SRS v2.1, ICD-014',

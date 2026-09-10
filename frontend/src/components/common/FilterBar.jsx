@@ -1,6 +1,7 @@
 // ============================================================================
 //  FilterBar.jsx  —  Gereksinim / Test / PBS sayfalarinin ORTAK filtre cubugu.
-//  Arama + Tip + Alan + Durum + projede tanimli select-tipi oznitelikler.
+//  Arama + Tip + Alan + Durum + Atanan Kisi + projede tanimli select-tipi
+//  oznitelikler.
 //
 //  Secenekler cagiran taraftan gelir: Alan listesi projeye gore dinamiktir
 //  (useApp().fields), oznitelikler runtime'da eklenip silinebildigi icin
@@ -13,6 +14,8 @@
 // ============================================================================
 import { IconSearch } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { UNASSIGNED } from '../../hooks/useEntityFilters.js'
+import { personnelName } from '../../utils/format.js'
 
 export default function FilterBar({
   filters,
@@ -22,6 +25,7 @@ export default function FilterBar({
   types = null,
   fields = null,
   statusOptions = [],
+  assignees = null,
   attrDefs = [],
   activeCount = 0,
 }) {
@@ -87,6 +91,18 @@ export default function FilterBar({
           filters.status,
           (v) => onSet('status', v),
           statusOptions,
+        )}
+
+      {assignees &&
+        select(
+          'filter-assignee',
+          t('filt.assignee'),
+          filters.assignee,
+          (v) => onSet('assignee', v),
+          [
+            { value: UNASSIGNED, label: t('filt.unassigned') },
+            ...assignees.map((p) => ({ value: p.id, label: personnelName(p) })),
+          ],
         )}
 
       {attrDefs.map((d) =>

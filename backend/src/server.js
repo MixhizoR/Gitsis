@@ -155,6 +155,48 @@ async function audit(projectId, entry) {
   }
 }
 
+// --- Sorumlu personel (is atama) -------------------------------------------
+//  DIKKAT: Sozlukteki "Assigned To" izlenebilirlik BAGI (terim <-> gereksinim)
+//  ile ilgisi YOKTUR; bu alan isin kimde oldugunu tutar.
+//  Atama yalnizca AYNI projenin personeline yapilabilir (proje sinirini asma
+//  korumasi). Alan hic gonderilmediyse `undefined` doner ve mevcut deger
+//  korunur; bos gonderilirse (null / '') atama kaldirilir.
+async function resolveAssigneeId(pid, value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const person = await prisma.personnel.findUnique({ where: { id: String(value) } });
+  if (!person || person.projectId !== pid) throw bad('Gecersiz atama: personel bu projede bulunamadi.');
+  return person.id;
+}
+
+/** Audit mesajlari icin okunabilir ad; personel silinmisse null. */
+async function assigneeLabel(id) {
+  if (!id) return null;
+  const p = await prisma.personnel.findUnique({ where: { id } });
+  return p ? `${p.firstName} ${p.lastName}`.trim() : null;
+}
+
+/**
+ * Atama DEGISTIYSE ayri bir ASSIGN audit kaydi yazar (guncelleme kaydindan
+ * bagimsiz): "kim neyi kime verdi" sorusu tek bir action ile filtrelenebilsin.
+ */
+async function auditAssignment(pid, { entityType, row, beforeId, afterId, actor, label }) {
+  if (beforeId === afterId) return;
+  const [from, to] = await Promise.all([assigneeLabel(beforeId), assigneeLabel(afterId)]);
+  let message;
+  if (!beforeId) message = `${label} atandi: "${row.title}" -> ${to}.`;
+  else if (!afterId) message = `${label} atamasi kaldirildi: "${row.title}" (onceki: ${from || 'silinmis personel'}).`;
+  else message = `${label} atamasi degisti: "${row.title}": ${from || 'silinmis personel'} -> ${to}.`;
+  await audit(pid, {
+    action: 'ASSIGN',
+    entityType,
+    entityId: row.id,
+    textId: row.text_id,
+    actor,
+    message,
+  });
+}
+
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
 //  icinden uretebilmesi icin paylasilabilir hale getirildi.
@@ -808,6 +850,7 @@ app.post(
     const defs = await listDefs(prisma, pid, 'requirement');
     const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
     const source = await resolveSource(pid, b);
+    const assigneeId = (await resolveAssigneeId(pid, b.assigneeId)) ?? null;
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
     const row = await prisma.requirement.create({
       data: {
@@ -819,6 +862,7 @@ app.post(
         field: b.field || null,
         status: STATUS.IN_REVIEW,
         attributes,
+        assigneeId,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
         ...source,
@@ -832,6 +876,14 @@ app.post(
       message: source.sourceDocumentId
         ? `Yeni gereksinim: "${row.title}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
         : `Yeni gereksinim: "${row.title}" (${row.type}).`,
+    });
+    await auditAssignment(pid, {
+      entityType: 'requirement',
+      row,
+      beforeId: null,
+      afterId: row.assigneeId,
+      actor: actorOf(req),
+      label: 'Gereksinim',
     });
     res.status(201).json(flatten(row));
   }),
@@ -887,6 +939,11 @@ app.put(
       const defs = await listDefs(prisma, pid, 'requirement');
       data.attributes = validateAndMergeAttributes(defs, attrInput, before.attributes || {});
     }
+    // Atama: alan gonderilmediyse dokunulmaz; bos gonderilirse kaldirilir.
+    // Icerik degisimi SAYILMAZ (history/suspect tetiklemez) — sorumlunun
+    // degismesi gereksinimin METNINI degistirmez.
+    const nextAssigneeId = await resolveAssigneeId(pid, b.assigneeId);
+    if (nextAssigneeId !== undefined) data.assigneeId = nextAssigneeId;
     // Issue #57: yalnizca ICERIK alanlari (title/description/field + attributes
     // icindeki priority/dal_level) degistiginde history + suspect tetiklenir.
     // Status/approvalStatus/locked/updatedAt otomatik cascade tarafindan
@@ -940,6 +997,14 @@ app.put(
         });
       }
       return updated;
+    });
+    await auditAssignment(pid, {
+      entityType: 'requirement',
+      row,
+      beforeId: before.assigneeId,
+      afterId: row.assigneeId,
+      actor,
+      label: 'Gereksinim',
     });
     res.json(flatten(row));
   }),
@@ -1099,6 +1164,7 @@ app.post(
       {},
       { isCreate: false },
     );
+    const assigneeId = (await resolveAssigneeId(pid, b.assigneeId)) ?? null;
     const row = await prisma.testCase.create({
       data: {
         projectId: pid,
@@ -1108,6 +1174,7 @@ app.post(
         type: b.type,
         field: b.field || null,
         attributes,
+        assigneeId,
         status: STATUS.IN_REVIEW,
         author: b.author || 'ehsim.user',
       },
@@ -1118,6 +1185,14 @@ app.post(
       entityId: row.id,
       textId: row.text_id,
       message: `Yeni test senaryosu: "${row.title}" (${row.type}).`,
+    });
+    await auditAssignment(pid, {
+      entityType: 'testcase',
+      row,
+      beforeId: null,
+      afterId: row.assigneeId,
+      actor: actorOf(req),
+      label: 'Test',
     });
     res.status(201).json(flatten(row));
   }),
@@ -1145,6 +1220,9 @@ app.put(
         before.attributes || {},
       );
     }
+    // Atama: alan gonderilmediyse dokunulmaz, bos gonderilirse kaldirilir.
+    const nextAssigneeId = await resolveAssigneeId(pid, b.assigneeId);
+    if (nextAssigneeId !== undefined) data.assigneeId = nextAssigneeId;
     // Test SONUCU (status) bu route'tan ARTIK degistirilemez — yalnizca
     // onay/red aksiyonlarindan turetilir (bkz. recomputeApproval, /approvals/reject).
     const row = await prisma.testCase.update({ where: { id: req.params.id }, data });
@@ -1154,6 +1232,14 @@ app.put(
       entityId: row.id,
       textId: row.text_id,
       message: `Test guncellendi: "${row.title}".`,
+    });
+    await auditAssignment(pid, {
+      entityType: 'testcase',
+      row,
+      beforeId: before.assigneeId,
+      afterId: row.assigneeId,
+      actor: actorOf(req),
+      label: 'Test',
     });
     res.json(flatten(row));
   }),
@@ -1734,7 +1820,12 @@ app.get(
       include: { role: true },
       orderBy: { createdAt: 'asc' },
     });
-    res.json(rows);
+    // Passcode = giris kimlik bilgisi. Herkese donmek, bir personelin baska
+    // bir personelin (belki daha yetkili) kodunu okuyup onun adina giris
+    // yapmasina izin verirdi. Yalnizca PM gorur — Roller sayfasindaki
+    // "unutulan kodu kurtarma" akisi PM icindir ve calismaya devam eder.
+    if (req.auth?.isPM) return res.json(rows);
+    res.json(rows.map(({ passcode: _passcode, ...rest }) => rest));
   }),
 );
 

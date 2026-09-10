@@ -63,6 +63,7 @@ export default function Hierarchy({
     links,
     fields,
     attributeDefs,
+    personnel,
     bulkRemoveRequirements,
     editRequirement,
     projectId,
@@ -92,8 +93,8 @@ export default function Hierarchy({
   const tableColumns = useMemo(
     () =>
       effectiveCfg?.lockedType
-        ? ['field', 'status', 'links']
-        : ['type', 'field', 'status', 'links'],
+        ? ['field', 'status', 'assignee', 'links']
+        : ['type', 'field', 'status', 'assignee', 'links'],
     [effectiveCfg],
   )
   // Bu gereksinimi dogrulayan (Verifies) en az bir test bagli mi? Degilse
@@ -218,6 +219,7 @@ export default function Hierarchy({
         types={effectiveCfg.lockedType ? null : types}
         fields={fieldFilter ? null : fields}
         statusOptions={statusOptions}
+        assignees={personnel}
         attrDefs={filterAttrDefs}
         activeCount={fx.activeCount}
       />

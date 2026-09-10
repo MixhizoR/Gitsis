@@ -10,6 +10,7 @@ import { IconSun, IconMoon } from '../common/Icons.jsx'
 const TITLE_KEY = {
   dashboard: 'dashboard',
   'pbs-tree': 'pbsTree',
+  'my-work': 'myWork',
   'req-user': 'reqUser',
   'req-system': 'reqSystem',
   'req-subsystem': 'reqSubsystem',

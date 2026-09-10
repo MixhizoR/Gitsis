@@ -33,6 +33,12 @@ export function formatDate(iso) {
   }
 }
 
+/** Personel kaydinin gorunen adi ("Ad Soyad"). */
+export function personnelName(p) {
+  if (!p) return ''
+  return `${p.firstName || ''} ${p.lastName || ''}`.trim()
+}
+
 /** Bir metni belirli uzunlukta keser. */
 export function truncate(text, max = 90) {
   if (!text) return ''

@@ -41,6 +41,8 @@ vi.mock('../../context/AppContext.jsx', () => ({
     addField: vi.fn(),
     fields: [],
     attributeDefs: [],
+    // "Atanan Kisi" dropdown'i icin — bu testin konusu degil, bos yeterli.
+    personnel: [],
     requirements: [],
   }),
   AppProvider: ({ children }) => children,

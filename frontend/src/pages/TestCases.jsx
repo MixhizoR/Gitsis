@@ -48,6 +48,7 @@ export default function TestCases({
     links,
     fields,
     attributeDefs,
+    personnel,
     approvals,
     bulkRemoveTestCases,
     editTestCase,
@@ -73,7 +74,10 @@ export default function TestCases({
   // Test sayfalari daima tek tipe kilitlidir (TEST_PAGES); tabloda tekrari
   // onlemek icin 'type' sutunu kaldirilir, baslik yaninda rozet gosterilir.
   const tableColumns = useMemo(
-    () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
+    () =>
+      cfg?.lockedType
+        ? ['field', 'status', 'assignee', 'links']
+        : ['type', 'field', 'status', 'assignee', 'links'],
     [cfg],
   )
   // Bug fix: backend oy kaydini PM'in GERCEK kullanici id'siyle saklar
@@ -211,6 +215,7 @@ export default function TestCases({
         onClear={fx.clear}
         fields={fieldFilter ? null : fields}
         statusOptions={statusOptions}
+        assignees={personnel}
         attrDefs={filterAttrDefs}
         activeCount={fx.activeCount}
       />

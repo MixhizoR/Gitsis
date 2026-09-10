@@ -19,6 +19,7 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
+import { personnelName } from '../../utils/format.js'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
@@ -35,7 +36,7 @@ export default function RequirementForm({
   source = null,
   initialValues = null,
 }) {
-  const { addRequirement, editRequirement, fields, addField, attributeDefs } = useApp()
+  const { addRequirement, editRequirement, fields, addField, attributeDefs, personnel } = useApp()
   const { t } = useLang()
 
   const typeOptions = pageConfig?.typeOptions || []
@@ -47,6 +48,7 @@ export default function RequirementForm({
     description: '',
     type: lockedType,
     field: '',
+    assigneeId: '',
     relatedDocuments: '',
   }
 
@@ -65,6 +67,7 @@ export default function RequirementForm({
         description: editing.description || '',
         type: editing.type,
         field: editing.field || '',
+        assigneeId: editing.assigneeId || '',
         relatedDocuments: (editing.relatedDocuments || []).join(', '),
       })
       setCustomAttrs(editing.attributes || {})
@@ -100,6 +103,8 @@ export default function RequirementForm({
         description: form.description,
         type: form.type,
         field: form.field || null,
+        // Bos dize = atamayi kaldir (backend bunu null'a cevirir).
+        assigneeId: form.assigneeId,
         attributes: customAttrs,
         relatedDocuments: form.relatedDocuments
           .split(',')
@@ -251,6 +256,25 @@ export default function RequirementForm({
               {fields.map((f) => (
                 <option key={f.id} value={f.name}>
                   {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sorumlu personel. Sozlukteki "Assigned To" BAGI ile karistirilmamali:
+              bu alan isin kimde oldugunu tutar. */}
+          <div>
+            <label className="label">{t('form.assignee')}</label>
+            <select
+              className="input"
+              value={form.assigneeId}
+              onChange={set('assigneeId')}
+              data-testid="form-assignee"
+            >
+              <option value="">{t('form.assigneeNone')}</option>
+              {personnel.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {personnelName(p)}
                 </option>
               ))}
             </select>
