@@ -2,7 +2,7 @@
 //  AuthContext.jsx  —  Kimlik doğrulama + RBAC (rol bazlı erişim).
 //  Issue #97: TEK oturum türü — User (kullanıcı adı + şifre). Passcode girişi
 //  ve Personnel dünyası KALDIRILDI. PM (roleKey='pm') tüm projelere erişir;
-//  normal kullanıcı yalnızca atandığı projeye (User.projectId).
+//  normal kullanıcı yalnızca uye oldugu projelere (Issue #103: ProjectMember).
 //  Yalnızca OTURUM bilgisi tarayıcıda (LocalStorage) tutulur.
 //  Issue #101: `roleKey` oturuma kaydedilir (PM tespiti ve rol/izin eslemesi
 //  icin kanonik kaynak).
@@ -55,7 +55,7 @@ export function AuthProvider({ children }) {
       role: user.role,
       // Issue #101: sistem rol anahtari — rol/izin eslemesi icin kanonik kaynak.
       roleKey: user.roleKey || null,
-      projectId: user.projectId || null,
+      // Issue #103: projectId token'da tasinmaz — uyelikler DB'den dogrulanir.
     })
   }, [])
 

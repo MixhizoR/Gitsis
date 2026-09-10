@@ -102,7 +102,16 @@ export const bulkDeleteGlossary = (pid, ids) =>
 
 // Issue #97: proje-bazli Roles ve Personnel servisleri KALDIRILDI.
 // Rol/izin yonetimi admin konsolundaki SystemRole ekranindan (Issue #101);
-// proje uyeligi User.projectId uzerinden yonetilir (#103 kapsami).
+// proje uyeligi ProjectMember tablosundan yonetilir (#103 kapsami).
+
+// --- Proje uyeligi (Issue #103) --------------------------------------------
+//  PM projeye uye ekler/cikarir; normal kullanici yalnizca uye oldugu projeleri
+//  gorur (backend GET /projects bu filtreyi zaten uygular).
+export const listMembers = (pid) => api.get(`/projects/${pid}/members`)
+export const addMember = (pid, userId) => api.post(`/projects/${pid}/members`, { userId })
+export const removeMember = (pid, userId) => api.del(`/projects/${pid}/members/${userId}`)
+//  PM'in uye ekleme listesi: aktif, PM-olmayan kullanicilar.
+export const listUserDirectory = () => api.get('/users/directory')
 
 // --- Onay (consensus onay + kilitleme) --------------------------------------
 export const listApprovals = (pid) => api.get(`/projects/${pid}/approvals`)

@@ -38,7 +38,7 @@ const TEST_KEYS = ['test-acceptance', 'test-system', 'test-subsystem']
 export default function App() {
   const { loading, nav } = useApp()
   const { currentUser } = useAuth()
-  const { activeProjectId, openProject } = useProject()
+  const { activeProjectId, closeProject } = useProject()
   const { t } = useLang()
   const [page, setPage] = useState('dashboard')
   // Issue #57: suspect gostergesinden gelindiginde vurgulanacak kayit id'si.
@@ -54,12 +54,14 @@ export default function App() {
   }, [nav, page])
   const pageKey = navItem?.pageKey || page
 
-  // Issue #87: projeye atanmis oturum (personel veya regular user) her zaman
-  // atandigi projeye kilitlenir (proje secim yok). PM/projesiz kullanici secim yapar.
-  const forcedProjectId = currentUser?.projectId || null
+  // Issue #103: uyelik DB'den canli dogrulanir; guard PROJECT_ACCESS_DENIED
+  // dondugunde (uyelikten cikarildi) calisma alanini kapatip ProjectSelect'e
+  // dusururuz. ProjectSelect artik PM harici uyeler icin de gosterilir.
   useEffect(() => {
-    if (forcedProjectId && activeProjectId !== forcedProjectId) openProject(forcedProjectId)
-  }, [forcedProjectId, activeProjectId, openProject])
+    const onAccessDenied = () => closeProject()
+    window.addEventListener('ehsim:project-access-denied', onAccessDenied)
+    return () => window.removeEventListener('ehsim:project-access-denied', onAccessDenied)
+  }, [closeProject])
 
   // 1) Giris kapisi
   if (!currentUser) return <Login />
@@ -70,16 +72,10 @@ export default function App() {
   //  yonetimi" ayri UI alanlaridir (least privilege / gorev ayrimi).
   if (currentUser.systemRole === 'ADMIN') return <AdminLayout />
 
-  // 2) Proje secim kapisi — YALNIZCA PM icin. Atanmis uyeler dogrudan
-  //  projesine gider (Issue #97: passcode personeli yerine atanmis User).
-  if (!activeProjectId || (forcedProjectId && activeProjectId !== forcedProjectId)) {
-    if (currentUser.isPM) return <ProjectSelect />
-    // Uyenin projesi baglaniyor
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
-      </div>
-    )
+  // 2) Proje secim kapisi — PM ve normal uyeler icin. Backend GET /projects
+  //  uyeligi filtreler; normal kullanici yalnizca uye oldugu projeleri gorur.
+  if (!activeProjectId) {
+    return <ProjectSelect />
   }
 
   // Sayfa degisiminde suspect vurgusunu sifirla (sidebar tiklamasiyla).

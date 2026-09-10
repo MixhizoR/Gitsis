@@ -649,6 +649,23 @@ export const STRINGS = {
     'proj.stat.tests': 'test',
     'proj.stat.links': 'bağ',
 
+    // --- Proje uyeligi (Issue #103) ---
+    'member.title': 'Erişim Yönetimi',
+    'member.subtitle': 'Proje üyelerini yönetin',
+    'member.members': 'Mevcut Üyeler',
+    'member.addUser': 'Kullanıcı Ekle',
+    'member.searchPh': 'Kullanıcı ara...',
+    'member.user': 'Kullanıcı',
+    'member.role': 'Rol',
+    'member.clearance': 'Yetki',
+    'member.joined': 'Katılım',
+    'member.add': 'Ekle',
+    'member.remove': 'Çıkar',
+    'member.noMembers': 'Henüz üye yok.',
+    'member.noCandidates': 'Eklenebilecek kullanıcı bulunamadı.',
+    'member.loadError': 'Üyeler yüklenemedi',
+    'member.removeConfirm': '"{name}" üyeliğini sonlandırmak istediğinize emin misiniz?',
+
     // --- Alan (Field) yöneticisi ---
     'form.field': 'Alan',
     'form.fieldNone': '(alan yok)',
@@ -1352,6 +1369,23 @@ export const STRINGS = {
     'proj.stat.reqs': 'requirements',
     'proj.stat.tests': 'tests',
     'proj.stat.links': 'links',
+
+    // --- Project membership (Issue #103) ---
+    'member.title': 'Access Management',
+    'member.subtitle': 'Manage project members',
+    'member.members': 'Current Members',
+    'member.addUser': 'Add User',
+    'member.searchPh': 'Search users...',
+    'member.user': 'User',
+    'member.role': 'Role',
+    'member.clearance': 'Clearance',
+    'member.joined': 'Joined',
+    'member.add': 'Add',
+    'member.remove': 'Remove',
+    'member.noMembers': 'No members yet.',
+    'member.noCandidates': 'No users available to add.',
+    'member.loadError': 'Could not load members',
+    'member.removeConfirm': 'End membership for "{name}"?',
 
     // --- Field manager ---
     'form.field': 'Field',
