@@ -41,8 +41,8 @@ import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.
 import SplitModal from '../components/tree/SplitModal.jsx'
 import PrefixModal from '../components/tree/PrefixModal.jsx'
 import MergeModal from '../components/tree/MergeModal.jsx'
+import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
 import {
-  IconSearch,
   IconLoader,
   IconLink,
   IconUnlink,
@@ -51,10 +51,25 @@ import {
   IconList,
 } from '../components/common/Icons.jsx'
 import { REQ_PAGES, REQ_TYPE, LINK_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
+import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
+import {
+  filterableAttrDefs,
+  requirementStatusOptions,
+  requirementStatusOf,
+} from '../utils/filterOptions.js'
 
 export default function PbsTree() {
-  const { projectId, requirements, links, editRequirement, bulkRemoveRequirements, refresh } =
-    useApp()
+  const {
+    projectId,
+    requirements,
+    links,
+    fields,
+    attributeDefs,
+    personnel,
+    editRequirement,
+    bulkRemoveRequirements,
+    refresh,
+  } = useApp()
   const { t } = useLang()
   const { can, isPM } = useAuth()
   const { activeProject, refreshProjects } = useProject()
@@ -63,7 +78,7 @@ export default function PbsTree() {
   const del = useUndoableDelete(bulkRemoveRequirements)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
 
-  const [q, setQ] = useState('')
+  const fx = useEntityFilters('pbs-tree')
   const [viewRow, setViewRow] = useState(null)
   // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
   const [sourceRow, setSourceRow] = useState(null)
@@ -111,7 +126,7 @@ export default function PbsTree() {
     await setCodePrefix(projectId, codePrefix, migrateExisting)
     await refreshProjects()
     // Agac ve duz listeler yeni kodlarla yeniden cekilsin.
-    await afterMutation([ROOT_KEY, ...rows.filter((r) => r._expanded).map((r) => r.id)])
+    await afterMutation([ROOT_KEY, ...tree.flatRows.filter((r) => r._expanded).map((r) => r.id)])
   }
 
   // --- Tablo yardimcilari (Hierarchy ile ayni sozlesme) --------------------
@@ -121,17 +136,36 @@ export default function PbsTree() {
   const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
-  // --- Gorunur satirlar: arama filtresi + bekleyen silmeler haric ----------
-  //  ONEMLI: arama satirlari filtrelese de AGAC YAPISI bozulmaz — girinti,
-  //  bolum numarasi ve ac/kapa durumu oldugu gibi kalir.
+  // --- Gorunur satirlar ----------------------------------------------------
+  //  Agac LAZY yuklenir: mount'ta yalnizca kok dugumler gelir, alt kirilimlar
+  //  expand edildikce cekilir (bkz. useTreeNodes). Bu yuzden tree.flatRows'u
+  //  filtrelemek YANLIS sonuc verir — acilmamis alt agaclardaki eslesmeler
+  //  hic gorulmez (or. "Software Requirement" filtresi bos liste dondururdu)
+  //  ve elenen bir ust dugumun cocuklari oksuz satir olarak asili kalirdi.
+  //
+  //  Cozum: filtre AKTIFKEN agac modundan cikilir ve sonuclar AppContext'teki
+  //  duz `requirements` listesinden (proje genelinde EKSIKSIZ, bkz. AppContext
+  //  refresh) uretilir. Yeni bir backend ucu gerekmez. Filtre temizlenince
+  //  agac — acilmis dugumleri, girintisi ve bolum numaralariyle — geri gelir.
+  //  Zaten filtrelenmis bir sonuc kumesinde girinti/bolum numarasi (1.3 gibi)
+  //  kardesleri gizlendigi icin yaniltici olurdu.
+  const filtersActive = fx.activeCount > 0
+  const filterAttrDefs = useMemo(
+    () => filterableAttrDefs(attributeDefs, 'requirement'),
+    [attributeDefs],
+  )
+  const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
+
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    return tree.flatRows
+    if (!filtersActive) return tree.flatRows.filter((r) => !pendingSet.has(r.id))
+    const statusOf = (r) => requirementStatusOf(r, verifiedFor)
+    return requirements
       .filter((r) => !pendingSet.has(r.id))
-      .filter((r) =>
-        !needle ? true : `${r.text_id} ${r.title} ${r.description}`.toLowerCase().includes(needle),
-      )
-  }, [tree.flatRows, q, pendingSet])
+      .filter((r) => matchesFilters(r, fx.filters, statusOf, filterAttrDefs))
+      .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
+    // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersActive, tree.flatRows, requirements, fx.filters, pendingSet, links, filterAttrDefs])
 
   // Gereksinimler baska bir yerden degistiginde (form kaydi, onay oylamasi,
   // toplu islem...) agac satirlari bayat kalmasin: AppContext'teki listenin
@@ -174,7 +208,10 @@ export default function PbsTree() {
   const mergeBlockReason = (() => {
     if (selectedList.length < 2) return 'few'
     const first = selectedList[0]
-    if (!selectedList.every((s) => s._parentKey === first._parentKey)) return 'notSiblings'
+    // Duz sonuc modunda satirlar agactan degil duz listeden gelir ve _parentKey
+    // tasimaz; hepsi undefined oldugu icin kardes kontrolu sessizce gecerdi.
+    if (!first._parentKey || !selectedList.every((s) => s._parentKey === first._parentKey))
+      return 'notSiblings'
     if (!selectedList.every((s) => s.type === first.type)) return 'notSameType'
     return null
   })()
@@ -234,8 +271,12 @@ export default function PbsTree() {
             {t('page.pbsTree.title')}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">{rows.length}</span>{' '}
-            {t('req.records')} · {t('page.pbsTree.sub')}
+            <FilterSummary
+              count={rows.length}
+              label={t('req.records')}
+              activeCount={fx.activeCount}
+            />{' '}
+            · {t('page.pbsTree.sub')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -267,15 +308,27 @@ export default function PbsTree() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-        <IconSearch size={16} className="text-slate-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t('filt.searchPh')}
-          className="flex-1 bg-transparent text-sm outline-none dark:text-slate-100"
-        />
-      </div>
+      <FilterBar
+        filters={fx.filters}
+        onSet={fx.set}
+        onSetAttr={fx.setAttr}
+        onClear={fx.clear}
+        types={PBS_FORM_CONFIG.typeOptions}
+        fields={fields}
+        statusOptions={statusOptions}
+        assignees={personnel}
+        attrDefs={filterAttrDefs}
+        activeCount={fx.activeCount}
+      />
+
+      {filtersActive && (
+        <div
+          data-testid="pbs-flat-notice"
+          className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:bg-brand-900/30 dark:text-brand-200"
+        >
+          {t('filt.treeFlat')}
+        </div>
+      )}
 
       {tree.error && (
         <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
@@ -329,6 +382,9 @@ export default function PbsTree() {
       ) : (
         <EntityTable
           rows={rows}
+          // ATANAN KISI sutunu yoktur: atama coklu oldugu icin satiri
+          // sisirirdi; atananlar goz (Read) ikonuyla acilan ViewModal'da
+          // sirayla gorunur.
           columns={['type', 'field', 'status', 'links']}
           // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
           // gereksinim sayfalariyla AYNI sekilde dinamik sutun olarak gelir.
@@ -359,7 +415,7 @@ export default function PbsTree() {
           onToggleAll={() => setSelected(new Map())}
           allSelected={false}
           someSelected={selectedList.length > 0}
-          treeMode
+          treeMode={!filtersActive}
           onToggleExpand={tree.toggle}
           onRowDragStart={(r) => setDragNode(r)}
           onRowDragEnd={() => setDragNode(null)}
@@ -436,9 +492,6 @@ export default function PbsTree() {
         onConfirm={confirmDelete}
         itemLabel={deleteTarget?.label}
       />
-      {/* requirements sadece arama/istatistik icin kullanilir; agac verisi
-          lazy-load ile ayri gelir. */}
-      <span className="hidden">{requirements.length}</span>
     </div>
   )
 }

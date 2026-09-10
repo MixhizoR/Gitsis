@@ -21,12 +21,14 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
+import AssigneePicker from '../common/AssigneePicker.jsx'
+import { assigneeIdsOf } from '../../utils/assignees.js'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
 
 export default function TestForm({ open, onClose, editing, pageConfig }) {
-  const { addTestCase, editTestCase, fields, addField, attributeDefs } = useApp()
+  const { addTestCase, editTestCase, fields, addField, attributeDefs, personnel } = useApp()
   const { t } = useLang()
   const lockedType = pageConfig?.lockedType
 
@@ -34,6 +36,8 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
     title: '',
     description: '',
     field: '',
+    // Coklu atama: sirali personel id listesi (ilk eleman birincil sorumlu).
+    assigneeIds: [],
   }
 
   const [form, setForm] = useState(EMPTY)
@@ -50,6 +54,7 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: editing.title || '',
         description: editing.description || '',
         field: editing.field || '',
+        assigneeIds: assigneeIdsOf(editing),
       })
       setCustomAttrs(editing.attributes || {})
     } else {
@@ -84,6 +89,8 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
         title: form.title,
         description: form.description,
         field: form.field || null,
+        // Bos liste = tum atamalari kaldir (bkz. backend/src/assignees.js).
+        assigneeIds: form.assigneeIds,
         attributes: customAttrs,
       }
       if (isEdit) await editTestCase(editing.id, payload)
@@ -175,6 +182,18 @@ export default function TestForm({ open, onClose, editing, pageConfig }) {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Sorumlu personel(ler) — sozlukteki "Assigned To" bagindan
+            bagimsizdir. Bir teste BIRDEN FAZLA kisi atanabilir; sira
+            anlamlidir (ilk kisi birincil sorumlu). */}
+        <div>
+          <label className="label">{t('form.assignee')}</label>
+          <AssigneePicker
+            personnel={personnel}
+            value={form.assigneeIds}
+            onChange={(ids) => setForm((f) => ({ ...f, assigneeIds: ids }))}
+          />
         </div>
 
         {/* Oznitelikler: Priority (varsayilan gelir, silinebilir) ve projeye

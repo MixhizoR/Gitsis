@@ -24,6 +24,7 @@ import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
+import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
@@ -31,9 +32,12 @@ import { suspectLinksForTestCase } from '../utils/suspect.js'
 import { getDisplayLabel } from '../utils/format.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
+import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
+import { filterableAttrDefs, testStatusOptions } from '../utils/filterOptions.js'
 
 export default function TestCases({
   pageKey,
+  navKey = pageKey,
   titleOverride = null,
   fieldFilter = null,
   onOpenSuspect,
@@ -43,6 +47,9 @@ export default function TestCases({
   const {
     testCases,
     links,
+    fields,
+    attributeDefs,
+    personnel,
     approvals,
     bulkRemoveTestCases,
     editTestCase,
@@ -53,7 +60,7 @@ export default function TestCases({
   } = useApp()
   const { t } = useLang()
   const { can, isPM, currentUser } = useAuth()
-  const [q, setQ] = useState('')
+  const fx = useEntityFilters(navKey)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
@@ -67,6 +74,8 @@ export default function TestCases({
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   // Test sayfalari daima tek tipe kilitlidir (TEST_PAGES); tabloda tekrari
   // onlemek icin 'type' sutunu kaldirilir, baslik yaninda rozet gosterilir.
+  // ATANAN KISI sutunu yoktur: atama coklu oldugu icin satiri sisirirdi;
+  // atananlar goz (Read) ikonuyla acilan ViewModal'da sirayla gorunur.
   const tableColumns = useMemo(
     () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
     [cfg],
@@ -91,18 +100,24 @@ export default function TestCases({
   const del = useUndoableDelete(bulkRemoveTestCases)
   const pendingSet = useMemo(() => new Set(del.pendingIds), [del.pendingIds])
 
+  // Test sayfalari DAIMA tek tipe kilitlidir (TEST_PAGES), bu yuzden filtre
+  // cubugunda Tip secenegi gosterilmez — tablodaki 'type' sutunuyla ayni kural.
+  // Durum burada test SONUCUDUR; gereksinim sayfalarindaki "dogrulanamaz"
+  // ayrimi test tarafinda anlamsizdir (bkz. filterOptions.js).
+  const filterAttrDefs = useMemo(
+    () => filterableAttrDefs(attributeDefs, 'testcase'),
+    [attributeDefs],
+  )
+  const statusOptions = useMemo(() => testStatusOptions(), [])
+
   const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const statusOf = (tc) => tc.status
     return testCases
       .filter((tc) => tc.type === cfg?.lockedType)
       .filter((tc) => !fieldFilter || tc.field === fieldFilter)
-      .filter((tc) =>
-        !needle
-          ? true
-          : `${tc.text_id} ${tc.title} ${tc.description}`.toLowerCase().includes(needle),
-      )
+      .filter((tc) => matchesFilters(tc, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [testCases, cfg, q, fieldFilter])
+  }, [testCases, cfg, fx.filters, fieldFilter, filterAttrDefs])
 
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
   const visibleIds = useMemo(() => visibleRows.map((r) => r.id), [visibleRows])
@@ -175,10 +190,11 @@ export default function TestCases({
             {cfg.lockedType && <TypeBadge value={cfg.lockedType} />}
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            <span className="font-bold text-slate-800 dark:text-slate-100">
-              {visibleRows.length}
-            </span>{' '}
-            {t('test.records')}
+            <FilterSummary
+              count={visibleRows.length}
+              label={t('test.records')}
+              activeCount={fx.activeCount}
+            />
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -195,11 +211,16 @@ export default function TestCases({
         </div>
       </div>
 
-      <input
-        className="input !py-1.5 text-sm"
-        placeholder={t('filt.searchPh')}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
+      <FilterBar
+        filters={fx.filters}
+        onSet={fx.set}
+        onSetAttr={fx.setAttr}
+        onClear={fx.clear}
+        fields={fieldFilter ? null : fields}
+        statusOptions={statusOptions}
+        assignees={personnel}
+        attrDefs={filterAttrDefs}
+        activeCount={fx.activeCount}
       />
 
       <BulkActionBar

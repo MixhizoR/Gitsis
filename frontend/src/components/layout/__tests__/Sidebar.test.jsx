@@ -220,4 +220,18 @@ describe('Sidebar — menu gruplari', () => {
       }),
     )
   })
+
+  // "Bana Atananlar" personelin kendi is kuyrugudur; PM'in personel kimligi
+  // olmadigi icin ona atanmis is de olamaz — menude gosterilmez.
+  it('"Bana Atananlar" yalnizca personel oturumunda gorunur', () => {
+    navMock.value = defaultNav
+    authMock.isPM = false
+    renderSidebar()
+    expect(screen.getByRole('button', { name: /Bana Atananlar/i })).toBeInTheDocument()
+
+    cleanup()
+    authMock.isPM = true
+    renderSidebar()
+    expect(screen.queryByRole('button', { name: /Bana Atananlar/i })).not.toBeInTheDocument()
+  })
 })

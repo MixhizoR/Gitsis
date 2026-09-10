@@ -37,6 +37,7 @@ FastAPI Bridge (ai-bridge:8008) ──► LM Studio + Gemma (:1234)
 │   ├── src/
 │   │   ├── server.js          # Main entry, route mounting, middleware
 │   │   ├── auth.js            # JWT, bcrypt, middleware (requireAuth, requirePM, projectAccessGuard)
+│   │   ├── assignees.js       # Multi-assignee (join tables + legacy assigneeId sync + ASSIGN audit)
 │   │   ├── cascade.js         # Bulk status/approval recomputation (Issue #15)
 │   │   ├── constants.js       # Taxonomy: REQ_TYPE, TEST_TYPE, LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES
 │   │   ├── logic.js           # Hierarchy validation, coverage calc

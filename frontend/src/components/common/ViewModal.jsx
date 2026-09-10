@@ -1,8 +1,12 @@
 // ============================================================================
 //  ViewModal.jsx  —  Goz (Read) ikonuyla acilan detay modali.
-//  Ust kisimda meta bilgiler (tip/alan/oncelik/durum/DAL); altta zengin metin
-//  editorlu ACIKLAMA alani. Yazma izni yoksa veya kayit kilitliyse salt-okunur.
+//  Ust kisimda meta bilgiler (tip/alan/oncelik/durum/DAL), altinda ATANAN
+//  KISILER (coklu atama, atama sirasiyla); en altta zengin metin editorlu
+//  ACIKLAMA alani. Yazma izni yoksa veya kayit kilitliyse salt-okunur.
 //  Aciklama kaydi onSaveDescription(row, html) ile ust bilesene iletilir.
+//
+//  Atanan kisiler listede (EntityTable) AYRI BIR SUTUN OLARAK GOSTERILMEZ:
+//  coklu atamada satiri sisirdigi icin tek yeri burasidir.
 // ============================================================================
 import { useEffect, useState } from 'react'
 import Modal from './Modal.jsx'
@@ -15,6 +19,7 @@ import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { getDisplayLabel } from '../../utils/format.js'
+import { assigneeNamesOf } from '../../utils/assignees.js'
 
 const BUILTIN_KEYS = new Set(['priority', 'dal_level'])
 
@@ -38,7 +43,7 @@ export default function ViewModal({
   statusLabel: _statusLabel,
 }) {
   const { t } = useLang()
-  const { attributeDefs, projectId } = useApp()
+  const { attributeDefs, personnel, projectId } = useApp()
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('detail')
@@ -68,6 +73,8 @@ export default function ViewModal({
     ([k, v]) => !BUILTIN_KEYS.has(k) && v !== null && v !== undefined && v !== '',
   )
   const labelFor = (key) => attributeDefs.find((d) => d.key === key)?.label || key
+  // Satirda yalnizca id'ler tasinir; adlar burada cozulur (atama sirasi korunur).
+  const assigneeNames = assigneeNamesOf(row, personnel)
 
   const save = async () => {
     setSaving(true)
@@ -169,6 +176,29 @@ export default function ViewModal({
               </span>
             ))}
           </div>
+
+          {/* Atanan kisiler: coklu atama, ATAMA SIRASIYLA (ilk kisi birincil
+              sorumlu). Kimse atanmamissa bolum hic gosterilmez. */}
+          {assigneeNames.length > 0 && (
+            <div className="mb-4" data-testid="view-assignees">
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('view.assignees')}
+              </div>
+              <ol className="flex flex-wrap gap-1.5">
+                {assigneeNames.map((name, i) => (
+                  <li
+                    key={`${name}-${i}`}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 py-0.5 pl-1.5 pr-2.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600"
+                  >
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold tabular-nums text-white">
+                      {i + 1}
+                    </span>
+                    {name}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* Kaynak izlenebilirligi: dokumandan metin secilerek olusturulduysa.
               Dokuman SILINMIS olsa bile (sourceDocumentId null'a duser) alinti

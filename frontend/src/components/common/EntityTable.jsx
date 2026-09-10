@@ -1,6 +1,12 @@
 // ============================================================================
 //  EntityTable.jsx  —  Gereksinim / Test / Sozluk icin ortak liste tablosu.
-//  Sutunlar `columns` ile yapilandirilir. Yeni ozellikler:
+//  Sutunlar `columns` ile yapilandirilir.
+//
+//  ATANAN KISI SUTUNU YOKTUR: atama artik COKLUDUR (bir kayda birden fazla
+//  sorumlu), bu da satiri sisirir. Atananlar goz (Read) ikonuyla acilan
+//  ViewModal'in "Atanan Kisiler" bolumunde, atama sirasiyla gosterilir.
+//
+//  Diger ozellikler:
 //    - Goz ikonu (Read): detay + zengin metin editorlu aciklama modalini acar.
 //    - Onay sutunu (Check Circle): "Baglantilar" ile "Eylemler" arasinda.
 //    - Onay Durumu sutunu: PM'e ozel "Onay Detayi" butonu + durum rozeti.
