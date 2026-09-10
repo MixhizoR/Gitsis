@@ -32,7 +32,7 @@ import { suspectLinksForTestCase } from '../utils/suspect.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
-import { selectAttrDefs, testStatusOptions } from '../utils/filterOptions.js'
+import { filterableAttrDefs, testStatusOptions } from '../utils/filterOptions.js'
 
 export default function TestCases({
   pageKey,
@@ -73,11 +73,10 @@ export default function TestCases({
   const comp = pageKey // izin bileson anahtari = sayfa anahtari
   // Test sayfalari daima tek tipe kilitlidir (TEST_PAGES); tabloda tekrari
   // onlemek icin 'type' sutunu kaldirilir, baslik yaninda rozet gosterilir.
+  // ATANAN KISI sutunu yoktur: atama coklu oldugu icin satiri sisirirdi;
+  // atananlar goz (Read) ikonuyla acilan ViewModal'da sirayla gorunur.
   const tableColumns = useMemo(
-    () =>
-      cfg?.lockedType
-        ? ['field', 'status', 'assignee', 'links']
-        : ['type', 'field', 'status', 'assignee', 'links'],
+    () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
     [cfg],
   )
   // Bug fix: backend oy kaydini PM'in GERCEK kullanici id'siyle saklar
@@ -104,7 +103,10 @@ export default function TestCases({
   // cubugunda Tip secenegi gosterilmez — tablodaki 'type' sutunuyla ayni kural.
   // Durum burada test SONUCUDUR; gereksinim sayfalarindaki "dogrulanamaz"
   // ayrimi test tarafinda anlamsizdir (bkz. filterOptions.js).
-  const filterAttrDefs = useMemo(() => selectAttrDefs(attributeDefs, 'testcase'), [attributeDefs])
+  const filterAttrDefs = useMemo(
+    () => filterableAttrDefs(attributeDefs, 'testcase'),
+    [attributeDefs],
+  )
   const statusOptions = useMemo(() => testStatusOptions(), [])
 
   const rows = useMemo(() => {
@@ -112,9 +114,9 @@ export default function TestCases({
     return testCases
       .filter((tc) => tc.type === cfg?.lockedType)
       .filter((tc) => !fieldFilter || tc.field === fieldFilter)
-      .filter((tc) => matchesFilters(tc, fx.filters, statusOf))
+      .filter((tc) => matchesFilters(tc, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-  }, [testCases, cfg, fx.filters, fieldFilter])
+  }, [testCases, cfg, fx.filters, fieldFilter, filterAttrDefs])
 
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
   const visibleIds = useMemo(() => visibleRows.map((r) => r.id), [visibleRows])

@@ -67,6 +67,16 @@ import {
   flattenAll,
 } from './attributes.js';
 import { contentFieldsChanged, nextHistoryVersion, SUSPECT_LINK_TYPES } from './versioning.js';
+import {
+  resolveAssigneeIds,
+  setAssignees,
+  getAssigneeIds,
+  withAssigneeIds,
+  withAssigneeIdsAll,
+  auditAssignment,
+  backfillAssignees,
+  resyncLegacyAssignee,
+} from './assignees.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -214,46 +224,12 @@ function assertRequirementVisible(req, row) {
 }
 
 // --- Sorumlu personel (is atama) -------------------------------------------
-//  DIKKAT: Sozlukteki "Assigned To" izlenebilirlik BAGI (terim <-> gereksinim)
-//  ile ilgisi YOKTUR; bu alan isin kimde oldugunu tutar.
-//  Atama yalnizca AYNI projenin personeline yapilabilir (proje sinirini asma
-//  korumasi). Alan hic gonderilmediyse `undefined` doner ve mevcut deger
-//  korunur; bos gonderilirse (null / '') atama kaldirilir.
-async function resolveAssigneeId(pid, value) {
-  if (value === undefined) return undefined;
-  if (value === null || value === '') return null;
-  const person = await prisma.personnel.findUnique({ where: { id: String(value) } });
-  if (!person || person.projectId !== pid) throw bad('Gecersiz atama: personel bu projede bulunamadi.');
-  return person.id;
-}
-
-/** Audit mesajlari icin okunabilir ad; personel silinmisse null. */
-async function assigneeLabel(id) {
-  if (!id) return null;
-  const p = await prisma.personnel.findUnique({ where: { id } });
-  return p ? `${p.firstName} ${p.lastName}`.trim() : null;
-}
-
-/**
- * Atama DEGISTIYSE ayri bir ASSIGN audit kaydi yazar (guncelleme kaydindan
- * bagimsiz): "kim neyi kime verdi" sorusu tek bir action ile filtrelenebilsin.
- */
-async function auditAssignment(pid, { entityType, row, beforeId, afterId, actor, label }) {
-  if (beforeId === afterId) return;
-  const [from, to] = await Promise.all([assigneeLabel(beforeId), assigneeLabel(afterId)]);
-  let message;
-  if (!beforeId) message = `${label} atandi: "${row.title}" -> ${to}.`;
-  else if (!afterId) message = `${label} atamasi kaldirildi: "${row.title}" (onceki: ${from || 'silinmis personel'}).`;
-  else message = `${label} atamasi degisti: "${row.title}": ${from || 'silinmis personel'} -> ${to}.`;
-  await audit(pid, {
-    action: 'ASSIGN',
-    entityType,
-    entityId: row.id,
-    textId: row.text_id,
-    actor,
-    message,
-  });
-}
+//  Atama artik COKLUDUR (bir kayda birden fazla sorumlu) ve tum mantik
+//  src/assignees.js icindedir: dogrulama (proje sinirini asma korumasi),
+//  ara tabloya yazma, legacy `assigneeId` kolonunu senkron tutma ve ASSIGN
+//  audit kaydi. Buradaki sarmalayicilar yalnizca prisma/audit'i baglar.
+const assigneeIdsFrom = (body, pid) => resolveAssigneeIds(prisma, pid, body);
+const logAssignment = (pid, entry) => auditAssignment(prisma, audit, pid, entry);
 
 // --- text_id ureteci: idGen.js'e tasindi (Issue #9 / Adim 3) — split'in yeni
 //  text_id'leri de ayni kara-liste garantisiyle, interaktif transaction
@@ -1204,7 +1180,7 @@ app.get(
     const where = { projectId: req.params.pid, ...clearanceFilter(req) };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.requirement.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(flattenAll(rows));
+    res.json(await withAssigneeIdsAll(prisma, 'requirement', flattenAll(rows)));
   }),
 );
 
@@ -1218,7 +1194,8 @@ app.post(
     const defs = await listDefs(prisma, pid, 'requirement');
     const attributes = validateAndMergeAttributes(defs, extractAttributeInput(b), {}, { isCreate: true });
     const source = await resolveSource(pid, b);
-    const assigneeId = (await resolveAssigneeId(pid, b.assigneeId)) ?? null;
+    // Coklu atama: gonderilmediyse bos liste (yeni kayit, onceki atama yok).
+    const assigneeIds = (await assigneeIdsFrom(b, pid)) ?? [];
     // Yeni gereksinim: durum daima 'In Review' (henuz bagli test yok, kilitli).
     // ABAC (#87): ust (parentId) belirtilmisse seviye ustten miras alinir;
     // kullanici kendi seviyesinden yuksek bir seviyeye gereksinim olusturamaz.
@@ -1233,7 +1210,7 @@ app.post(
     }
     if (clearanceLevel == null) clearanceLevel = 1;
     if (clearanceLevel > userLevel) throw bad('Bu seviyede gereksinim olusturamazsiniz.', 403);
-    const row = await prisma.requirement.create({
+    const created = await prisma.requirement.create({
       data: {
         projectId: pid,
         text_id,
@@ -1243,7 +1220,6 @@ app.post(
         field: b.field || null,
         status: STATUS.IN_REVIEW,
         attributes,
-        assigneeId,
         author: b.author || 'ehsim.user',
         relatedDocuments: normalizeDocuments(b.relatedDocuments),
         parentId,
@@ -1251,6 +1227,7 @@ app.post(
         ...source,
       },
     });
+    const row = assigneeIds.length > 0 ? await setAssignees(prisma, 'requirement', created.id, assigneeIds) : created;
     await audit(pid, {
       action: 'CREATE',
       entityType: 'requirement',
@@ -1260,15 +1237,14 @@ app.post(
         ? `Yeni gereksinim: "${row.title}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
         : `Yeni gereksinim: "${row.title}" (${row.type}).`,
     });
-    await auditAssignment(pid, {
-      entityType: 'requirement',
+    await logAssignment(pid, {
+      entity: 'requirement',
       row,
-      beforeId: null,
-      afterId: row.assigneeId,
+      before: [],
+      after: assigneeIds,
       actor: actorOf(req),
-      label: 'Gereksinim',
     });
-    res.status(201).json(flatten(row));
+    res.status(201).json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1304,7 +1280,7 @@ app.get(
     const row = await prisma.requirement.findUnique({ where: { id: req.params.id } });
     if (!row || row.projectId !== pid) throw bad('Gereksinim bulunamadi.', 404);
     assertRequirementVisible(req, row);
-    res.json(flatten(row));
+    res.json(withAssigneeIds(flatten(row), await getAssigneeIds(prisma, 'requirement', row.id)));
   }),
 );
 
@@ -1331,8 +1307,8 @@ app.put(
     // Atama: alan gonderilmediyse dokunulmaz; bos gonderilirse kaldirilir.
     // Icerik degisimi SAYILMAZ (history/suspect tetiklemez) — sorumlunun
     // degismesi gereksinimin METNINI degistirmez.
-    const nextAssigneeId = await resolveAssigneeId(pid, b.assigneeId);
-    if (nextAssigneeId !== undefined) data.assigneeId = nextAssigneeId;
+    const nextAssigneeIds = await assigneeIdsFrom(b, pid);
+    const prevAssigneeIds = await getAssigneeIds(prisma, 'requirement', before.id);
     // Issue #57: yalnizca ICERIK alanlari (title/description/field + attributes
     // icindeki priority/dal_level) degistiginde history + suspect tetiklenir.
     // Status/approvalStatus/locked/updatedAt otomatik cascade tarafindan
@@ -1342,7 +1318,10 @@ app.put(
     // Kopyalama + UPDATE + AuditLog tek $transaction (issue: kim neyi degistirdi
     // tek yerden; eski versiyon her zaman onceki durumu saklar).
     const row = await prisma.$transaction(async (tx) => {
-      const updated = await tx.requirement.update({ where: { id: req.params.id }, data });
+      let updated = await tx.requirement.update({ where: { id: req.params.id }, data });
+      if (nextAssigneeIds !== undefined) {
+        updated = await setAssignees(tx, 'requirement', updated.id, nextAssigneeIds);
+      }
       const auditRow = await tx.auditLog.create({
         data: {
           projectId: pid,
@@ -1387,15 +1366,15 @@ app.put(
       }
       return updated;
     });
-    await auditAssignment(pid, {
-      entityType: 'requirement',
+    const assigneeIds = nextAssigneeIds ?? prevAssigneeIds;
+    await logAssignment(pid, {
+      entity: 'requirement',
       row,
-      beforeId: before.assigneeId,
-      afterId: row.assigneeId,
+      before: prevAssigneeIds,
+      after: assigneeIds,
       actor,
-      label: 'Gereksinim',
     });
-    res.json(flatten(row));
+    res.json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1543,7 +1522,7 @@ app.get(
     const where = { projectId: req.params.pid };
     if (req.query.type) where.type = req.query.type;
     const rows = await prisma.testCase.findMany({ where, orderBy: { text_id: 'asc' } });
-    res.json(flattenAll(rows));
+    res.json(await withAssigneeIdsAll(prisma, 'testcase', flattenAll(rows)));
   }),
 );
 
@@ -1569,8 +1548,8 @@ app.post(
       {},
       { isCreate: false },
     );
-    const assigneeId = (await resolveAssigneeId(pid, b.assigneeId)) ?? null;
-    const row = await prisma.testCase.create({
+    const assigneeIds = (await assigneeIdsFrom(b, pid)) ?? [];
+    const created = await prisma.testCase.create({
       data: {
         projectId: pid,
         text_id,
@@ -1579,11 +1558,11 @@ app.post(
         type: b.type,
         field: b.field || null,
         attributes,
-        assigneeId,
         status: STATUS.IN_REVIEW,
         author: b.author || 'ehsim.user',
       },
     });
+    const row = assigneeIds.length > 0 ? await setAssignees(prisma, 'testcase', created.id, assigneeIds) : created;
     await audit(pid, {
       action: 'CREATE',
       entityType: 'testcase',
@@ -1591,15 +1570,14 @@ app.post(
       textId: row.text_id,
       message: `Yeni test senaryosu: "${row.title}" (${row.type}).`,
     });
-    await auditAssignment(pid, {
-      entityType: 'testcase',
+    await logAssignment(pid, {
+      entity: 'testcase',
       row,
-      beforeId: null,
-      afterId: row.assigneeId,
+      before: [],
+      after: assigneeIds,
       actor: actorOf(req),
-      label: 'Test',
     });
-    res.status(201).json(flatten(row));
+    res.status(201).json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -1626,11 +1604,14 @@ app.put(
       );
     }
     // Atama: alan gonderilmediyse dokunulmaz, bos gonderilirse kaldirilir.
-    const nextAssigneeId = await resolveAssigneeId(pid, b.assigneeId);
-    if (nextAssigneeId !== undefined) data.assigneeId = nextAssigneeId;
+    const nextAssigneeIds = await assigneeIdsFrom(b, pid);
+    const prevAssigneeIds = await getAssigneeIds(prisma, 'testcase', before.id);
     // Test SONUCU (status) bu route'tan ARTIK degistirilemez — yalnizca
     // onay/red aksiyonlarindan turetilir (bkz. recomputeApproval, /approvals/reject).
-    const row = await prisma.testCase.update({ where: { id: req.params.id }, data });
+    let row = await prisma.testCase.update({ where: { id: req.params.id }, data });
+    if (nextAssigneeIds !== undefined) {
+      row = await setAssignees(prisma, 'testcase', row.id, nextAssigneeIds);
+    }
     await audit(pid, {
       action: 'UPDATE',
       entityType: 'testcase',
@@ -1638,15 +1619,15 @@ app.put(
       textId: row.text_id,
       message: `Test guncellendi: "${row.title}".`,
     });
-    await auditAssignment(pid, {
-      entityType: 'testcase',
+    const assigneeIds = nextAssigneeIds ?? prevAssigneeIds;
+    await logAssignment(pid, {
+      entity: 'testcase',
       row,
-      beforeId: before.assigneeId,
-      afterId: row.assigneeId,
+      before: prevAssigneeIds,
+      after: assigneeIds,
       actor: actorOf(req),
-      label: 'Test',
     });
-    res.json(flatten(row));
+    res.json(withAssigneeIds(flatten(row), assigneeIds));
   }),
 );
 
@@ -2268,6 +2249,9 @@ app.delete(
     if (!before || before.projectId !== pid) throw bad('Personel bulunamadi.', 404);
     const reason = requireReason(req);
     await prisma.personnel.delete({ where: { id: req.params.id } });
+    // Coklu atamada silinen kisi ILK sorumluysa legacy `assigneeId` kolonu
+    // SetNull ile bosalir; siradaki sorumlu otomatik yerine gecsin.
+    await resyncLegacyAssignee(prisma, pid);
     await audit(pid, {
       action: 'PERSONNEL_DELETE',
       entityType: 'personnel',
@@ -2485,6 +2469,15 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`[api] EHSIM RMT backend calisiyor -> http://localhost:${PORT}/api`);
   });
+  // Coklu atamaya gecis: eski tek atamalari (assigneeId) ara tabloya tasi.
+  // Idempotenttir; zaten tasinmis kayitlara dokunmaz.
+  backfillAssignees(prisma)
+    .then(({ requirements, testCases }) => {
+      if (requirements + testCases > 0) {
+        console.log(`[api] Atama gecisi: ${requirements} gereksinim, ${testCases} test tasindi.`);
+      }
+    })
+    .catch((e) => console.error('[api] Atama gecisi basarisiz:', e?.message || e));
 }
 //reqIF Integration
 app.post(

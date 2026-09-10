@@ -3,8 +3,9 @@
 //  oldugu gereksinimler ve test senaryolari.
 //
 //  Sozlukteki "Assigned To" izlenebilirlik BAGI (terim <-> gereksinim) ile
-//  ilgisi YOKTUR; burada listelenen, Requirement/TestCase.assigneeId ile
-//  dogrudan bu kisiye verilmis islerdir.
+//  ilgisi YOKTUR; burada listelenen, dogrudan bu kisiye verilmis islerdir.
+//  Atama COKLUDUR: bir kayitta birden fazla sorumlu olabilir, kisi
+//  atananlardan biriyse kayit onun kuyrugunda da gorunur.
 //
 //  RBAC: atama, kaydi PM'in acikca bu kisiye VERMESIDIR; bu yuzden liste
 //  ayri bir izne baglanmaz — kisi kendi is kuyrugunu daima gorur. Satirdaki
@@ -24,6 +25,7 @@ import { useLang } from '../context/LanguageContext.jsx'
 import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import { componentKeyOf } from '../utils/permissions.js'
+import { isAssignedTo } from '../utils/assignees.js'
 import { LINK_TYPE } from '../utils/constants.js'
 
 export default function MyAssignments() {
@@ -37,12 +39,13 @@ export default function MyAssignments() {
   const myId = currentUser?.personnelId || null
 
   const byTextId = (a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })
+  // Coklu atama: kayitta atananlardan BIRI bu kisiyse is kuyruguna girer.
   const myRequirements = useMemo(
-    () => (myId ? requirements.filter((r) => r.assigneeId === myId).sort(byTextId) : []),
+    () => (myId ? requirements.filter((r) => isAssignedTo(r, myId)).sort(byTextId) : []),
     [requirements, myId],
   )
   const myTests = useMemo(
-    () => (myId ? testCases.filter((tc) => tc.assigneeId === myId).sort(byTextId) : []),
+    () => (myId ? testCases.filter((tc) => isAssignedTo(tc, myId)).sort(byTextId) : []),
     [testCases, myId],
   )
 

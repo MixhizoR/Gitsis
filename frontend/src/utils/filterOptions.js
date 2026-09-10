@@ -7,14 +7,20 @@ import { STATUSES } from './constants.js'
 import { UNVERIFIABLE } from '../hooks/useEntityFilters.js'
 
 /**
- * Filtrelenebilir modular oznitelikler: yalnizca SELECT tipindekiler — serbest
- * metin/sayi/tarih alanlari icin sabit bir secenek listesi cikarilamaz.
+ * Filtrelenebilir modular oznitelikler: varliga uyan TUM tanimlar.
+ *
+ * Eskiden yalnizca 'select' tipindekiler donuyordu; bu yuzden projeye
+ * eklenen bir metin/sayi/tarih ozniteligi (orn. "Risk Skoru") filtre
+ * menusunde HIC gorunmuyordu. Artik her tip icin uygun girdi uretilir
+ * (bkz. FilterBar attrControl + useEntityFilters attrMatches). Seceneksiz
+ * bir 'select' tanimi ise disarida kalir — secilecek bir sey yoktur.
+ *
  * Siralama EntityTable sutun sirasiyla ayni olsun diye `order` ile yapilir.
  */
-export function selectAttrDefs(attributeDefs, entityType) {
+export function filterableAttrDefs(attributeDefs, entityType) {
   return (attributeDefs || [])
     .filter((d) => d.entityType === entityType || d.entityType === 'both')
-    .filter((d) => d.dataType === 'select' && (d.options || []).length > 0)
+    .filter((d) => d.dataType !== 'select' || (d.options || []).length > 0)
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }

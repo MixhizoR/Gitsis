@@ -225,3 +225,149 @@ test('GET /personnel — personel oturumu passcode GORMEZ, PM gorur', async () =
     'PM unutulan kodu kurtarabilmeli',
   );
 });
+
+// ===========================================================================
+//  COKLU ATAMA (bir kayda birden fazla sorumlu)
+//  Tek dogruluk kaynagi RequirementAssignee/TestCaseAssignee ara tablolaridir;
+//  `assigneeId` kolonu daima listenin ILK elemanina esitlenir (eski istemci
+//  uyumlulugu — bkz. src/assignees.js).
+// ===========================================================================
+
+test('POST /requirements — assigneeIds ile birden fazla kisi atanir, SIRA korunur', async () => {
+  const res = await newRequirement({ assigneeIds: [personA2.id, personA.id] });
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.assigneeIds, [personA2.id, personA.id]);
+  // Legacy kolon listenin ILK elemani.
+  assert.equal(res.body.assigneeId, personA2.id);
+
+  const audits = await assignAudits(projA.id, res.body.id);
+  assert.equal(audits.length, 1);
+  assert.match(audits[0].message, /Mehmet Kaya/);
+  assert.match(audits[0].message, /Ayse Demir/);
+});
+
+test('POST /requirements — tekrar eden id ayiklanir', async () => {
+  const res = await newRequirement({ assigneeIds: [personA.id, personA.id, personA2.id] });
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.assigneeIds, [personA.id, personA2.id]);
+});
+
+test('POST /requirements — listedeki TEK bir gecersiz id tum atamayi reddeder', async () => {
+  const res = await newRequirement({ assigneeIds: [personA.id, personB.id] });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /Gecersiz atama/);
+});
+
+test('PUT /requirements/:id — atanan kisi eklenip cikarilabilir', async () => {
+  const created = await newRequirement({ assigneeIds: [personA.id] });
+
+  const added = await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    assigneeIds: [personA.id, personA2.id],
+  });
+  assert.equal(added.status, 200);
+  assert.deepEqual(added.body.assigneeIds, [personA.id, personA2.id]);
+  assert.equal(added.body.assigneeId, personA.id);
+
+  const removed = await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    assigneeIds: [],
+  });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(removed.body.assigneeIds, []);
+  assert.equal(removed.body.assigneeId, null);
+
+  const audits = await assignAudits(projA.id, created.body.id);
+  assert.equal(audits.length, 3); // olusturma + ekleme + kaldirma
+  assert.match(audits[2].message, /kaldirildi/);
+});
+
+test('PUT /requirements/:id — yalnizca SIRA degisse bile ASSIGN kaydi yazilir', async () => {
+  const created = await newRequirement({ assigneeIds: [personA.id, personA2.id] });
+  const res = await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    assigneeIds: [personA2.id, personA.id],
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.assigneeIds, [personA2.id, personA.id]);
+  assert.equal((await assignAudits(projA.id, created.body.id)).length, 2);
+});
+
+test('PUT /requirements/:id — ayni liste yeniden gonderilirse ASSIGN kaydi URETMEZ', async () => {
+  const created = await newRequirement({ assigneeIds: [personA.id, personA2.id] });
+  await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    assigneeIds: [personA.id, personA2.id],
+  });
+  assert.equal((await assignAudits(projA.id, created.body.id)).length, 1);
+});
+
+test('PUT /requirements/:id — assigneeIds gonderilmezse coklu atama KORUNUR', async () => {
+  const created = await newRequirement({ assigneeIds: [personA.id, personA2.id] });
+  const res = await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    title: 'Yalnizca baslik degisti',
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.assigneeIds, [personA.id, personA2.id]);
+});
+
+test('GET /requirements — liste yaniti assigneeIds tasir', async () => {
+  const created = await newRequirement({ assigneeIds: [personA.id, personA2.id] });
+  const list = await auth(request(app).get(`/api/projects/${projA.id}/requirements`));
+  assert.equal(list.status, 200);
+  const row = list.body.find((r) => r.id === created.body.id);
+  assert.deepEqual(row.assigneeIds, [personA.id, personA2.id]);
+  // Atamasi olmayan kayitlar bos dizi doner (undefined degil).
+  const none = await newRequirement();
+  const list2 = await auth(request(app).get(`/api/projects/${projA.id}/requirements`));
+  assert.deepEqual(list2.body.find((r) => r.id === none.body.id).assigneeIds, []);
+});
+
+test('GET /requirements/:id — tekil yanit da assigneeIds tasir', async () => {
+  const created = await newRequirement({ assigneeIds: [personA2.id, personA.id] });
+  const one = await auth(request(app).get(`/api/projects/${projA.id}/requirements/${created.body.id}`));
+  assert.equal(one.status, 200);
+  assert.deepEqual(one.body.assigneeIds, [personA2.id, personA.id]);
+});
+
+test('Eski istemci: tek assigneeId gonderimi tek elemanli listeye donusur', async () => {
+  const created = await newRequirement({ assigneeId: personA.id });
+  assert.deepEqual(created.body.assigneeIds, [personA.id]);
+
+  const cleared = await auth(request(app).put(`/api/projects/${projA.id}/requirements/${created.body.id}`)).send({
+    assigneeId: '',
+  });
+  assert.deepEqual(cleared.body.assigneeIds, []);
+});
+
+test('POST/PUT /testcases — coklu atama ayni kurallarla calisir', async () => {
+  const created = await auth(request(app).post(`/api/projects/${projA.id}/testcases`)).send({
+    title: 'Coklu atanacak test',
+    type: 'System Test',
+    assigneeIds: [personA.id, personA2.id],
+  });
+  assert.equal(created.status, 201);
+  assert.deepEqual(created.body.assigneeIds, [personA.id, personA2.id]);
+  assert.equal(created.body.assigneeId, personA.id);
+
+  const rejected = await auth(request(app).put(`/api/projects/${projA.id}/testcases/${created.body.id}`)).send({
+    assigneeIds: [personA.id, personB.id],
+  });
+  assert.equal(rejected.status, 400);
+
+  const list = await auth(request(app).get(`/api/projects/${projA.id}/testcases`));
+  assert.deepEqual(list.body.find((r) => r.id === created.body.id).assigneeIds, [personA.id, personA2.id]);
+});
+
+test('Coklu atamada ILK kisi silinince siradaki sorumlu yerine gecer', async () => {
+  const victim = await createPersonnel(projA.id, 'Ayrilan', 'Sorumlu', 'ASG10');
+  const created = await newRequirement({ assigneeIds: [victim.id, personA.id] });
+  assert.equal(created.body.assigneeId, victim.id);
+
+  await auth(request(app).delete(`/api/projects/${projA.id}/personnel/${victim.id}`)).send({
+    reason: 'Projeden ayrildi',
+  });
+
+  const after = await auth(request(app).get(`/api/projects/${projA.id}/requirements/${created.body.id}`));
+  assert.equal(after.status, 200);
+  assert.deepEqual(after.body.assigneeIds, [personA.id], 'kalan sorumlu listede durmali');
+  // Legacy kolon da tazelenir (SetNull ile bosaldigi yerde birakilmaz).
+  const raw = await prisma.requirement.findUnique({ where: { id: created.body.id } });
+  assert.equal(raw.assigneeId, personA.id);
+});

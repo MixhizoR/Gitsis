@@ -52,7 +52,7 @@ import {
 import { REQ_PAGES, REQ_TYPE, LINK_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
 import {
-  selectAttrDefs,
+  filterableAttrDefs,
   requirementStatusOptions,
   requirementStatusOf,
 } from '../utils/filterOptions.js'
@@ -150,7 +150,7 @@ export default function PbsTree() {
   //  kardesleri gizlendigi icin yaniltici olurdu.
   const filtersActive = fx.activeCount > 0
   const filterAttrDefs = useMemo(
-    () => selectAttrDefs(attributeDefs, 'requirement'),
+    () => filterableAttrDefs(attributeDefs, 'requirement'),
     [attributeDefs],
   )
   const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
@@ -160,11 +160,11 @@ export default function PbsTree() {
     const statusOf = (r) => requirementStatusOf(r, verifiedFor)
     return requirements
       .filter((r) => !pendingSet.has(r.id))
-      .filter((r) => matchesFilters(r, fx.filters, statusOf))
+      .filter((r) => matchesFilters(r, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
     // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersActive, tree.flatRows, requirements, fx.filters, pendingSet, links])
+  }, [filtersActive, tree.flatRows, requirements, fx.filters, pendingSet, links, filterAttrDefs])
 
   // Gereksinimler baska bir yerden degistiginde (form kaydi, onay oylamasi,
   // toplu islem...) agac satirlari bayat kalmasin: AppContext'teki listenin
@@ -380,7 +380,10 @@ export default function PbsTree() {
       ) : (
         <EntityTable
           rows={rows}
-          columns={['type', 'field', 'status', 'assignee', 'links']}
+          // ATANAN KISI sutunu yoktur: atama coklu oldugu icin satiri
+          // sisirirdi; atananlar goz (Read) ikonuyla acilan ViewModal'da
+          // sirayla gorunur.
+          columns={['type', 'field', 'status', 'links']}
           // Modular oznitelikler (Priority / DAL Level / proje ozel alanlar)
           // gereksinim sayfalariyla AYNI sekilde dinamik sutun olarak gelir.
           attributeEntityType="requirement"

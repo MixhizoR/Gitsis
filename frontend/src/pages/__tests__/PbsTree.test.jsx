@@ -100,6 +100,9 @@ const node = (over = {}) => ({
   ...over,
 })
 
+// Filtre menusunu acar — cubukta yalnizca arama ve tek buton durur.
+const openFilters = () => fireEvent.click(screen.getByTestId('filter-toggle'))
+
 const renderPage = () =>
   render(
     <LanguageProvider>
@@ -423,6 +426,7 @@ describe('PbsTree — filtre cubugu', () => {
     expect(screen.queryByText('EH-KAHVE-TİD-SW-007')).not.toBeInTheDocument()
     const callsBefore = listTreeChildrenMock.mock.calls.length
 
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-type'), {
       target: { value: 'Software Requirement' },
     })
@@ -438,6 +442,7 @@ describe('PbsTree — filtre cubugu', () => {
     expect(screen.getByRole('columnheader', { name: /Bölüm/i })).toBeInTheDocument()
     expect(screen.queryByTestId('pbs-flat-notice')).not.toBeInTheDocument()
 
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-field'), {
       target: { value: 'Yazilim / Kontrol' },
     })
@@ -468,6 +473,7 @@ describe('PbsTree — filtre cubugu', () => {
     await screen.findByText('EH-KAHVE-TİD-SYS-001')
     const callsAfterExpand = listTreeChildrenMock.mock.calls.length
 
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-search'), { target: { value: 'derin' } })
     expect(screen.queryByText('EH-KAHVE-TİD-SYS-001')).not.toBeInTheDocument()
 
@@ -484,6 +490,7 @@ describe('PbsTree — filtre cubugu', () => {
     renderPage()
     await screen.findByText('EH-KAHVE-TİD-USR-001')
 
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-type'), {
       target: { value: 'Software Requirement' },
     })
@@ -497,6 +504,7 @@ describe('PbsTree — filtre cubugu', () => {
   it('filtreler sayfaya donuldugunde korunur (sessionStorage)', async () => {
     renderPage()
     await screen.findByText('EH-KAHVE-TİD-USR-001')
+    openFilters()
     fireEvent.change(screen.getByTestId('filter-type'), {
       target: { value: 'Software Requirement' },
     })
@@ -504,6 +512,8 @@ describe('PbsTree — filtre cubugu', () => {
 
     cleanup() // baska bir sayfaya gidildi
     renderPage()
+    await screen.findByTestId('filter-toggle')
+    openFilters()
 
     expect(await screen.findByTestId('filter-type')).toHaveValue('Software Requirement')
     expect(screen.getByText('EH-KAHVE-TİD-SW-007')).toBeInTheDocument()

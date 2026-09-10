@@ -115,6 +115,12 @@ export const IconSearch = (p) => (
   </Svg>
 )
 
+export const IconFilter = (p) => (
+  <Svg {...p}>
+    <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />
+  </Svg>
+)
+
 export const IconClose = (p) => (
   <Svg {...p}>
     <line x1="18" y1="6" x2="6" y2="18" />
