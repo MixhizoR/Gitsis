@@ -24,7 +24,7 @@ export function assertUuid(name, value) {
  * parentId=null ise kok dugumleri (User Requirement'lar) dondurur.
  * @param {string} projectId
  * @param {string|null} parentId
- * @returns {Promise<Array<{id, text_id, title, type, status, attributes, hasChildren}>>}
+ * @returns {Promise<Array<{id, text_id, title, type, status, attributes, assigneeIds, hasChildren}>>}
  */
 export async function getTreeChildren(projectId, parentId) {
   assertUuid('projectId', projectId);
@@ -39,7 +39,11 @@ export async function getTreeChildren(projectId, parentId) {
     parentId === null
       ? await prisma.$queryRaw`
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId",
-                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote",
+                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote", r."assigneeId",
+                 COALESCE((
+                   SELECT array_agg(ra."personnelId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
+                   FROM "RequirementAssignee" ra WHERE ra."requirementId" = r.id
+                 ), ARRAY[]::text[]) AS "assigneeIds",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id
@@ -50,7 +54,11 @@ export async function getTreeChildren(projectId, parentId) {
         `
       : await prisma.$queryRaw`
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId",
-                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote",
+                 r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote", r."assigneeId",
+                 COALESCE((
+                   SELECT array_agg(ra."personnelId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
+                   FROM "RequirementAssignee" ra WHERE ra."requirementId" = r.id
+                 ), ARRAY[]::text[]) AS "assigneeIds",
                  EXISTS (
                    SELECT 1 FROM "Requirement" gc
                    WHERE gc."projectId" = ${projectId}::text AND gc."parentId" = r.id

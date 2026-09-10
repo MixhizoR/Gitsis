@@ -121,6 +121,19 @@ describe('MyAssignments — Bana Atananlar', () => {
     expect(screen.getAllByText('Size atanmış kayıt yok.')).toHaveLength(2)
   })
 
+  it('COKLU atamada atananlardan biri olmak yeter', () => {
+    appMock.requirements = [
+      // p1 ikinci sirada; yine de kendi kuyrugunda gorunmeli.
+      req({ id: 'r-1', text_id: 'EH-USR-001', assigneeIds: ['p2', 'p1'] }),
+      req({ id: 'r-2', text_id: 'EH-USR-002', assigneeIds: ['p2', 'p3'] }),
+    ]
+    appMock.testCases = []
+    renderPage()
+    expect(screen.getByText('EH-USR-001')).toBeInTheDocument()
+    expect(screen.queryByText('EH-USR-002')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mywork-total')).toHaveTextContent('1')
+  })
+
   it('atamalar degisince liste guncellenir', () => {
     appMock.requirements = [req({ id: 'r-9', text_id: 'EH-USR-009', assigneeId: 'p1' })]
     appMock.testCases = []

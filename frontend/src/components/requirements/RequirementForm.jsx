@@ -19,7 +19,8 @@ import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { TypeBadge } from '../common/Badge.jsx'
 import { IconPlus } from '../common/Icons.jsx'
-import { personnelName } from '../../utils/format.js'
+import AssigneePicker from '../common/AssigneePicker.jsx'
+import { assigneeIdsOf } from '../../utils/assignees.js'
 import DynamicAttributeFields, {
   defaultAttributeValues,
 } from '../common/DynamicAttributeFields.jsx'
@@ -48,7 +49,8 @@ export default function RequirementForm({
     description: '',
     type: lockedType,
     field: '',
-    assigneeId: '',
+    // Coklu atama: sirali personel id listesi (ilk eleman birincil sorumlu).
+    assigneeIds: [],
     relatedDocuments: '',
   }
 
@@ -67,7 +69,7 @@ export default function RequirementForm({
         description: editing.description || '',
         type: editing.type,
         field: editing.field || '',
-        assigneeId: editing.assigneeId || '',
+        assigneeIds: assigneeIdsOf(editing),
         relatedDocuments: (editing.relatedDocuments || []).join(', '),
       })
       setCustomAttrs(editing.attributes || {})
@@ -103,8 +105,8 @@ export default function RequirementForm({
         description: form.description,
         type: form.type,
         field: form.field || null,
-        // Bos dize = atamayi kaldir (backend bunu null'a cevirir).
-        assigneeId: form.assigneeId,
+        // Bos liste = tum atamalari kaldir (bkz. backend/src/assignees.js).
+        assigneeIds: form.assigneeIds,
         attributes: customAttrs,
         relatedDocuments: form.relatedDocuments
           .split(',')
@@ -261,23 +263,16 @@ export default function RequirementForm({
             </select>
           </div>
 
-          {/* Sorumlu personel. Sozlukteki "Assigned To" BAGI ile karistirilmamali:
-              bu alan isin kimde oldugunu tutar. */}
+          {/* Sorumlu personel(ler). Sozlukteki "Assigned To" BAGI ile
+              karistirilmamali: bu alan isin kimde oldugunu tutar. Bir
+              gereksinime BIRDEN FAZLA kisi atanabilir; sira anlamlidir. */}
           <div>
             <label className="label">{t('form.assignee')}</label>
-            <select
-              className="input"
-              value={form.assigneeId}
-              onChange={set('assigneeId')}
-              data-testid="form-assignee"
-            >
-              <option value="">{t('form.assigneeNone')}</option>
-              {personnel.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {personnelName(p)}
-                </option>
-              ))}
-            </select>
+            <AssigneePicker
+              personnel={personnel}
+              value={form.assigneeIds}
+              onChange={(ids) => setForm((f) => ({ ...f, assigneeIds: ids }))}
+            />
           </div>
         </div>
 
