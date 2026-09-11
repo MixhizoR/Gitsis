@@ -30,6 +30,7 @@ import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES, LINK_TYPE } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
+import { getDisplayLabel } from '../utils/format.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
@@ -156,7 +157,7 @@ export default function Hierarchy({
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
   const handleDelete = (r) => {
-    setDeleteTarget({ ids: [r.id], label: `${r.text_id} — ${r.title}` })
+    setDeleteTarget({ ids: [r.id], label: `${r.text_id} — ${getDisplayLabel(r).text}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return

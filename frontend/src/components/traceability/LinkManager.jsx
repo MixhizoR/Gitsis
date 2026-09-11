@@ -42,6 +42,7 @@ import {
 } from '../../utils/constants.js'
 import { IconLink, IconUnlink, IconPlus } from '../common/Icons.jsx'
 import { TypeBadge, StatusBadge } from '../common/Badge.jsx'
+import { getDisplayLabel } from '../../utils/format.js'
 
 // Bir tipin SATISFIES_ALLOWED_PARENTS'ta HANGI cocuk tiplerine ust
 // olabildigi (ters bakis) — "asagi baslatma" (bunu karsilayan alt
@@ -271,8 +272,8 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
   if (!subject) return null
 
   const subjectLabel = subject.text_id
-    ? `${subject.text_id} · ${subject.title || subject.term}`
-    : subject.term || subject.title
+    ? `${subject.text_id} · ${getDisplayLabel(subject).text}`
+    : getDisplayLabel(subject).text
 
   // Bir secenegin tip agacini + o anki (top/sub) secimini TEK gecerli hedef
   // TIPINE cozer. Tek yaprak/tek grup varsa kullaniciya sorulmadan otomatik
@@ -408,7 +409,7 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
                     <option value="">{t('link.select')}</option>
                     {targetCandidates.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.text_id} — {r.title}
+                        {r.text_id} — {getDisplayLabel(r).text}
                       </option>
                     ))}
                   </select>
@@ -453,7 +454,7 @@ export default function LinkManager({ open, onClose, subject, subjectKind }) {
                           {node.text_id}
                         </span>
                         <span className="truncate text-sm text-slate-700 dark:text-slate-200">
-                          {node.title || node.term}
+                          {getDisplayLabel(node).text}
                         </span>
                         {node.type && <TypeBadge value={node.type} />}
                         {sec.showStatus && node.status && <StatusBadge value={node.status} />}

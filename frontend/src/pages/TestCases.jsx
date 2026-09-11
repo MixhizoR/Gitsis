@@ -29,6 +29,7 @@ import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
 import { suspectLinksForTestCase } from '../utils/suspect.js'
+import { getDisplayLabel } from '../utils/format.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
@@ -153,7 +154,7 @@ export default function TestCases({
   const saveDescription = (r, html) => editTestCase(r.id, { description: html })
 
   const handleDelete = (tc) => {
-    setDeleteTarget({ ids: [tc.id], label: `${tc.text_id} — ${tc.title}` })
+    setDeleteTarget({ ids: [tc.id], label: `${tc.text_id} — ${getDisplayLabel(tc).text}` })
   }
   const handleBulkDelete = () => {
     if (sel.count === 0) return

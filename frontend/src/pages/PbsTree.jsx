@@ -27,6 +27,7 @@ import {
   setCodePrefix,
 } from '../services/dataService.js'
 import { componentKeyOf } from '../utils/permissions.js'
+import { getDisplayLabel } from '../utils/format.js'
 import { SATISFIES_PARENT_OF } from '../utils/constants.js'
 import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
@@ -195,7 +196,8 @@ export default function PbsTree() {
     await refresh() // duz listeler + Dashboard sayilari
   }
 
-  const handleDelete = (r) => setDeleteTarget({ id: r.id, label: `${r.text_id} — ${r.title}` })
+  const handleDelete = (r) =>
+    setDeleteTarget({ id: r.id, label: `${r.text_id} — ${getDisplayLabel(r).text}` })
   const confirmDelete = async (reason) => {
     await del.schedule([deleteTarget.id], reason)
     setDeleteTarget(null)

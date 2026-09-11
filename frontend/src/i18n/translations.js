@@ -556,7 +556,6 @@ export const STRINGS = {
     'doc.th.actions': 'İşlem',
 
     // --- Gereksinim formu ---
-    'form.titleRequired': 'Başlık zorunludur.',
     'form.codeRequired': 'Kod (text_id) zorunludur.',
     'form.saveError': 'Kayıt sırasında hata oluştu.',
     'form.editTitle': 'Gereksinimi Düzenle',
@@ -567,8 +566,8 @@ export const STRINGS = {
     'form.saveChanges': 'Değişiklikleri Kaydet',
     'form.create': 'Gereksinim Oluştur',
     'form.code': 'Kod (text_id)',
-    'form.titleLabel': 'Başlık',
-    'form.titlePh': 'Kısa başlık',
+    'form.titleLabel': 'Başlık (opsiyonel)',
+    'form.titlePh': 'Kısa başlık — boş bırakılırsa tanım gösterilir',
     'form.desc': 'Tanım (Description)',
     'form.descPh': 'Örn: Sistem otopilot modundayken 50 ms içinde tepki vermelidir.',
     'form.aiTitle': 'DO-178C uyumluluk analizi yap (yerel AI — internet bağlantısı gerektirmez)',
@@ -833,7 +832,7 @@ export const STRINGS = {
     'test.newTitle': 'Yeni Test Senaryosu',
     'test.editTitle': 'Test Senaryosunu Düzenle',
     'test.fill': 'Başlık ve açıklamasını girin',
-    'test.titlePh': 'Kısa test başlığı',
+    'test.titlePh': 'Kısa test başlığı (opsiyonel) — boş bırakılırsa tanım gösterilir',
     'test.descPh': 'Test adımları / beklenen sonuç',
     'test.autoNote': 'Alan, öncelik, DAL ve durum bir gereksinime bağlandığında otomatik atanır.',
     'test.deleteConfirm': '"{id} — {title}" test senaryosu silinecek. Onaylıyor musunuz?',
@@ -1391,7 +1390,6 @@ export const STRINGS = {
     'doc.th.actions': 'Action',
 
     // --- Requirement form ---
-    'form.titleRequired': 'Title is required.',
     'form.codeRequired': 'Code (text_id) is required.',
     'form.saveError': 'An error occurred while saving.',
     'form.editTitle': 'Edit Requirement',
@@ -1402,8 +1400,8 @@ export const STRINGS = {
     'form.saveChanges': 'Save Changes',
     'form.create': 'Create Requirement',
     'form.code': 'Code (text_id)',
-    'form.titleLabel': 'Title',
-    'form.titlePh': 'Short title',
+    'form.titleLabel': 'Title (optional)',
+    'form.titlePh': 'Short title — description is shown if left blank',
     'form.desc': 'Description',
     'form.descPh': 'E.g.: The system shall respond within 50 ms while in autopilot mode.',
     'form.aiTitle': 'Run DO-178C compliance analysis (local AI — no internet required)',
@@ -1666,7 +1664,7 @@ export const STRINGS = {
     'test.newTitle': 'New Test Case',
     'test.editTitle': 'Edit Test Case',
     'test.fill': 'Enter a title and description',
-    'test.titlePh': 'Short test title',
+    'test.titlePh': 'Short test title (optional) — description is shown if left blank',
     'test.descPh': 'Test steps / expected result',
     'test.autoNote':
       'Field, priority, DAL and status are auto-assigned when linked to a requirement.',

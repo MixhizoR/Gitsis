@@ -42,8 +42,9 @@ FastAPI Bridge (ai-bridge:8008) ──► LM Studio + Gemma (:1234)
 │   │   ├── constants.js       # Taxonomy: REQ_TYPE, TEST_TYPE, LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES
 │   │   ├── logic.js           # Hierarchy validation, coverage calc
 │   │   ├── impact.js          # Recursive CTE impact analysis (Issue #46)
-│   │   ├── traceability.js    # Traceability export/import (ReqIF)
-│   │   ├── reqifParser.js     # ReqIF XML parsing
+│   │   ├── traceability.js    # Traceability export/import (Excel + ReqIF/.reqifz/.xml)
+│   │   ├── reqifParser.js     # ReqIF XML -> model (standard + DOORS-style attribute heuristics)
+│   │   ├── zipUtil.js         # Dependency-free ZIP reader (.reqifz support; no npm install in this sandbox)
 │   │   ├── sanitize.js        # HTML sanitization
 │   │   └── seed.js            # Default Drone/IHA demo project (72 reqs, 16 tests)
 │   ├── prisma/schema.prisma   # Database schema

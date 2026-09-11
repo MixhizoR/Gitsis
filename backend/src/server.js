@@ -57,7 +57,7 @@ import {
   ensureMaterialized as ensureNavMaterialized,
 } from './nav.js';
 import { setProjectCodePrefix } from './textIdPrefix.js';
-import { parseReqIF } from './reqifParser.js';
+import { labelOf } from './label.js';
 import {
   listDefs,
   validateAndMergeAttributes,
@@ -97,17 +97,33 @@ app.use(passport.initialize());
 //  karsi auth uclarina ayrica hiz siniri uygulanir. Login/register/passcode
 //  (bilgi dogrulama) 20 istek/15dk; refresh/logout (legit frontend refresh'i
 //  etkilenmesin) ayri ve daha yuksek bir limit kullanir.
+// Test ortaminda TUM test dosyalari AYNI surecte (node --test), dolayisiyla
+// AYNI bellek-ici sayac deposunu paylasarak calisir — supertest'in gercek
+// istemci IP'si (loopback) tum dosyalarda ortaktir. Bu yuzden onlarca test
+// dosyasinin toplam login/passcode cagrisi, tek bir dosyanin kendi testleri
+// tamamlanmadan limiti (20/15dk) tuketebilir; bu bir GUVENLIK acigi DEGIL,
+// paylasilan test surecinin bir yan etkisidir. Ozel olarak izin verilen tek
+// istisna: loopback IP'den gelen istekler test ortaminda sayilmaz. Rate
+// limit davranisinin KENDISINI dogrulayan test (issue85-auth-infra.test.js)
+// bunu ETKILENMEZ — o test kasitli olarak sahte X-Forwarded-For IP'leri
+// (203.0.113.x) kullanir, tam da gercek loopback IP'nin paylasimli oldugunu
+// bildigi icin; skip burada SADECE loopback'i muaf tutar, sahte IP'leri degil.
+const isTestLoopback = (req) =>
+  process.env.NODE_ENV === 'test' && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.ip);
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isTestLoopback,
   message: { error: 'Cok fazla deneme yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
 const refreshLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
+  skip: isTestLoopback,
   legacyHeaders: false,
   message: { error: 'Cok fazla istek yapildi. Lutfen birkac dakika sonra tekrar deneyin.' },
 });
@@ -269,7 +285,7 @@ async function batchDelete(pid, model, ids, entityType, reason, actor) {
       entityType,
       entityId: r.id,
       textId: r.text_id,
-      message: `Toplu silme: "${r.title || r.term}" (${r.text_id}).`,
+      message: `Toplu silme: "${labelOf(r)}" (${r.text_id}).`,
       reason,
       actor,
     });
@@ -1488,7 +1504,7 @@ app.post(
       data: {
         projectId: pid,
         text_id,
-        title: (b.title || 'Adsiz gereksinim').trim(),
+        title: (b.title || '').trim(),
         description: cleanRichText((b.description || '').trim()),
         type: b.type,
         field: b.field || null,
@@ -1508,8 +1524,8 @@ app.post(
       entityId: row.id,
       textId: row.text_id,
       message: source.sourceDocumentId
-        ? `Yeni gereksinim: "${row.title}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
-        : `Yeni gereksinim: "${row.title}" (${row.type}).`,
+        ? `Yeni gereksinim: "${labelOf(row)}" (${row.type}) — kaynak: "${source.sourceDocumentName}".`
+        : `Yeni gereksinim: "${labelOf(row)}" (${row.type}).`,
     });
     await logAssignment(pid, {
       entity: 'requirement',
@@ -1604,7 +1620,7 @@ app.put(
           entityId: updated.id,
           textId: updated.text_id,
           actor,
-          message: `Gereksinim guncellendi: "${updated.title}".`,
+          message: `Gereksinim guncellendi: "${labelOf(updated)}".`,
         },
       });
       if (contentChanged) {
@@ -1704,7 +1720,7 @@ app.post(
       entityId: before.id,
       textId: before.text_id,
       actor: actorOf(req),
-      message: `Supheli baglar temizlendi (${r.count}): "${before.title}".`,
+      message: `Supheli baglar temizlendi (${r.count}): "${labelOf(before)}".`,
     });
     res.json({ ok: true, cleared: r.count });
   }),
@@ -1728,7 +1744,7 @@ app.delete(
       entityType: 'requirement',
       entityId: req.params.id,
       textId: before.text_id,
-      message: `Gereksinim silindi: "${before.title}".`,
+      message: `Gereksinim silindi: "${labelOf(before)}".`,
       reason,
       actor: actorOf(req),
     });
@@ -1839,7 +1855,7 @@ app.post(
       data: {
         projectId: pid,
         text_id,
-        title: (b.title || 'Adsiz test').trim(),
+        title: (b.title || '').trim(),
         description: cleanRichText((b.description || '').trim()),
         type: b.type,
         field: b.field || null,
@@ -1854,7 +1870,7 @@ app.post(
       entityType: 'testcase',
       entityId: row.id,
       textId: row.text_id,
-      message: `Yeni test senaryosu: "${row.title}" (${row.type}).`,
+      message: `Yeni test senaryosu: "${labelOf(row)}" (${row.type}).`,
     });
     await logAssignment(pid, {
       entity: 'testcase',
@@ -1903,7 +1919,7 @@ app.put(
       entityType: 'testcase',
       entityId: row.id,
       textId: row.text_id,
-      message: `Test guncellendi: "${row.title}".`,
+      message: `Test guncellendi: "${labelOf(row)}".`,
     });
     const assigneeIds = nextAssigneeIds ?? prevAssigneeIds;
     await logAssignment(pid, {
@@ -1934,7 +1950,7 @@ app.delete(
       entityType: 'testcase',
       entityId: req.params.id,
       textId: before.text_id,
-      message: `Test silindi: "${before.title}".`,
+      message: `Test silindi: "${labelOf(before)}".`,
       reason,
       actor: actorOf(req),
     });
@@ -2526,7 +2542,7 @@ app.post(
       entityId,
       textId: entity.text_id,
       actor: actorOf(req),
-      message: `Test reddedildi (Failed): "${entity.title}".`,
+      message: `Test reddedildi (Failed): "${labelOf(entity)}".`,
     });
     // Bagli gereksinim(ler)in dogrulama durumu 'Rejected'e donsun.
     await cascade(pid);
@@ -2639,74 +2655,10 @@ if (process.env.NODE_ENV !== 'test') {
     })
     .catch((e) => console.error('[api] Atama gecisi basarisiz:', e?.message || e));
 }
-//reqIF Integration
-app.post(
-  '/api/projects/:pid/import/reqif',
-  wrap(async (req, res) => {
-    const pid = req.params.pid;
-    const { xmlContent } = req.body || {};
-
-    if (!xmlContent || typeof xmlContent !== 'string') {
-      throw bad('Geçersiz veya boş XML içeriği.');
-    }
-
-    const { requirements, relations } = parseReqIF(xmlContent);
-
-    const result = await prisma.$transaction(async (tx) => {
-      const externalToDbIdMap = new Map();
-
-      // 1. Gereksinimleri Ekle
-      for (const reqItem of requirements) {
-        const text_id = await nextTextId(pid, 'User Requirement', false);
-        const created = await tx.requirement.create({
-          data: {
-            projectId: pid,
-            text_id,
-            title: (reqItem.title || 'Adsız Gereksinim').trim(),
-            description: cleanRichText((reqItem.description || '').trim()),
-            type: 'User Requirement',
-            attributes: { priority: 'Medium' },
-            status: STATUS.IN_REVIEW,
-            author: 'reqif.import',
-          },
-        });
-        externalToDbIdMap.set(reqItem.externalId, created.id);
-      }
-
-      // 2. İzlenebilirlik Bağlarını Ekle
-      let createdLinksCount = 0;
-      for (const rel of relations) {
-        const sourceDbId = externalToDbIdMap.get(rel.sourceExternalId);
-        const targetDbId = externalToDbIdMap.get(rel.targetExternalId);
-
-        if (sourceDbId && targetDbId) {
-          await tx.traceabilityLink.create({
-            data: {
-              projectId: pid,
-              fromId: sourceDbId,
-              toId: targetDbId,
-              type: rel.type || 'Satisfies',
-              createdBy: 'reqif.import',
-            },
-          });
-          createdLinksCount++;
-        }
-      }
-
-      return {
-        importedRequirements: requirements.length,
-        importedLinks: createdLinksCount,
-      };
-    });
-
-    await cascade(pid);
-
-    res.status(200).json({
-      success: true,
-      message: 'ReqIF başarıyla içe aktarıldı.',
-      stats: result,
-    });
-  }),
-);
+// NOT: ReqIF/.reqifz/.xml ice aktarma ucu burada DEGIL, traceability.js'de
+// ('/api/projects/:pid/traceability/import/reqif') — frontend'in fiilen
+// cagirdigi tek yer orasi. Bu route eskiden burada da tekrarlanmis
+// (kopya/olu kod) haldeydi; kafakarisikligi ve mantik sapmasini onlemek
+// icin kaldirildi.
 
 export default app;

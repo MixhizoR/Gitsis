@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { suspectLinksForRequirement, suspectLinksForTestCase } from '../utils/suspect.js'
 import { componentKeyOf } from '../utils/permissions.js'
 import { IconAlert, IconCheckCircle } from '../components/common/Icons.jsx'
+import { getDisplayLabel } from '../utils/format.js'
 
 export default function SuspectPage({ focusId }) {
   const { requirements, testCases, links, clearSuspect, clearLinkSuspect } = useApp()
@@ -189,7 +190,9 @@ function SuspectCard({
             <span className="font-mono text-xs font-bold text-brand-600 dark:text-brand-400">
               {entity.text_id}
             </span>
-            <span className="font-semibold text-slate-800 dark:text-slate-100">{entity.title}</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-100">
+              {getDisplayLabel(entity).text}
+            </span>
             {entity.type && (
               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {entity.type}

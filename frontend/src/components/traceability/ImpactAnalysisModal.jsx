@@ -14,6 +14,7 @@ import { IconTarget, IconChevron, IconDoc } from '../common/Icons.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { getImpact } from '../../services/dataService.js'
+import { getDisplayLabel } from '../../utils/format.js'
 
 function Arrow() {
   return (
@@ -39,7 +40,7 @@ function ImpactNode({ node, isRoot, t }) {
           {req.text_id}
         </span>
         <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          {req.title}
+          {getDisplayLabel(req).text}
         </span>
         <TypeBadge value={req.type} />
         <span

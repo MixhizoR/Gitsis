@@ -9,17 +9,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
-import { formatDateTime } from '../../utils/format.js'
+import { formatDateTime, stripHtml } from '../../utils/format.js'
 import { changedFieldsSummary } from '../../utils/versioning.js'
 import { IconChevron, IconHistory } from './Icons.jsx'
-
-function stripHtml(s) {
-  if (!s) return ''
-  return String(s)
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 // Issue #97: Personnel listesi frontend'de yok; aktor adini backend
 // (GET /requirements/:id/history -> changedByName) cozer. Eski kayitlarda

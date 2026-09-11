@@ -10,6 +10,7 @@ import { ScoreRing } from '../components/common/StatCard.jsx'
 import { StatusBadge, TypeBadge, DalBadge } from '../components/common/Badge.jsx'
 import { IconShield, IconAlert, IconCheck } from '../components/common/Icons.jsx'
 import { DAL } from '../utils/constants.js'
+import { getDisplayLabel, stripHtml, truncate } from '../utils/format.js'
 
 export default function CoverageReport() {
   const { requirements, links } = useApp()
@@ -99,6 +100,7 @@ export default function CoverageReport() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {cov.uncovered.map((r) => {
                   const critical = r.dal_level === DAL.A || r.dal_level === DAL.B
+                  const { text: displayTitle, isFallback: titleIsFallback } = getDisplayLabel(r)
                   return (
                     <tr key={r.id} className="hover:bg-rose-50/40 dark:hover:bg-rose-950/10">
                       <td className="whitespace-nowrap px-4 py-3 align-top">
@@ -106,13 +108,21 @@ export default function CoverageReport() {
                           {r.text_id}
                         </span>
                       </td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="font-semibold text-slate-800 dark:text-slate-100">
-                          {r.title}
-                        </div>
-                        <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
-                          {r.description}
-                        </div>
+                      <td className={`px-4 py-3 ${titleIsFallback ? 'align-middle' : 'align-top'}`}>
+                        {titleIsFallback ? (
+                          <div className="font-medium text-slate-800 dark:text-slate-100">
+                            {displayTitle}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="font-semibold text-slate-800 dark:text-slate-100">
+                              {displayTitle}
+                            </div>
+                            <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
+                              {truncate(stripHtml(r.description), 220)}
+                            </div>
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <TypeBadge value={r.type} />
@@ -155,7 +165,7 @@ export default function CoverageReport() {
               <span
                 key={r.id}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
-                title={r.title}
+                title={getDisplayLabel(r).text}
               >
                 <span className="font-mono">{r.text_id}</span>
               </span>

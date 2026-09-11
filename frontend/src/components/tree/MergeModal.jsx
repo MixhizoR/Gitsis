@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import Modal from '../common/Modal.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
+import { getDisplayLabel } from '../../utils/format.js'
 
 // Backend ile ayni kural: en eski createdAt; esitlikte text_id (dogal sira).
 export function predictSurvivor(nodes) {
@@ -70,7 +71,7 @@ export default function MergeModal({ open, nodes, onClose, onSubmit }) {
               {survivor.text_id}
             </span>
             <span className="ml-2 text-sm text-slate-800 dark:text-slate-100">
-              {survivor.title}
+              {getDisplayLabel(survivor).text}
             </span>
           </div>
         </div>
@@ -87,7 +88,9 @@ export default function MergeModal({ open, nodes, onClose, onSubmit }) {
               <span className="font-mono text-xs font-bold text-rose-700 line-through dark:text-rose-300">
                 {n.text_id}
               </span>
-              <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">{n.title}</span>
+              <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">
+                {getDisplayLabel(n).text}
+              </span>
             </div>
           ))}
         </div>

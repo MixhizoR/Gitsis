@@ -27,7 +27,7 @@ import {
   IconChevron,
   IconLoader,
 } from './Icons.jsx'
-import { truncate } from '../../utils/format.js'
+import { truncate, stripHtml, getDisplayLabel } from '../../utils/format.js'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 
@@ -176,6 +176,15 @@ export default function EntityTable({
                 ? approvalInfoFor(r)
                 : { approved: r.approvalStatus === 'Approved', voted: false }
               const canApprove = canApproveRow(r)
+              // Baslik ARTIK ZORUNLU DEGIL — baslik bossa aciklamadan
+              // turetilmis etiket KALIN + ORTALANMIS gosterilir (kullanici
+              // talebi). Bu, showDescription=false olan agac gorunumunde
+              // (PbsTree — "link tree view") de calisir; asagida fallback
+              // durumunda showDescription kontrolunden BAGIMSIZ gosterilir.
+              const { text: displayTitle, isFallback: titleIsFallback } = getDisplayLabel({
+                ...r,
+                title: r[titleKey],
+              })
               return (
                 <tr
                   key={r.id}
@@ -276,14 +285,22 @@ export default function EntityTable({
                         ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3 align-top">
-                    <div className="font-semibold text-slate-800 dark:text-slate-100">
-                      {r[titleKey]}
-                    </div>
-                    {showDescription && r.description != null && (
-                      <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
-                        {truncate(stripHtml(r.description), 110)}
+                  <td className={`px-4 py-3 ${titleIsFallback ? 'align-middle' : 'align-top'}`}>
+                    {titleIsFallback ? (
+                      <div className="font-medium text-slate-800 dark:text-slate-100">
+                        {displayTitle}
                       </div>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">
+                          {displayTitle}
+                        </div>
+                        {showDescription && r.description != null && (
+                          <div className="mt-0.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
+                            {truncate(stripHtml(r.description), 110)}
+                          </div>
+                        )}
+                      </>
                     )}
                   </td>
                   {has('type') && (
@@ -465,13 +482,4 @@ export default function EntityTable({
       </div>
     </div>
   )
-}
-
-// HTML aciklamalari listede duz metin olarak goster.
-function stripHtml(s) {
-  if (!s) return ''
-  return String(s)
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 }

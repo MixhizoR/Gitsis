@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { IconDownload, IconRefresh, IconSearch } from '../common/Icons.jsx'
 import { ExportModal } from './ExportModal'
 import { get } from '../../services/apiClient'
+import { getDisplayLabel } from '../../utils/format'
 
 export function MatrixView({ projectId }) {
   const [matrixData, setMatrixData] = useState([])
@@ -47,7 +48,8 @@ export function MatrixView({ projectId }) {
   // Arama filtresi
   const filteredData = matrixData.filter(
     (req) =>
-      req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (req.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (req.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.text_id.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
@@ -111,7 +113,7 @@ export function MatrixView({ projectId }) {
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           <IconDownload size={18} />
-          Excel'e Aktar
+          Dışa Aktar
         </button>
       </div>
 
@@ -143,13 +145,22 @@ export function MatrixView({ projectId }) {
                   <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{req.text_id}</td>
                     <td className="px-4 py-3 text-sm text-gray-800">
-                      <div className="font-medium">{req.title}</div>
-                      {req.description && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {req.description.substring(0, 50)}
-                          {req.description.length > 50 ? '...' : ''}
-                        </div>
-                      )}
+                      {(() => {
+                        const { text: displayTitle, isFallback } = getDisplayLabel(req)
+                        return isFallback ? (
+                          <div className="font-normal">{displayTitle}</div>
+                        ) : (
+                          <>
+                            <div className="font-medium">{displayTitle}</div>
+                            {req.description && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {req.description.substring(0, 90)}
+                                {req.description.length > 90 ? '...' : ''}
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{req.type}</td>
                     <td className="px-4 py-3 text-sm">
@@ -177,7 +188,7 @@ export function MatrixView({ projectId }) {
                             >
                               <span className="font-medium">{test.text_id}</span>
                               {' → '}
-                              {test.title}
+                              {getDisplayLabel(test).text}
                             </div>
                           ))}
                           {req.linkedTests.length > 2 && (

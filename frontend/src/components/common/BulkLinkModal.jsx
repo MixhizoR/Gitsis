@@ -11,6 +11,7 @@ import Modal from './Modal.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { LINK_TYPE, SATISFIES_PARENT_OF, VERIFIES_TARGET_TYPES } from '../../utils/constants.js'
+import { getDisplayLabel } from '../../utils/format.js'
 import { IconLink } from './Icons.jsx'
 
 export default function BulkLinkModal({ open, onClose, subjectKind, sources = [], onDone }) {
@@ -137,7 +138,7 @@ export default function BulkLinkModal({ open, onClose, subjectKind, sources = []
               <option value="">{t('link.select')}</option>
               {config.candidates.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.text_id} — {r.title}
+                  {r.text_id} — {getDisplayLabel(r).text}
                 </option>
               ))}
             </select>

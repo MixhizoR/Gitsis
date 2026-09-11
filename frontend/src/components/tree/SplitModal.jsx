@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import Modal from '../common/Modal.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { IconPlus, IconTrash } from '../common/Icons.jsx'
+import { getDisplayLabel } from '../../utils/format.js'
 
 export default function SplitModal({ open, node, onClose, onSubmit }) {
   const { t } = useLang()
@@ -56,7 +57,9 @@ export default function SplitModal({ open, node, onClose, onSubmit }) {
           <div className="font-mono text-xs font-bold text-brand-700 dark:text-brand-300">
             {node.text_id}
           </div>
-          <div className="truncate text-sm text-slate-800 dark:text-slate-100">{node.title}</div>
+          <div className="truncate text-sm text-slate-800 dark:text-slate-100">
+            {getDisplayLabel(node).text}
+          </div>
         </div>
 
         {/* Semantigi kullaniciya ACIKCA anlat */}

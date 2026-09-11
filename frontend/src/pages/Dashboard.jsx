@@ -15,7 +15,7 @@ import {
   IconChevron,
 } from '../components/common/Icons.jsx'
 import { REQ_TYPE, STATUS, DAL, CATEGORY_BAR } from '../utils/constants.js'
-import { formatDateTime } from '../utils/format.js'
+import { formatDateTime, getDisplayLabel } from '../utils/format.js'
 
 // Bar renkleri (dagilim cubuklari icin sade tonlar).
 const STATUS_BAR = {
@@ -135,7 +135,7 @@ export default function Dashboard({ onNavigate }) {
                       {r.text_id}
                     </span>
                     <span className="truncate text-sm text-slate-700 dark:text-slate-200">
-                      {r.title}
+                      {getDisplayLabel(r).text}
                     </span>
                   </div>
                   <span className="shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
@@ -180,7 +180,7 @@ export default function Dashboard({ onNavigate }) {
                     {r.text_id}
                   </span>
                   <span className="truncate text-sm text-slate-700 dark:text-slate-200">
-                    {r.title}
+                    {getDisplayLabel(r).text}
                   </span>
                 </div>
                 <span className="shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white">

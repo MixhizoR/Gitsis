@@ -1,9 +1,125 @@
+// ============================================================================
+//  reqifParser.js  —  ReqIF (OMG "Requirements Interchange Format") VE onceli
+//  RIF (HIS "Requirements Interchange Format" 1.2) ayristirici.
+//
+//  IKI FARKLI SEMA, IKI FARKLI SOZDIZIMI:
+//   - ReqIF (standart): IDENTIFIER/LONG-NAME birer XML ATTRIBUTE'tur
+//     (<SPEC-OBJECT IDENTIFIER="..." LONG-NAME="...">), kok <REQ-IF>
+//     <CORE-CONTENT><REQ-IF-CONTENT>, tipler SPEC-OBJECT-TYPE/
+//     ATTRIBUTE-DEFINITION-STRING/XHTML altinda.
+//   - IBM DOORS classic'in urettigi RIF 1.2 ".xml" exportu: IDENTIFIER/
+//     LONG-NAME birer CHILD ELEMENT'tir (<SPEC-OBJECT><IDENTIFIER>...
+//     </IDENTIFIER>...), kok <RIF><CORE-CONTENT><RIF-CONTENT>, tipler
+//     SPEC-TYPE/ATTRIBUTE-DEFINITION-SIMPLE (String/Integer/Date birlesik)/
+//     ATTRIBUTE-DEFINITION-COMPLEX (rich text) altinda, deger konteynerleri
+//     ATTRIBUTE-VALUE-SIMPLE/ATTRIBUTE-VALUE-EMBEDDED-DOCUMENT (icerik
+//     THE-VALUE yerine XHTML-CONTENT'te).
+//
+//  Bu dosya HER IKI sozdizimini de tek bir gecirimli (generic) mantikla
+//  cozer: IDENTIFIER/LONG-NAME hem @_IDENTIFIER hem IDENTIFIER child'indan
+//  okunur (getId/getLongName); DEFINITION/TYPE referanslari sabit anahtar
+//  yerine "-REF" ile biten HERHANGI bir alt anahtardan okunur (anyRef);
+//  deger konteynerleri sabit bir listeye guvenmez, VALUES altindaki TUM
+//  "ATTRIBUTE-VALUE-*" anahtarlari tarar. Boylece hangi araç/sema
+//  varyasyonu gelirse gelsin (DOORS classic, DOORS NG, Polarion, Jama,
+//  Cameo, ...) ayni kod calisir.
+//
+//  Girdi: .reqif/.reqifz(cikartilmis)/.xml icerigi (string). ZIP acma islemi
+//  zipUtil.js'de; bu dosya SADECE XML->model donusumunu yapar (saf, DB'siz).
+//
+//  Baslik/aciklama tespiti best-practice sirasi:
+//   1) Once STANDART rezerve ReqIF adlari (ReqIF.Name, ReqIF.Text,
+//      ReqIF.ChapterName, ReqIF.ForeignID).
+//   2) Sonra arac-ozel bulanik (fuzzy) anahtar kelime eslestirmesi (orn.
+//      DOORS'ta "Object Heading" / "Object Text" / "Object Number").
+//   3) Baslik hala bossa (DOORS'ta cogu satir-ici madde Object Heading
+//      tasimaz) aciklamanin ilk ~80 karakteri baslik olarak kullanilir.
+//  ENUMERATION degerleri DATATYPES'teki SPECIFIED-VALUES (dolayli, ReqIF)
+//  VEYA oznitelik tanimin kendi icindeki SPECIFIED-VALUES (dogrudan, bazi
+//  RIF ciktilari) ile cozulur. Baslik/aciklama disinda kalan HER oznitelik
+//  kaybolmadan customAttributes torbasina (slug anahtarla) yazilir.
+//  DOORS'un "silindi ama export'ta tombstone olarak kaldi" isaretledigi
+//  nesneler (TOOL-EXTENSIONS/.../DELETIONS/DELETED-OBJECTS) ice aktarima
+//  dahil edilmez.
+// ============================================================================
 import { XMLParser } from 'fast-xml-parser';
 
+// Performans icin bilinen coklu-tekrar eden etiketler — DOGRULUK bu listeye
+// BAGLI DEGIL: asArray() asagida her erisimde tek/coklu farkini kendisi
+// normalize eder, bu yuzden burada unutulan bir etiket artik sessizce veri
+// kaybina yol acmaz.
+const ARRAY_TAGS = new Set([
+  'SPEC-OBJECT',
+  'SPEC-RELATION',
+  'SPEC-OBJECT-TYPE',
+  'SPEC-TYPE',
+  'SPEC-RELATION-TYPE',
+  'ATTRIBUTE-DEFINITION-STRING',
+  'ATTRIBUTE-DEFINITION-XHTML',
+  'ATTRIBUTE-DEFINITION-ENUMERATION',
+  'ATTRIBUTE-DEFINITION-INTEGER',
+  'ATTRIBUTE-DEFINITION-REAL',
+  'ATTRIBUTE-DEFINITION-DATE',
+  'ATTRIBUTE-DEFINITION-BOOLEAN',
+  'ATTRIBUTE-DEFINITION-SIMPLE',
+  'ATTRIBUTE-DEFINITION-COMPLEX',
+  'ATTRIBUTE-VALUE-STRING',
+  'ATTRIBUTE-VALUE-XHTML',
+  'ATTRIBUTE-VALUE-ENUMERATION',
+  'ATTRIBUTE-VALUE-INTEGER',
+  'ATTRIBUTE-VALUE-REAL',
+  'ATTRIBUTE-VALUE-DATE',
+  'ATTRIBUTE-VALUE-BOOLEAN',
+  'ATTRIBUTE-VALUE-SIMPLE',
+  'ATTRIBUTE-VALUE-EMBEDDED-DOCUMENT',
+  'DATATYPE-DEFINITION-ENUMERATION',
+  'ENUM-VALUE',
+  'ENUM-VALUE-REF',
+  'RIF-TOOL-EXTENSION',
+]);
+
+// fast-xml-parser tek-esli bir etiketi (isArray'de listelenmemisse) duz
+// nesne olarak doner; coklu-esli oldugunda dizi olur. Bu fark, isArray
+// listesinde unutulan HERHANGI bir etiketi sessiz veri kaybina cevirir.
+// asArray() bu farki her erisim noktasinda ortadan kaldirir.
+function asArray(x) {
+  if (x == null || x === '') return [];
+  return Array.isArray(x) ? x : [x];
+}
+
+// IDENTIFIER hem XML ATTRIBUTE (@_IDENTIFIER, ReqIF) hem CHILD ELEMENT
+// (IDENTIFIER, DOORS RIF) olarak gelebilir.
+function getId(node) {
+  if (!node || typeof node !== 'object') return null;
+  const v = node['@_IDENTIFIER'] ?? node['IDENTIFIER'];
+  return typeof v === 'object' ? v?.['#text'] : v;
+}
+function getLongName(node) {
+  if (!node || typeof node !== 'object') return null;
+  const v = node['@_LONG-NAME'] ?? node['LONG-NAME'];
+  return typeof v === 'object' ? v?.['#text'] : v;
+}
+
+// DEFINITION/TYPE/SOURCE/TARGET gibi "sarmalayici" bir dugumun icindeki
+// referansi, TAM anahtar adini bilmeden bulur: adi "-REF" ile biten ILK
+// alt anahtarin degeri (metin ya da {#text} nesnesi) — boylece
+// ATTRIBUTE-DEFINITION-STRING-REF / -SIMPLE-REF / -ENUMERATION-REF /
+// SPEC-OBJECT-TYPE-REF / SPEC-TYPE-REF / ... hepsi AYNI kodla cozulur.
+function anyRef(wrapper) {
+  if (!wrapper || typeof wrapper !== 'object') return null;
+  for (const [k, v] of Object.entries(wrapper)) {
+    if (!k.endsWith('-REF')) continue;
+    const first = Array.isArray(v) ? v[0] : v;
+    return typeof first === 'object' ? (first?.['#text'] ?? first?.['@_IDENTIFIER'] ?? null) : first;
+  }
+  return null;
+}
+
 /**
- * XHTML nesnesini (fast-xml-parser ciktilarini) tekrar HTML string'e cevirir.
- * Beyaz listedeki etiketler (p, b, i, u, strong, em, span, div, br, ul, ol, li, font, img)
- * ve #text dugumleri korunur; digerleri (script, style, etc.) goz ardi edilir.
+ * XHTML/rich-text nesnesini (fast-xml-parser ciktisi) tekrar HTML string'e
+ * cevirir. Beyaz listedeki etiketler korunur; digerleri (script, style,
+ * ad-alani onekleri removeNSPrefix ile zaten temizlenmis olur) yok sayilir,
+ * icerikleri yine de serialize edilir.
  */
 function serializeXHTML(node) {
   if (node == null) return '';
@@ -12,11 +128,6 @@ function serializeXHTML(node) {
     return node.map(serializeXHTML).filter(Boolean).join('');
   }
   if (typeof node === 'object') {
-    // #text dugumleri dogrudan icerigi
-    if (node['#text'] != null) {
-      return String(node['#text']);
-    }
-    // Beyaz listedeki etiketler icin serialize et
     const allowedTags = new Set([
       'p',
       'b',
@@ -48,8 +159,20 @@ function serializeXHTML(node) {
     ]);
     let html = '';
     for (const [key, val] of Object.entries(node)) {
-      if (key.startsWith('@_')) continue; // ozellikleri atla
-      if (key === '#text') continue; // zaten yukarida handle edildi
+      if (key.startsWith('@_')) continue;
+      // fast-xml-parser (preserveOrder OLMADAN) metin+eleman KARISIK icerikte
+      // (orn. "<p>metin <b>kalin</b> metin</p>") text/eleman SIRASINI
+      // KORUYAMAZ — TUM kardes metin parcalari tek bir '#text' anahtarinda
+      // birlesir. Once bu ONCEDEN KABUL EDILEN sira kaybi yasanir; ama BURADA
+      // '#text' erken don(return) ile es gecilirSE, ayni dugumun KARDES
+      // elemanlari (orn. yukaridaki 'kalin') TAMAMEN kaybolurdu — bu sira
+      // kaybindan CoK daha kotu bir VERI kaybidir. Bu yuzden '#text' de
+      // (varsa) DIGER kardesler gibi cikita eklenir; sadece GORECELI sirasi
+      // (genelde ilk metin parcasinin konumu) korunur, TUM icerik korunur.
+      if (key === '#text') {
+        html += String(val);
+        continue;
+      }
       if (allowedTags.has(key)) {
         const attrs = Object.entries(node)
           .filter(([k]) => k.startsWith('@_'))
@@ -64,13 +187,61 @@ function serializeXHTML(node) {
           html += `<${key}${attrStr}>${inner}</${key}>`;
         }
       } else {
-        // Beyaz liste disi etiket (script, style, etc.) -> sadece icerigi serialize et, etiketi yok say
         html += serializeXHTML(val);
       }
     }
     return html;
   }
   return '';
+}
+
+// Etiketleri sokup icerik kalip kalmadigina bakar — "<div></div>",
+// "<div><br /></div>" gibi ICERIKSIZ zengin-metin sargilarini (bos DOORS
+// Object Text alanlarinda cok sik gorulur) tespit etmek icindir. Yalnizca
+// BOS/dolgu tespiti icin kullanilir, degeri DEGISTIRMEZ — bu yuzden metin
+// icinde nadiren gecen ham "<" karakteri bile en kotu ihtimalle sadece bu
+// kontrolu yanlis yonlendirir, saklanan veriyi bozmaz.
+function isBlankHtml(html) {
+  return !String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;/gi, '')
+    .trim();
+}
+
+// --- Reserved ReqIF isimleri (standart — arac-bagimsiz) --------------------
+const RESERVED_TITLE = new Set(['reqif.chaptername', 'reqif.name']);
+const RESERVED_DESC = new Set(['reqif.text']);
+const RESERVED_FOREIGN_ID = new Set(['reqif.foreignid']);
+
+// --- Arac-ozel (DOORS ve benzeri) bulanik eslestirme anahtar kelimeleri ----
+const FUZZY_TITLE = ['heading', 'title', 'name', 'header', 'chapter', 'summary', 'short text', 'object short'];
+const FUZZY_DESC = ['text', 'desc', 'body', 'content', 'statement', 'rationale', 'detail'];
+const FUZZY_FOREIGN_ID = ['object number', 'object identifier', 'legacy id', 'doors id', 'foreign id'];
+const FUZZY_TYPE_FIELD = ['type', 'level', 'category', 'kategori', 'seviye', 'requirement type'];
+
+function slugify(label) {
+  return String(label || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64);
+}
+
+function matchesAny(haystack, needles) {
+  return needles.some((n) => haystack.includes(n));
+}
+
+function detectTypeHint(value) {
+  const v = String(value || '').toLowerCase();
+  if (!v) return null;
+  if (/hardware|donan[ıi]m/.test(v)) return 'hardware';
+  if (/software|yaz[ıi]l[ıi]m/.test(v)) return 'software';
+  // "system" alt dizesi "subsystem"/"sub-system" icinde de gecer; once onlari elemek gerekir.
+  if (/sub[\s-]?system|alt\s*sistem/.test(v)) return null;
+  if (/system|sistem/.test(v)) return 'system';
+  if (/user|kullan[ıi]c[ıi]/.test(v)) return 'user';
+  return null;
 }
 
 export function parseReqIF(xmlContent) {
@@ -80,107 +251,293 @@ export function parseReqIF(xmlContent) {
     textNodeName: '#text',
     trimValues: true,
     parseTagValue: false,
-    isArray: (name) =>
-      [
-        'SPEC-OBJECT',
-        'SPEC-RELATION',
-        'SPEC-OBJECT-TYPE',
-        'ATTRIBUTE-DEFINITION-STRING',
-        'ATTRIBUTE-DEFINITION-XHTML',
-        'ATTRIBUTE-VALUE-STRING',
-        'ATTRIBUTE-VALUE-XHTML',
-      ].includes(name),
+    // Bazi araclar koku ad-alani ONEKIYLE yazar (orn. <reqif:REQ-IF
+    // xmlns:reqif="...">, <rif-xhtml:div>) — bu, prefix'i atip sade etiket
+    // adina indirger ki asagidaki sabit yol aramasi hem onek'siz (yaygin)
+    // hem onekli ciktilarda calissin.
+    removeNSPrefix: true,
+    isArray: (name) => ARRAY_TAGS.has(name),
   });
 
-  const parsed = parser.parse(xmlContent);
-  const coreContent = parsed?.['REQ-IF']?.['CORE-CONTENT']?.['REQ-IF-CONTENT'];
+  let parsed;
+  try {
+    parsed = parser.parse(xmlContent);
+  } catch (e) {
+    throw new Error(`XML ayristirilamadi: ${e.message}`, { cause: e });
+  }
 
+  // Kok: ReqIF <REQ-IF><CORE-CONTENT><REQ-IF-CONTENT>, ya da DOORS classic
+  // RIF 1.2 <RIF><CORE-CONTENT><RIF-CONTENT> (ikisi de CORE-CONTENT
+  // sargili — RIF'in "sargisiz" oldugu varsayimi yanlisti, gercek DOORS
+  // exportlari da ReqIF ile ayni iskeleti kullanir, sadece RIF-CONTENT
+  // adiyla). Nadiren sargisiz bir RIF varyanti icin dogrudan <RIF> de
+  // son care olarak denenir.
+  const rifRoot = parsed?.['REQ-IF'] || parsed?.['RIF'];
+  const coreContent =
+    parsed?.['REQ-IF']?.['CORE-CONTENT']?.['REQ-IF-CONTENT'] ||
+    parsed?.['RIF']?.['CORE-CONTENT']?.['RIF-CONTENT'] ||
+    parsed?.['RIF'];
   if (!coreContent) {
-    throw new Error('Geçersiz ReqIF formatı: REQ-IF-CONTENT bulunamadı.');
+    const rootKeys = Object.keys(parsed || {}).filter((k) => !k.startsWith('?'));
+    const rootHint = rootKeys.length > 0 ? ` (dosyanin kok etiketi: "${rootKeys[0]}")` : '';
+    throw new Error(`Gecersiz ReqIF/RIF formatı: REQ-IF-CONTENT/RIF-CONTENT bulunamadı${rootHint}.`);
   }
 
-  // 1. Öznitelik Tanımlarını Haritalandır
+  // Baslik bilgisi: dosyayi kimin urettigini soyler (REQ-IF-HEADER/RIF-HEADER
+  // altindaki SOURCE-TOOL-ID/REQ-IF-TOOL-ID). Gitsis'in KENDI reqifExporter.js
+  // ciktisi bu alana daima "Gitsis" yazar — cagiran taraf (traceability.js)
+  // bunu, SADECE Gitsis'in kendi export->DOORS->reimport dongusune ozgu ek
+  // esleme mantiklarini (SPEC-OBJECT-TYPE adindan Requirement/TestCase tipi
+  // cikarma gibi) GENEL DOORS/ReqIF dosyalarina sizdirmamak icin kullanir.
+  const headerNode = rifRoot?.['THE-HEADER']?.['REQ-IF-HEADER'] || rifRoot?.['THE-HEADER']?.['RIF-HEADER'] || null;
+  function headerVal(key) {
+    const v = headerNode?.[key];
+    if (v == null) return null;
+    const t = typeof v === 'object' ? v?.['#text'] : v;
+    return t != null ? String(t) : null;
+  }
+  const sourceToolId = headerVal('SOURCE-TOOL-ID') || headerVal('REQ-IF-TOOL-ID') || null;
+
+  // 0. DOORS "silindi ama export'ta tombstone olarak kaldi" nesneleri —
+  // bunlar SPEC-OBJECTS icinde fiziksel olarak hala goruluyor ama artik
+  // DOORS modulunde yok. TOOL-EXTENSIONS'in sarmalayici etiket adi arac/
+  // format'a gore degisir (RIF-TOOL-EXTENSION for .xml exports, farkli bir
+  // ad gercek .reqif exportlarinda kullanilabilir) — bu yuzden sabit bir ad
+  // yerine TOOL-EXTENSIONS altini herhangi bir derinlikte "DELETED-OBJECTS"
+  // anahtari icin ozyinelemeli (recursive) tarar.
+  const deletedIds = new Set();
+  (function findDeletedObjectRefs(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) findDeletedObjectRefs(item);
+      return;
+    }
+    for (const [key, val] of Object.entries(node)) {
+      if (key.startsWith('@_') || key === '#text') continue;
+      if (key === 'DELETED-OBJECTS') {
+        for (const ref of asArray(val?.['SPEC-OBJECT-REF'])) {
+          const id = typeof ref === 'object' ? ref?.['#text'] : ref;
+          if (id) deletedIds.add(id);
+        }
+        continue;
+      }
+      findDeletedObjectRefs(val);
+    }
+  })(rifRoot?.['TOOL-EXTENSIONS']);
+
+  // 1. DATATYPES: ENUMERATION deger haritalari (enumValueId -> okunabilir metin)
+  const enumDatatypeMap = new Map(); // datatypeId -> Map(enumValueId -> longName)
+  for (const dt of asArray(coreContent?.['DATATYPES']?.['DATATYPE-DEFINITION-ENUMERATION'])) {
+    const id = getId(dt);
+    if (!id) continue;
+    const values = new Map();
+    for (const ev of asArray(dt?.['SPECIFIED-VALUES']?.['ENUM-VALUE'])) {
+      const evId = getId(ev);
+      const evName = getLongName(ev) || evId;
+      if (evId) values.set(evId, evName);
+    }
+    enumDatatypeMap.set(id, values);
+  }
+
+  // 2. SPEC-TYPES: oznitelik tanimlarini haritalandir (id -> { name, datatypeId }).
+  // Kapsayici etiket ReqIF'te SPEC-OBJECT-TYPE, DOORS RIF'te SPEC-TYPE'tir;
+  // ikisi de taranir. Alt oznitelik-tanimi etiketleri de araca gore degisir
+  // (STRING/XHTML/... vs SIMPLE/COMPLEX/...) — bu yuzden "ATTRIBUTE-
+  // DEFINITION-" ile baslayan HER alt anahtar generic islenir.
   const attrDefMap = new Map();
-  const specTypes = coreContent?.['SPEC-TYPES']?.['SPEC-OBJECT-TYPE'] || [];
-  for (const type of specTypes) {
-    const stringDefs = type?.['SPEC-ATTRIBUTES']?.['ATTRIBUTE-DEFINITION-STRING'] || [];
-    for (const def of stringDefs) {
-      const id = def['@_IDENTIFIER'];
-      const name = def['@_LONG-NAME'] || id;
-      if (id) attrDefMap.set(id, name);
-    }
-    const xhtmlDefs = type?.['SPEC-ATTRIBUTES']?.['ATTRIBUTE-DEFINITION-XHTML'] || [];
-    for (const def of xhtmlDefs) {
-      const id = def['@_IDENTIFIER'];
-      const name = def['@_LONG-NAME'] || id;
-      if (id) attrDefMap.set(id, name);
+  const specTypeContainers = [
+    ...asArray(coreContent?.['SPEC-TYPES']?.['SPEC-OBJECT-TYPE']),
+    ...asArray(coreContent?.['SPEC-TYPES']?.['SPEC-TYPE']),
+  ];
+  // SPEC-OBJECT-TYPE/SPEC-TYPE'in KENDI adini (id -> LONG-NAME) da ayrica
+  // haritalar — Gitsis'in kendi exportlarinda bu ad TAM OLARAK bir Gitsis
+  // gereksinim/test tipi (orn. "System Requirement", "Acceptance Test")
+  // oldugundan, geri-donen (round-trip) dosyalarda her SPEC-OBJECT'in HANGI
+  // Gitsis varligina eslenecegini (bkz. asagida objectTypeName) belirlemek
+  // icin kullanilir. Genel DOORS/ReqIF dosyalarinda bu bilgi yalnizca
+  // sourceToolId === 'Gitsis' oldugunda anlamli kabul edilir (traceability.js).
+  const specTypeNameMap = new Map();
+  for (const type of specTypeContainers) {
+    const tid = getId(type);
+    if (tid) specTypeNameMap.set(tid, getLongName(type) || tid);
+  }
+  for (const type of specTypeContainers) {
+    const attrs = type?.['SPEC-ATTRIBUTES'];
+    if (!attrs || typeof attrs !== 'object') continue;
+    for (const [tagName, raw] of Object.entries(attrs)) {
+      if (!tagName.startsWith('ATTRIBUTE-DEFINITION-')) continue;
+      for (const def of asArray(raw)) {
+        const id = getId(def);
+        if (!id) continue;
+        const name = getLongName(def) || id;
+        const datatypeId = anyRef(def?.['TYPE']);
+        // Bazi ciktilarda (RIF varyantlari) ENUMERATION tanimi ayri bir
+        // DATATYPES kaydina REF ile degil, SPECIFIED-VALUES'i DOGRUDAN
+        // kendi icinde tasir — boyle bir durumda degerleri oznitelik
+        // tanimin KENDI id'si altinda da kaydederiz.
+        const inlineSpecified = def?.['SPECIFIED-VALUES']?.['ENUM-VALUE'];
+        if (inlineSpecified) {
+          const values = new Map();
+          for (const ev of asArray(inlineSpecified)) {
+            const evId = getId(ev);
+            const evName = getLongName(ev) || evId;
+            if (evId) values.set(evId, evName);
+          }
+          enumDatatypeMap.set(id, values);
+        }
+        attrDefMap.set(id, { name, datatypeId });
+      }
     }
   }
 
-  // 2. SPEC-OBJECTS (Gereksinimler) Çözümleme
-  const rawObjects = coreContent?.['SPEC-OBJECTS']?.['SPEC-OBJECT'] || [];
-  const requirements = rawObjects.map((obj) => {
-    const reqId = obj['@_IDENTIFIER'];
-    let title = obj['@_LONG-NAME'] || '';
+  // 3. SPEC-RELATION-TYPE: iliski tipi adlarini haritalandir (id -> longName)
+  const relationTypeMap = new Map();
+  for (const rt of asArray(coreContent?.['SPEC-TYPES']?.['SPEC-RELATION-TYPE'])) {
+    const id = getId(rt);
+    if (id) relationTypeMap.set(id, getLongName(rt) || id);
+  }
+
+  // --- Bir SPEC-OBJECT'in VALUES altindaki TUM "ATTRIBUTE-VALUE-*"
+  //     konteynerlerini generic tarar (hangi alt-tip olursa olsun).
+  function resolveFields(valuesNode) {
+    const fields = []; // [{ defName, defId, value }]
+    if (!valuesNode || typeof valuesNode !== 'object') return fields;
+
+    for (const [tagName, raw] of Object.entries(valuesNode)) {
+      if (!tagName.startsWith('ATTRIBUTE-VALUE-')) continue;
+
+      for (const val of asArray(raw)) {
+        const defId = anyRef(val?.['DEFINITION']);
+        const def = attrDefMap.get(defId);
+        const name = def?.name || defId || '';
+
+        if (tagName === 'ATTRIBUTE-VALUE-ENUMERATION') {
+          const enumMap =
+            (def?.datatypeId && enumDatatypeMap.get(def.datatypeId)) || enumDatatypeMap.get(defId) || null;
+          const resolved = asArray(val?.['VALUES']?.['ENUM-VALUE-REF'])
+            .map((r) => {
+              const refId = typeof r === 'object' ? r?.['#text'] : r;
+              return (enumMap && enumMap.get(refId)) || refId;
+            })
+            .filter(Boolean);
+          if (resolved.length > 0) fields.push({ defName: name, defId, value: resolved.join(', ') });
+          continue;
+        }
+
+        // Diger tum deger tipleri: icerik ya @_THE-VALUE/THE-VALUE
+        // (ReqIF STRING/XHTML/INTEGER/..., DOORS RIF SIMPLE) ya da
+        // XHTML-CONTENT (DOORS RIF EMBEDDED-DOCUMENT, zengin metin) altinda.
+        let raw2 = val?.['@_THE-VALUE'] ?? val?.['THE-VALUE'];
+        if (raw2 == null && val?.['XHTML-CONTENT'] != null) raw2 = val['XHTML-CONTENT'];
+        if (raw2 == null) continue;
+        const value = typeof raw2 === 'object' ? serializeXHTML(raw2) : String(raw2).trim();
+        // "<div></div>", "<div><br /></div>" gibi ICERIKSIZ zengin-metin
+        // sargilari (bos DOORS Object Text alanlarinda cok yaygin) alan
+        // olarak KAYDEDILMEZ — aksi halde bu ham etiketler baslik/aciklamaya
+        // rastgele "artifact" olarak sizar.
+        if (value && !isBlankHtml(value)) fields.push({ defName: name, defId, value });
+      }
+    }
+
+    return fields;
+  }
+
+  function classifyFields(fields) {
+    let title = '';
     let description = '';
+    let foreignId = null;
+    let typeHint = null;
+    const customAttributes = {};
 
-    // String Değerleri Oku
-    const strValues = obj?.['VALUES']?.['ATTRIBUTE-VALUE-STRING'] || [];
-    for (const val of strValues) {
-      // Definition referansını al
-      const defRefObj = val?.['DEFINITION']?.['ATTRIBUTE-DEFINITION-STRING-REF'];
-      const defRef = typeof defRefObj === 'object' ? defRefObj?.['#text'] || defRefObj?.['@_IDENTIFIER'] : defRefObj;
-      const fieldName = (attrDefMap.get(defRef) || defRef || '').toLowerCase();
+    for (const { defName, value } of fields) {
+      const lower = defName.toLowerCase();
+      const isReservedTitle = RESERVED_TITLE.has(lower);
+      const isReservedDesc = RESERVED_DESC.has(lower);
+      const isReservedForeignId = RESERVED_FOREIGN_ID.has(lower);
+      const isFuzzyTitle = !isReservedDesc && matchesAny(lower, FUZZY_TITLE);
+      const isFuzzyDesc = matchesAny(lower, FUZZY_DESC);
+      const isFuzzyForeignId = matchesAny(lower, FUZZY_FOREIGN_ID);
+      const isTypeField = matchesAny(lower, FUZZY_TYPE_FIELD);
 
-      // THE-VALUE hem attribute (@_THE-VALUE) hem tag (THE-VALUE) olarak gelebilir
-      const valueText = val?.['@_THE-VALUE'] || val?.['THE-VALUE'] || val?.['#text'] || '';
-
-      if (
-        fieldName.includes('name') ||
-        fieldName.includes('title') ||
-        fieldName.includes('header') ||
-        fieldName.includes('chapter')
-      ) {
-        if (valueText) title = valueText;
-      } else if (fieldName.includes('desc') || fieldName.includes('text') || fieldName.includes('body')) {
-        if (valueText) description = description ? `${description}\n${valueText}` : valueText;
+      if (isTypeField && !typeHint) {
+        typeHint = detectTypeHint(value);
       }
+
+      if (isReservedTitle || (!title && isFuzzyTitle && !isReservedDesc)) {
+        title = value;
+        continue;
+      }
+      if (isReservedDesc || (isFuzzyDesc && !isReservedTitle)) {
+        description = description ? `${description}\n${value}` : value;
+        continue;
+      }
+      if (isReservedForeignId || isFuzzyForeignId) {
+        foreignId = value;
+        continue;
+      }
+      // Kalan her oznitelik kaybolmadan saklanir (Bilgi Kaybi Yok ilkesi).
+      const key = slugify(defName);
+      if (key) customAttributes[key] = value;
     }
 
-    // XHTML Değerleri Oku
-    const xhtmlValues = obj?.['VALUES']?.['ATTRIBUTE-VALUE-XHTML'] || [];
-    for (const val of xhtmlValues) {
-      const rawXhtml = val?.['THE-VALUE'] || val;
-      const cleanText = serializeXHTML(rawXhtml);
-      if (cleanText) {
-        description = description ? `${description}\n${cleanText}` : cleanText;
-      }
-    }
+    return { title, description, foreignId, typeHint, customAttributes };
+  }
+
+  // 4. SPEC-OBJECTS (Gereksinimler) Çözümleme — DOORS'un "tombstone" olarak
+  // isaretledigi (deletedIds) nesneler burada ELENMEZ, `isDeleted: true`
+  // ile ISARETLENIR. Cagiran taraf (traceability.js) bunlari Gitsis'in
+  // KENDI silme akisiyla ayni sekilde ele alir: numarasini emekliye ayirir
+  // (bir daha asla kullanilmaz) ama GORUNUR bir kayit olusturmaz — tipki
+  // projede gercekten silinmis bir gereksinim gibi.
+  const rawObjects = asArray(coreContent?.['SPEC-OBJECTS']?.['SPEC-OBJECT']).filter((obj) => getId(obj));
+  const requirements = rawObjects.map((obj) => {
+    const reqId = getId(obj);
+    const fields = resolveFields(obj?.['VALUES']);
+    const { title: rawTitle, description, foreignId, typeHint, customAttributes } = classifyFields(fields);
+    const cleanDesc = description.trim();
+    const objectTypeRef = anyRef(obj?.['TYPE']);
+    const objectTypeName = (objectTypeRef && specTypeNameMap.get(objectTypeRef)) || null;
+
+    // Baslik ARTIK ZORUNLU DEGIL (Requirement.title @default("")) — kaynakta
+    // gercek bir baslik alani (ReqIF.Name, Object Heading, ...) yoksa BURADA
+    // UYDURULMAZ (eskiden aciklamadan bir ozet ya da "Req-xxxxx" turetilirdi).
+    // Boyle bir nesne, Gitsis'te de elle olusturulmus baslik'siz bir
+    // gereksinim gibi davranir: UI, baslik yerine aciklamayi gosterir (bkz.
+    // frontend/src/utils/format.js getDisplayLabel). Baslik HER ZAMAN duz
+    // metin olmalidir — kaynak nesnede baslik olarak eslesen alan (nadiren)
+    // XHTML/zengin-metin tipinde olsa bile ham HTML etiketleri temizlenir.
+    const title = (rawTitle || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     return {
       externalId: reqId,
-      title: title || `Req-${reqId.replace(/^_/, '').substring(0, 10)}`,
-      description: description.trim(),
+      title,
+      description: cleanDesc,
+      foreignId,
+      typeHint, // 'user' | 'system' | 'software' | 'hardware' | null
+      objectTypeName, // SPEC-OBJECT-TYPE LONG-NAME'i (yalnizca Gitsis kaynakli dosyalarda anlamli) | null
+      customAttributes,
+      isDeleted: deletedIds.has(reqId),
     };
   });
 
-  // 3. SPEC-RELATIONS Çözümleme
-  const rawRelations = coreContent?.['SPEC-RELATIONS']?.['SPEC-RELATION'] || [];
-  const relations = rawRelations
+  // 5. SPEC-RELATIONS Çözümleme
+  const relations = asArray(coreContent?.['SPEC-RELATIONS']?.['SPEC-RELATION'])
     .map((rel) => {
-      const src = rel?.['SOURCE']?.['SPEC-OBJECT-REF'];
-      const tgt = rel?.['TARGET']?.['SPEC-OBJECT-REF'];
-      const sourceExternalId = typeof src === 'object' ? src?.['#text'] : src;
-      const targetExternalId = typeof tgt === 'object' ? tgt?.['#text'] : tgt;
+      const sourceExternalId = anyRef(rel?.['SOURCE']);
+      const targetExternalId = anyRef(rel?.['TARGET']);
+      const typeRefId = anyRef(rel?.['TYPE']);
+      const typeName = (relationTypeMap.get(typeRefId) || getLongName(rel) || '').toLowerCase();
 
-      return {
-        relationId: rel['@_IDENTIFIER'],
-        sourceExternalId,
-        targetExternalId,
-        type: rel['@_LONG-NAME'] || 'Satisfies',
-      };
+      let linkTypeHint = 'satisfies'; // varsayilan: DOORS/ReqIF gereksinim-gereksinim iliskileri cogunlukla Satisfies/derive/trace anlamindadir
+      if (/verif/.test(typeName)) linkTypeHint = 'verifies';
+      else if (/assign/.test(typeName)) linkTypeHint = 'assigned_to';
+
+      return { relationId: getId(rel), sourceExternalId, targetExternalId, typeName, linkTypeHint };
     })
     .filter((r) => r.sourceExternalId && r.targetExternalId);
 
-  return { requirements, relations };
+  return { requirements, relations, sourceToolId };
 }
