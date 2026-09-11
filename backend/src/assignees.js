@@ -72,14 +72,15 @@ export async function resolveAssigneeIds(prisma, pid, body) {
   const ids = [...new Set(list.map((v) => String(v ?? '').trim()).filter(Boolean))];
   if (ids.length === 0) return [];
 
-  // Proje sinirini asma korumasi: atama YALNIZCA ayni projenin personeline
-  // yapilabilir. Tek sorguda dogrulanir (N+1 yok).
-  const found = await prisma.personnel.findMany({
-    where: { id: { in: ids }, projectId: pid },
-    select: { id: true },
+  // Proje sinirini asma korumasi: atama YALNIZCA ayni projenin UYELERINE
+  // yapilabilir. Issue #97/A: Personnel kaldirildi — uyelik ProjectMember
+  // uzerinden dogrulanir (tek sorgu, N+1 yok).
+  const members = await prisma.projectMember.findMany({
+    where: { projectId: pid, userId: { in: ids } },
+    select: { userId: true },
   });
-  if (found.length !== ids.length) {
-    throw bad('Gecersiz atama: personel bu projede bulunamadi.');
+  if (members.length !== ids.length) {
+    throw bad('Gecersiz atama: kullanici bu projenin uyesi degil.');
   }
   return ids;
 }
@@ -98,7 +99,7 @@ export async function setAssignees(tx, entity, rowId, ids) {
   await tx[cfg.delegate].deleteMany({ where: { [cfg.fk]: rowId } });
   if (ids.length > 0) {
     await tx[cfg.delegate].createMany({
-      data: ids.map((personnelId, order) => ({ [cfg.fk]: rowId, personnelId, order })),
+      data: ids.map((userId, order) => ({ [cfg.fk]: rowId, userId, order })),
       skipDuplicates: true,
     });
   }
@@ -113,9 +114,9 @@ export async function getAssigneeIds(prisma, entity, rowId) {
   const rows = await prisma[cfg.delegate].findMany({
     where: { [cfg.fk]: rowId },
     orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-    select: { personnelId: true },
+    select: { userId: true },
   });
-  return rows.map((r) => r.personnelId);
+  return rows.map((r) => r.userId);
 }
 
 /**
@@ -129,11 +130,11 @@ export async function getAssigneeIdsMap(prisma, entity, rowIds) {
   const rows = await prisma[cfg.delegate].findMany({
     where: { [cfg.fk]: { in: rowIds } },
     orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-    select: { [cfg.fk]: true, personnelId: true },
+    select: { [cfg.fk]: true, userId: true },
   });
   for (const r of rows) {
     const bucket = map.get(r[cfg.fk]);
-    if (bucket) bucket.push(r.personnelId);
+    if (bucket) bucket.push(r.userId);
   }
   return map;
 }
@@ -159,15 +160,15 @@ export async function withAssigneeIdsAll(prisma, entity, rows) {
   return rows.map((r) => withAssigneeIds(r, map.get(r.id)));
 }
 
-/** Audit mesajlari icin okunabilir adlar; silinmis personel listeye girmez. */
+/** Audit mesajlari icin okunabilir adlar; silinmis kullanici listeye girmez. */
 async function labelsOf(prisma, ids) {
   if (!ids || ids.length === 0) return [];
-  const people = await prisma.personnel.findMany({
+  const people = await prisma.user.findMany({
     where: { id: { in: ids } },
-    select: { id: true, firstName: true, lastName: true },
+    select: { id: true, name: true },
   });
-  const byId = new Map(people.map((p) => [p.id, `${p.firstName} ${p.lastName}`.trim()]));
-  return ids.map((id) => byId.get(id) || 'silinmis personel');
+  const byId = new Map(people.map((p) => [p.id, (p.name || '').trim() || p.id]));
+  return ids.map((id) => byId.get(id) || 'silinmis kullanici');
 }
 
 /**
@@ -218,7 +219,7 @@ export async function backfillAssignees(prisma) {
     });
     if (rows.length === 0) continue;
     const res = await prisma[cfg.delegate].createMany({
-      data: rows.map((r) => ({ [cfg.fk]: r.id, personnelId: r.assigneeId, order: 0 })),
+      data: rows.map((r) => ({ [cfg.fk]: r.id, userId: r.assigneeId, order: 0 })),
       skipDuplicates: true,
     });
     counts[entity === 'requirement' ? 'requirements' : 'testCases'] = res.count;
@@ -237,26 +238,26 @@ export async function backfillAssignees(prisma) {
 export async function resyncLegacyAssignee(prisma, projectId) {
   await prisma.$executeRaw`
     UPDATE "Requirement" r
-       SET "assigneeId" = sub."personnelId"
+       SET "assigneeId" = sub."userId"
       FROM (
-        SELECT DISTINCT ON ("requirementId") "requirementId", "personnelId"
+        SELECT DISTINCT ON ("requirementId") "requirementId", "userId"
           FROM "RequirementAssignee"
          ORDER BY "requirementId", "order" ASC, "createdAt" ASC
       ) sub
      WHERE r.id = sub."requirementId"
        AND r."projectId" = ${projectId}::text
-       AND r."assigneeId" IS DISTINCT FROM sub."personnelId";
+       AND r."assigneeId" IS DISTINCT FROM sub."userId";
   `;
   await prisma.$executeRaw`
     UPDATE "TestCase" t
-       SET "assigneeId" = sub."personnelId"
+       SET "assigneeId" = sub."userId"
       FROM (
-        SELECT DISTINCT ON ("testCaseId") "testCaseId", "personnelId"
+        SELECT DISTINCT ON ("testCaseId") "testCaseId", "userId"
           FROM "TestCaseAssignee"
          ORDER BY "testCaseId", "order" ASC, "createdAt" ASC
       ) sub
      WHERE t.id = sub."testCaseId"
        AND t."projectId" = ${projectId}::text
-       AND t."assigneeId" IS DISTINCT FROM sub."personnelId";
+       AND t."assigneeId" IS DISTINCT FROM sub."userId";
   `;
 }

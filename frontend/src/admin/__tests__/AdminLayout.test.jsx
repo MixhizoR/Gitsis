@@ -4,7 +4,7 @@
 //    2) ADMIN olmayan oturum yetkisiz uyarısı alır (UI savunma katmanı).
 // ============================================================================
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { LanguageProvider } from '../../context/LanguageContext.jsx'
 import { AuthProvider } from '../../context/AuthContext.jsx'
@@ -17,7 +17,7 @@ vi.mock('../../services/adminService.js', () => ({
       username: 'zeynep',
       name: 'Zeynep K',
       role: 'Developer',
-      systemRole: 'USER',
+      roleKey: 'developer',
       clearanceLevel: 2,
       isActive: true,
     },
@@ -26,6 +26,18 @@ vi.mock('../../services/adminService.js', () => ({
   updateUser: vi.fn(),
   unlockUser: vi.fn(),
   deleteUser: vi.fn(),
+  // Issue #101: UsersPage rol `<select>` aktif SystemRole listesinden beslenir.
+  listSystemRoles: vi.fn(async () => [
+    { key: 'pm', name: 'Proje Yöneticisi', isSystem: true, isActive: true, permissions: {} },
+    {
+      key: 'system_engineer',
+      name: 'System Engineer',
+      isSystem: true,
+      isActive: true,
+      permissions: {},
+    },
+    { key: 'developer', name: 'Developer', isSystem: true, isActive: true, permissions: {} },
+  ]),
   listAuditLogs: vi.fn(async () => [
     {
       id: 'l1',
@@ -57,18 +69,31 @@ describe('AdminLayout — ayrık admin konsolu', () => {
 
   it('ADMIN oturumu konsolu görür ve kullanıcı tablosunu listeler', async () => {
     renderWithSession({
-      systemRole: 'ADMIN',
+      roleKey: 'admin',
       username: 'admin',
       name: 'Admin',
       initials: 'AD',
     })
     expect(await screen.findByText('zeynep')).toBeInTheDocument()
     expect(screen.getByText('Yönetim Konsolu')).toBeInTheDocument()
-    expect(screen.getByText('ADMIN')).toBeInTheDocument()
+    expect(screen.getByText('Developer')).toBeInTheDocument()
   })
 
   it('ADMIN olmayan oturum yetkisiz uyarısı görür', async () => {
-    renderWithSession({ systemRole: 'USER', username: 'u', name: 'U' })
+    renderWithSession({ roleKey: 'developer', username: 'u', name: 'U' })
     expect(await screen.findByText('Bu alan yalnızca Admin rolüne açıktır.')).toBeInTheDocument()
+  })
+
+  it('Roller sekmesi sistem rollerini listeler (Issue #101)', async () => {
+    renderWithSession({
+      roleKey: 'admin',
+      username: 'admin',
+      name: 'Admin',
+      initials: 'AD',
+    })
+    const tabs = await screen.findAllByRole('button', { name: 'Roller' })
+    fireEvent.click(tabs[0])
+    expect(await screen.findByText('Proje Yöneticisi')).toBeInTheDocument()
+    expect(screen.getByText('system_engineer', { selector: 'td' })).toBeInTheDocument()
   })
 })

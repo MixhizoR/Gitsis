@@ -98,6 +98,11 @@ http.interceptors.response.use(
       writeSession(null)
       emitSessionExpired()
     }
+    // Issue #103: proje erisimi kalktiysa (uyelikten cikarildi) calisma alanini
+    // kapat — ProjectSelect yalnizca uye olunan projeleri tekrar listeler.
+    if (status === 403 && err?.response?.data?.code === 'PROJECT_ACCESS_DENIED') {
+      window.dispatchEvent(new CustomEvent('ehsim:project-access-denied'))
+    }
     return Promise.reject(err)
   },
 )
@@ -107,6 +112,7 @@ function toError(err) {
   const msg = err?.response?.data?.error || err?.message || 'Sunucu hatasi.'
   const e = new Error(msg)
   e.status = err?.response?.status
+  e.code = err?.response?.data?.code || null
   return e
 }
 

@@ -221,9 +221,10 @@ describe('Sidebar — menu gruplari', () => {
     )
   })
 
-  // "Bana Atananlar" personelin kendi is kuyrugudur; PM'in personel kimligi
-  // olmadigi icin ona atanmis is de olamaz — menude gosterilmez.
-  it('"Bana Atananlar" yalnizca personel oturumunda gorunur', () => {
+  // "Bana Atananlar" kullanicinin kendi is kuyrugudur. Issue #97/A: atama
+  // User tabanlidir — PM de kendisine is atanmis olabilir, bu yuzden menu
+  // HER oturumda gorunur.
+  it('"Bana Atananlar" her oturumda gorunur', () => {
     navMock.value = defaultNav
     authMock.isPM = false
     renderSidebar()
@@ -232,6 +233,6 @@ describe('Sidebar — menu gruplari', () => {
     cleanup()
     authMock.isPM = true
     renderSidebar()
-    expect(screen.queryByRole('button', { name: /Bana Atananlar/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Bana Atananlar/i })).toBeInTheDocument()
   })
 })

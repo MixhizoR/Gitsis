@@ -34,3 +34,30 @@ export async function deleteUser(id) {
 export async function listAuditLogs(params) {
   return api.get('/admin/audit-logs', params)
 }
+
+// --- AYRINTILI BILGI (permission debug/rapor icin) — Issue #101.
+export async function resolveUserRole(params) {
+  return api.get('/admin/resolve-role', params)
+}
+
+// --- Sistem rolleri (Issue #101) ---------------------------------------------
+
+/** Tum sistem rollerini listeler (cekirdek + ozel). */
+export async function listSystemRoles() {
+  return api.get('/admin/system-roles')
+}
+
+/** Yeni (ozel) sistem rolu olusturur: { key, name, permissions? }. */
+export async function createSystemRole(body) {
+  return api.post('/admin/system-roles', body)
+}
+
+/** Rol guncelle: { name?, permissions?, isActive? }. */
+export async function updateSystemRole(key, body) {
+  return api.patch(`/admin/system-roles/${key}`, body)
+}
+
+/** Rol siler (yalnizca ozel roller; sistem rolleri backend reddeder). */
+export async function deleteSystemRole(key) {
+  return api.del(`/admin/system-roles/${key}`)
+}

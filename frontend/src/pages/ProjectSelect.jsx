@@ -15,7 +15,14 @@ import Modal from '../components/common/Modal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import DeletedProjectsModal from '../components/common/DeletedProjectsModal.jsx'
 import { DEFAULT_CODE_PREFIX } from '../utils/constants.js'
-import { IconPlus, IconTrash, IconChevron, IconHistory } from '../components/common/Icons.jsx'
+import {
+  IconPlus,
+  IconTrash,
+  IconChevron,
+  IconUsers,
+  IconHistory,
+} from '../components/common/Icons.jsx'
+import MembersModal from '../components/projects/MembersModal.jsx'
 
 function CreateModal({ open, onClose }) {
   const { createProject } = useProject()
@@ -114,6 +121,7 @@ export default function ProjectSelect() {
   const { currentUser, logout, can, isPM } = useAuth()
   const { t, lang, toggleLang } = useLang()
   const [createOpen, setCreateOpen] = useState(false)
+  const [membersProject, setMembersProject] = useState(null)
   const [deletedLogOpen, setDeletedLogOpen] = useState(false)
   // Silme oncesi zorunlu gerekce (izlenebilirlik) — bkz. ReasonModal.
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -126,6 +134,11 @@ export default function ProjectSelect() {
   const confirmDelete = async (reason) => {
     await removeProject(deleteTarget.id, reason)
     setDeleteTarget(null)
+  }
+
+  const handleMembers = (e, p) => {
+    e.stopPropagation()
+    setMembersProject(p)
   }
 
   return (
@@ -203,23 +216,37 @@ export default function ProjectSelect() {
             {projects.map((p) => {
               const c = p._count || {}
               return (
-                <button
+                <div
                   key={p.id}
                   onClick={() => openProject(p.id)}
-                  className="card group flex flex-col gap-3 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') openProject(p.id)
+                  }}
+                  className="card group flex cursor-pointer flex-col gap-3 p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-lg font-bold text-slate-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-400">
                       {p.name}
                     </h3>
                     {canManageProjects && (
-                      <span
-                        onClick={(e) => handleDelete(e, p)}
-                        className="btn-ghost shrink-0 cursor-pointer rounded-lg !px-2 !py-1 text-rose-400 opacity-0 transition-opacity hover:bg-rose-50 group-hover:opacity-100 dark:hover:bg-rose-950/40"
-                        title={t('tbl.delete')}
-                      >
-                        <IconTrash size={15} />
-                      </span>
+                      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <span
+                          onClick={(e) => handleMembers(e, p)}
+                          className="btn-ghost cursor-pointer rounded-lg !px-2 !py-1 text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-950/40"
+                          title={t('member.title')}
+                        >
+                          <IconUsers size={15} />
+                        </span>
+                        <span
+                          onClick={(e) => handleDelete(e, p)}
+                          className="btn-ghost cursor-pointer rounded-lg !px-2 !py-1 text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                          title={t('tbl.delete')}
+                        >
+                          <IconTrash size={15} />
+                        </span>
+                      </div>
                     )}
                   </div>
                   <p className="min-h-[40px] flex-1 text-sm text-slate-500 dark:text-slate-400">
@@ -239,7 +266,7 @@ export default function ProjectSelect() {
                   <div className="flex items-center gap-1 text-xs font-bold text-brand-600 opacity-0 transition-opacity group-hover:opacity-100 dark:text-brand-400">
                     {t('proj.open')} <IconChevron size={14} />
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -247,6 +274,11 @@ export default function ProjectSelect() {
       </main>
 
       <CreateModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <MembersModal
+        open={Boolean(membersProject)}
+        project={membersProject}
+        onClose={() => setMembersProject(null)}
+      />
       <ReasonModal
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}

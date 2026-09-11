@@ -10,9 +10,10 @@
 //      jwt (Bearer). local stratejisi SADECE dogrulama yapar; basarisiz
 //      deneme sayaci / hesap kilidi / audit, giris route'unda islenir.
 //    - Express middleware'leri: requireAuth (her istekte token zorunlu,
-//      birkac genel yol haric), requirePM (yalnizca Proje Yöneticisi),
-//      projectAccessGuard (app.param('pid', ...) — personel yalnizca
+//      birkac genel yol haric), requirePM (yalnizca Proje Yoneticisi),
+//      projectAccessGuard (app.param('pid', ...) — kullanici yalnizca
 //      kendi atandigi projeye erisebilir; PM her projeye erisebilir).
+//    Issue #97: personnel/passcode kimlik turu KALDIRILDI — tek kimlik User.
 // ============================================================================
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -145,13 +146,8 @@ export function configurePassport(prisma) {
 
 // Token gerektirmeyen tek yollar: saglik kontrolu + auth uclari.
 // (refresh ve logout, Bearer yerine body'deki refresh token ile dogrulanir.)
-const PUBLIC_PATHS = new Set([
-  '/api/health',
-  '/api/auth/login',
-  '/api/auth/passcode',
-  '/api/auth/refresh',
-  '/api/auth/logout',
-]);
+// Issue #97: /api/auth/passcode KALDIRILDI — tek giris yolu /api/auth/login.
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/login', '/api/auth/refresh', '/api/auth/logout']);
 
 export function requireAuth(req, res, next) {
   if (PUBLIC_PATHS.has(req.path)) return next();
@@ -164,28 +160,47 @@ export function requireAuth(req, res, next) {
 }
 
 export function requirePM(req, res, next) {
-  if (!req.auth?.isPM) {
-    return res.status(403).json({ error: 'Bu islem yalnizca Proje Yöneticisi tarafindan yapilabilir.' });
+  // Issue #101: PM tespiti JWT'deki kanonik roleKey uzerinden yapilir
+  // (login/refresh fallback: role==='Proje Yöneticisi' ise roleKey='pm').
+  if (req.auth?.roleKey !== 'pm') {
+    return res.status(403).json({ error: 'Bu islem yalnizca Proje Yoneticisi tarafindan yapilabilir.' });
   }
   next();
 }
 
-// Issue #88: admin uclari yalnizca systemRole='ADMIN' JWT ile erisilebilir.
+// Issue #101: admin konsol uclari yalnizca roleKey='admin' ile erisilebilir
+// (Admin bir ROL'dur; ayri `systemRole` kolonu KALDIRILDI).
 export function requireAdmin(req, res, next) {
-  if (req.auth?.systemRole !== 'ADMIN') {
+  if (req.auth?.roleKey !== 'admin') {
     return res.status(403).json({ error: 'Bu islem yalnizca Admin tarafindan yapilabilir.' });
   }
   next();
 }
 
 /** app.param('pid', projectAccessGuard) — proje sinirini asma (IDOR) korumasi. */
-export function projectAccessGuard(req, res, next, pid) {
-  if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
-  if (req.auth.isPM) return next();
-  // PM degilse yalnizca atanmis projeye erisilebilir. Regular User (kind='user')
-  // ve passcode personeli (kind='personnel') icin ayni kural: projectId === pid.
-  if ((req.auth.kind === 'personnel' || req.auth.kind === 'user') && req.auth.projectId === pid) return next();
-  return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.' });
+// Issue #103: uyelik DB'den canli okunur (ProjectMember). Token'da projectId
+// tasimayiz — uye cikarimi ANINDA etkili olur; eski token proje uclarinda
+// is gormez (maks 15 dk access TTL'i zaten kisitliyor).
+export function makeProjectAccessGuard(prisma) {
+  return async function projectAccessGuard(req, res, next, pid) {
+    if (!req.auth) return res.status(401).json({ error: 'Kimlik dogrulama gerekli.' });
+    // Issue #103: PM (roleKey='pm') uyelik kaydi tutmaz ve tum projelere erisir.
+    if (req.auth.roleKey === 'pm') return next();
+    try {
+      const membership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId: pid, userId: req.auth.userId } },
+        include: { user: { select: { isActive: true } } },
+      });
+      // Uyelik kaydi + aktif kullanici: erisim ver. Admin kullaniciyi devre
+      // disi birakirsa (isActive=false) kayit olsa bile erisim kesilir.
+      if (membership && membership.user?.isActive !== false) return next();
+    } catch (e) {
+      console.error('[guard] uyelik okunamadi:', e?.message || e);
+    }
+    // code: frontend'de "proje erisimi kalkti" akisini (403 -> ProjectSelect'e
+    // donus) diger 403'lerden ayirt etmek icin kullanilir.
+    return res.status(403).json({ error: 'Bu projeye erisim yetkiniz yok.', code: 'PROJECT_ACCESS_DENIED' });
+  };
 }
 
 export { MAX_LOGIN_ATTEMPTS, LOCK_DURATION_MS, REFRESH_TOKEN_TTL_MS, passport };

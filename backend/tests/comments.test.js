@@ -20,18 +20,21 @@ const prisma = new PrismaClient();
 
 const PM_CREDENTIALS = { username: 'pm-comments', password: 'pm-comments-pass-1234' };
 let pmToken = null;
-let personnelToken = null;
+let memberToken = null;
 let projA = null;
 let projB = null;
 let reqA = null; // projA'daki gereksinim
 let reqB = null; // projB'deki gereksinim (IDOR testi)
 let glossaryA = null;
-let personnelA = null;
+let memberUserA = null;
 
 before(async () => {
   resetDb();
 
   const { hashPassword } = await import('../src/auth.js');
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  // Issue #97: rol/izinler SystemRole'den gelir; cekirdek roller seed'lenmeli.
+  await ensureSystemRoles(prisma);
 
   await prisma.user.create({
     data: {
@@ -39,6 +42,7 @@ before(async () => {
       passwordHash: await hashPassword(PM_CREDENTIALS.password),
       name: 'Yorum Test PM',
       role: 'Proje Yöneticisi',
+      roleKey: 'pm',
     },
   });
 
@@ -65,28 +69,27 @@ before(async () => {
     data: { projectId: projA.id, text_id: 'GLO-001', term: 'Espresso' },
   });
 
-  // Sistem gereksinimlerini OKUYABILEN personel — yorum yazabilmeli.
-  const role = await prisma.role.create({
+  // Sistem gereksinimlerini OKUYABILEN uye (SystemRole 'system_engineer'
+  // read=ALL_COMPONENTS) — yorum yazabilmeli. Issue #97/A: kimlik User'dir;
+  // proje erisimi ProjectMember ile kurulur.
+  const memberA = await prisma.user.create({
     data: {
-      projectId: projA.id,
-      name: 'Analist',
-      permissions: { read: { enabled: true, components: ['req-system'] } },
+      username: 'member-comments',
+      passwordHash: await hashPassword('member-comments-pass-1234'),
+      name: 'Ayse Demir',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
     },
   });
-  personnelA = await prisma.personnel.create({
-    data: {
-      projectId: projA.id,
-      roleId: role.id,
-      firstName: 'Ayse',
-      lastName: 'Demir',
-      passcode: 'CMT12',
-    },
-  });
+  memberUserA = memberA;
+  await prisma.projectMember.create({ data: { projectId: projA.id, userId: memberA.id } });
 
   const login = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   pmToken = login.body.accessToken;
-  const pass = await request(app).post('/api/auth/passcode').send({ passcode: 'CMT12' });
-  personnelToken = pass.body.token;
+  const memberLogin = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'member-comments', password: 'member-comments-pass-1234' });
+  memberToken = memberLogin.body.accessToken;
 });
 
 after(async () => {
@@ -94,7 +97,7 @@ after(async () => {
 });
 
 const asPM = (r) => r.set('Authorization', `Bearer ${pmToken}`);
-const asPersonnel = (r) => r.set('Authorization', `Bearer ${personnelToken}`);
+const asMember = (r) => r.set('Authorization', `Bearer ${memberToken}`);
 
 // --- Kimlik dogrulama -------------------------------------------------------
 
@@ -127,17 +130,17 @@ test('POST /comments — PM yorum ekler; yazar SUNUCUDA belirlenir', async () =>
 });
 
 test('POST /comments — okuma yetkisi olan personel yorum ekleyebilir (rolu ile)', async () => {
-  const res = await asPersonnel(request(app).post(`/api/projects/${projA.id}/comments`)).send({
+  const res = await asMember(request(app).post(`/api/projects/${projA.id}/comments`)).send({
     entityType: 'requirement',
     entityId: reqA.id,
     text: 'Ilgili kismi guncelledim.',
   });
 
   assert.equal(res.status, 201);
-  assert.equal(res.body.authorId, personnelA.id);
+  assert.equal(res.body.authorId, memberUserA.id);
   assert.equal(res.body.authorName, 'Ayse Demir');
   // Rol yanitta yer alir (UI yorumun yaninda gosterir).
-  assert.equal(res.body.authorRole, 'Analist');
+  assert.equal(res.body.authorRole, 'System Engineer');
 });
 
 test('POST /comments — bos / yalnizca bosluk iceren yorum reddedilir', async () => {
@@ -206,7 +209,7 @@ test('GET /comments — yalnizca entityType verilirse 400', async () => {
 });
 
 test('GET /comments — personel baska projenin yorumlarini goremez', async () => {
-  const res = await asPersonnel(request(app).get(`/api/projects/${projB.id}/comments`));
+  const res = await asMember(request(app).get(`/api/projects/${projB.id}/comments`));
   assert.equal(res.status, 403);
 });
 
@@ -228,13 +231,13 @@ test('DELETE /comments/:id — gerekce olmadan silinemez', async () => {
 });
 
 test('DELETE /comments/:id — kullanici KENDI yorumunu silebilir', async () => {
-  const created = await asPersonnel(request(app).post(`/api/projects/${projA.id}/comments`)).send({
+  const created = await asMember(request(app).post(`/api/projects/${projA.id}/comments`)).send({
     entityType: 'requirement',
     entityId: reqA.id,
     text: 'kendi yorumum',
   });
 
-  const res = await asPersonnel(request(app).delete(`/api/projects/${projA.id}/comments/${created.body.id}`)).send({
+  const res = await asMember(request(app).delete(`/api/projects/${projA.id}/comments/${created.body.id}`)).send({
     reason: 'Yanlislikla yazdim.',
   });
   assert.equal(res.status, 200);
@@ -250,7 +253,7 @@ test('DELETE /comments/:id — BASKASININ yorumu silinemez (403)', async () => {
     text: "PM'in yorumu",
   });
 
-  const res = await asPersonnel(request(app).delete(`/api/projects/${projA.id}/comments/${pmComment.body.id}`)).send({
+  const res = await asMember(request(app).delete(`/api/projects/${projA.id}/comments/${pmComment.body.id}`)).send({
     reason: 'Silmek istiyorum.',
   });
   assert.equal(res.status, 403);
@@ -260,7 +263,7 @@ test('DELETE /comments/:id — BASKASININ yorumu silinemez (403)', async () => {
 });
 
 test('DELETE /comments/:id — PM baskasinin yorumunu silebilir + AuditLog yazilir', async () => {
-  const personnelComment = await asPersonnel(request(app).post(`/api/projects/${projA.id}/comments`)).send({
+  const personnelComment = await asMember(request(app).post(`/api/projects/${projA.id}/comments`)).send({
     entityType: 'requirement',
     entityId: reqA.id,
     text: 'PM tarafindan silinecek',

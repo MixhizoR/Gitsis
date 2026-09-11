@@ -46,7 +46,7 @@ export async function getTreeChildren(projectId, parentId, clearanceLevel) {
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId", r."clearanceLevel",
                  r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote", r."assigneeId",
                  COALESCE((
-                   SELECT array_agg(ra."personnelId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
+                   SELECT array_agg(ra."userId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
                    FROM "RequirementAssignee" ra WHERE ra."requirementId" = r.id
                  ), ARRAY[]::text[]) AS "assigneeIds",
                  EXISTS (
@@ -62,7 +62,7 @@ export async function getTreeChildren(projectId, parentId, clearanceLevel) {
           SELECT r.id, r.text_id, r.title, r.description, r.type, r.field, r.status, r.attributes, r.locked, r."approvalStatus", r."createdAt", r."parentId", r."clearanceLevel",
                  r."sourceDocumentId", r."sourceDocumentName", r."sourceStart", r."sourceEnd", r."sourceQuote", r."assigneeId",
                  COALESCE((
-                   SELECT array_agg(ra."personnelId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
+                   SELECT array_agg(ra."userId" ORDER BY ra."order" ASC, ra."createdAt" ASC)
                    FROM "RequirementAssignee" ra WHERE ra."requirementId" = r.id
                  ), ARRAY[]::text[]) AS "assigneeIds",
                  EXISTS (

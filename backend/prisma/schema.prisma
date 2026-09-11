@@ -2,9 +2,12 @@
 //  schema.prisma  —  EHSIM - GITSIS / RMT veri tabani semasi (PostgreSQL).
 //  Tum veri PROJE bazli izole edilir (project-isolated). Bir proje silinince
 //  ona ait tum kayitlar cascade ile temizlenir.
-//  Tablolar: Users, Projects, ProjectFields, Requirements, TestCases,
-//            TraceabilityLinks, GlossaryTerms, AuditLogs, RefreshTokens,
-//            SystemAuditLogs.
+//  Tablolar: Users, SystemRoles, Projects, ProjectFields, Requirements,
+//            TestCases, TraceabilityLinks, GlossaryTerms, AuditLogs,
+//            RefreshTokens, SystemAuditLogs.
+//  Issue #97: Personnel (passcode) ve proje-bazli Role modelleri KALDIRILDI.
+//  Tek kimlik dunyasi: User (sifre ile) -> SystemRole (roleKey, izinler).
+//  Onay oylari tamamen User tabanlidir (voterId = User UUID).
 //  Issue #85: User password -> passwordHash; sistem geneli auth olaylari
 //            SystemAuditLog'a, refresh token ozetleri RefreshToken'a yazilir.
 // ============================================================================
@@ -21,11 +24,12 @@ datasource db {
 }
 
 // --- Kullanicilar (kimlik dogrulama) ---------------------------------------
-//  Issue #85: Auth epik altyapisi — password -> passwordHash, systemRole
-//  (ADMIN/USER), clearanceLevel (ABAC, #87'de tuketilir), isActive /
-//  failedAttempts / lockedUntil kolonlari (kilitleme mantigi #86'da).
-//  `role` KORUNUR: free-text PM tespiti (cascade.js/server.js 'Proje
-//  Yoneticisi' okur) ve frontend permissionsFor(role) anahtaridir.
+//  Issue #85: Auth epik altyapisi — password -> passwordHash, clearanceLevel
+//  (ABAC, #87'de tuketilir), isActive / failedAttempts / lockedUntil kolonlari
+//  (kilitleme mantigi #86'da).
+//  `role` KORUNUR: display adi + eski veri fallback'i (PM_ROLE).
+//  Issue #101: Admin bir ROL'dur — ayri `systemRole` kolonu KALDIRILDI;
+//  konsol erisimi yalnizca `roleKey === 'admin'` ile belirlenir.
 model User {
   id             String    @id @default(uuid())
   username       String    @unique
@@ -33,19 +37,66 @@ model User {
   name           String
   initials       String?
   role           String    @default("System Engineer")
-  systemRole     String    @default("USER") // 'ADMIN' | 'USER'
+  // Issue #101: sistem-geneli sabit role anahtari (SystemRole.key). `role`
+  // display adi olarak korunur; yetki bu anahtardan turetilir. Eski verilerde
+  // null olabilir (o zaman `role` eslesmesi - PM_ROLE - gecerli kalir).
+  roleKey        String?
   clearanceLevel Int       @default(1)
   isActive       Boolean   @default(true)
   failedAttempts Int       @default(0)
   lockedUntil    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @default(now()) @updatedAt
-  // Issue #87: normal (PM olmayan) kullanicinin atandigi proje. PM (isPM)
-  // tum projelere erisir; bu alan regular user icin proje-ceperli erisim saglar.
-  projectId      String?
-  project        Project?  @relation("UserProject", fields: [projectId], references: [id], onDelete: SetNull)
+  // Issue #103: proje uyeligi User.projectId yerine coktan-coga ProjectMember
+  // uzerinden modellenir. PM'ler uyelik kaydi OLMADAN tum projelere erisir.
+  memberships    ProjectMember[]
 
-  refreshTokens RefreshToken[]
+  // --- Sorumlu kullanici (is atama) ---------------------------------------
+  //  #114/#115'in coklu atama ozelligi Personel yerine USER tabanlidir
+  //  (#97 Personel'i kaldirdi). Atanabilmek icin kullanicinin projede
+  //  ProjectMember uyeligi olmalidir (bkz. src/assignees.js).
+  assignedRequirements   Requirement[]            @relation("RequirementAssignee")
+  assignedTestCases      TestCase[]               @relation("TestCaseAssignee")
+  requirementAssignments RequirementAssignee[]
+  testCaseAssignments    TestCaseAssignee[]
+
+  refreshTokens  RefreshToken[]
+}
+
+// --- Proje uyeligi (Issue #103, coktan-coga) --------------------------------
+//  PM (roleKey='pm') uyelik kaydi TUTMAZ — erisimi isPM yoluyla saglanir.
+//  Normal kullanici yalnizca buradaki kayitlarla projelere girer; uyeligi
+//  olmayan kullanici hicbir projeyi goremez (liste + guard 403). Yetki
+//  kaynagi User.roleKey -> SystemRole kalir (proje-bazli override YOK).
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  joinedAt  DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+// --- Sistem-geneli sabit roller (Issue #101) --------------------------------
+//  Personel/passcode dunyasindaki proje-bazli `Role` modelinden AYRI: bu,
+//  User.role icin SISTEM seviyesinde tanimli cekirdek roller + izinleridir
+//  (PM / System Engineer / Developer / Admin...). `permissions` 12 kademeli
+//  izin JSON'udur (frontend utils/permissions.js semasi). isSystem=true olan
+//  roller silinemez (yalnizca pasiflestirilebilir) — DO-178C tasarim karari.
+//  Ileride ozel (custom) rol eklemek icin zemin: isSystem=false + admin CRUD.
+model SystemRole {
+  id          String    @id @default(uuid())
+  key         String    @unique // 'pm' | 'system_engineer' | 'developer' | ...
+  name        String
+  permissions Json      @default("{}")
+  isSystem    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
 }
 
 // --- Refresh tokenlari (Issue #85) -----------------------------------------
@@ -80,32 +131,30 @@ model SystemAuditLog {
 
 // --- Projeler ---------------------------------------------------------------
 model Project {
-  id          String   @id @default(uuid())
-  name        String
-  description String   @default("")
+  id           String             @id @default(uuid())
+  name         String
+  description  String             @default("")
   // text_id onegi: <codePrefix>-<TIP>-<NNN> (orn. EH-KAHVE-TID-USR-001).
   // Proje bazlidir; bos birakilirsa DEFAULT_CODE_PREFIX kullanilir.
-  codePrefix  String   @default("EH-KAHVE-TİD")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  codePrefix   String             @default("EH-KAHVE-TİD")
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @default(now()) @updatedAt
 
-  fields        ProjectField[]
+  fields       ProjectField[]
   attributeDefs AttributeDefinition[]
-  requirements  Requirement[]
-  testCases     TestCase[]
-  links         TraceabilityLink[]
-  glossary      GlossaryTerm[]
-  audit         AuditLog[]
-  roles         Role[]
-  personnel     Personnel[]
-  users         User[] @relation("UserProject")
-  approvals     Approval[]
-  snapshots     ProjectSnapshot[]
-  navGroups     NavGroup[]
-  navItems      NavItem[]
-  history       RequirementHistory[]
-  documents     ProjectDocument[]
-  comments      Comment[]
+  requirements Requirement[]
+  testCases    TestCase[]
+  links        TraceabilityLink[]
+  glossary     GlossaryTerm[]
+  audit        AuditLog[]
+  members      ProjectMember[]
+  approvals    Approval[]
+  snapshots    ProjectSnapshot[]
+  navGroups    NavGroup[]
+  navItems     NavItem[]
+  history      RequirementHistory[]
+  documents    ProjectDocument[]
+  comments     Comment[]
 }
 
 // --- Proje SILME gerekcesi (izlenebilirlik) ---------------------------------
@@ -129,12 +178,12 @@ model ProjectDeletionLog {
 //  o andaki tüm Requirement/TestCase/GlossaryTerm + Link kayıtlarını
 //  JSON blob olarak saklar (salt okunur, gelecek restore/diff için).
 model ProjectSnapshot {
-  id        String         @id @default(uuid())
+  id        String   @id @default(uuid())
   projectId String
   name      String
   createdBy String?
-  createdAt DateTime       @default(now())
-  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   items     SnapshotItem[]
 
   @@unique([projectId, name])
@@ -143,13 +192,13 @@ model ProjectSnapshot {
 }
 
 model SnapshotItem {
-  id         String          @id @default(uuid())
-  snapshotId String
-  entityType String // 'requirement' | 'testcase' | 'glossary' | 'link'
-  entityId   String
-  data       Json // o anki kaydın tam kopyası (field-by-field)
-  createdAt  DateTime        @default(now())
-  snapshot   ProjectSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  id           String   @id @default(uuid())
+  snapshotId   String
+  entityType   String // 'requirement' | 'testcase' | 'glossary' | 'link'
+  entityId     String
+  data         Json   // o anki kaydın tam kopyası (field-by-field)
+  createdAt    DateTime @default(now())
+  snapshot     ProjectSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
   @@index([snapshotId])
   @@index([snapshotId, entityType])
@@ -164,14 +213,14 @@ model SnapshotItem {
 //  degisir. Varligin gercekten ayni projede oldugu YAZMA aninda dogrulanir
 //  (bkz. src/comments.js assertEntityInProject).
 //
-//  authorName / authorRole ANLIK KOPYADIR: personel silinse ya da rolu
+//  authorName / authorRole ANLIK KOPYADIR: kullanici silinse ya da rolu
 //  degisse bile yorumun yazildigi andaki kimlik korunur (izlenebilirlik).
 model Comment {
   id         String   @id @default(uuid())
   projectId  String
   entityType String // 'requirement' | 'testcase' | 'glossary'
   entityId   String
-  // PM icin User.id, personel icin Personnel.id (bkz. actorOf deseni).
+  // Issue #97: tek kimlik dunyasi — yazan her zaman User.id'dir.
   authorId   String
   authorName String
   authorRole String?
@@ -217,61 +266,20 @@ model ProjectDocument {
   @@index([projectId, createdAt])
 }
 
-// --- Roller (proje bazli, dinamik) -----------------------------------------
-//  permissions: 12 kademeli izin JSON'u. Her izin { enabled, components[] }
-//  seklinde saklanir (components = hangi hiyerarsi bilesenleri kapsar).
-model Role {
-  id          String      @id @default(uuid())
-  projectId   String
-  name        String
-  permissions Json        @default("{}")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  personnel   Personnel[]
-
-  @@unique([projectId, name])
-  @@index([projectId])
-}
-
-// --- Personel (passcode ile giris yapan atanmis kisiler) -------------------
-model Personnel {
-  id                     String                @id @default(uuid())
-  projectId              String
-  roleId                 String
-  firstName              String
-  lastName               String
-  passcode               String                @unique
-  createdAt              DateTime              @default(now())
-  project                Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  role                   Role                  @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  approvals              Approval[]
-  // Atandigi isler; personel silinince atamalar bosa duser (SetNull).
-  assignedRequirements   Requirement[]         @relation("RequirementAssignee")
-  assignedTestCases      TestCase[]            @relation("TestCaseAssignee")
-  // Coklu atama (bir kayda birden fazla sorumlu) — bkz. RequirementAssignee.
-  requirementAssignments RequirementAssignee[]
-  testCaseAssignments    TestCaseAssignee[]
-
-  @@index([projectId])
-  @@index([roleId])
-}
-
-// --- Onay oylari (consensus) -----------------------------------------------
-//  Bir gereksinim/test icin bir oy verenin (personel veya PM) onayi.
-//  voterId: personel id'si veya 'PM' (Proje Yöneticisi). entityType:
-//  'requirement' | 'testcase'.
+// --- Onay oylari (consensus, Issue #97: tamamen User tabanli) ---------------
+//  Bir gereksinim/test icin bir kullanicinin onayi. voterId artik HER ZAMAN
+//  User UUID'sidir (eski 'PM' sentinel'i ve personnelId kaldirildi). Gerekli
+//  oy verenler = PM'ler + projeye atanmis, o bilesende approve izni olan
+//  uyeler (bkz. backend/src/cascade.js getRequiredVoters).
 model Approval {
-  id          String     @id @default(uuid())
+  id          String   @id @default(uuid())
   projectId   String
   entityType  String
   entityId    String
   voterId     String
   voterName   String
-  personnelId String?
-  createdAt   DateTime   @default(now())
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  personnel   Personnel? @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, entityType, entityId, voterId])
   @@index([projectId, entityType, entityId])
@@ -293,12 +301,12 @@ model ProjectField {
 //  sayfa anahtarlari (pageKey) SABITTIR (bkz. navDefaults.js). Boylece
 //  DO-178C hiyerarsi kurallari ve 12 kademeli izin matrisi etkilenmez.
 model NavGroup {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   projectId String
   name      String
-  order     Int       @default(0)
-  createdAt DateTime  @default(now())
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   items     NavItem[]
 
   @@unique([projectId, name])
@@ -306,17 +314,17 @@ model NavGroup {
 }
 
 model NavItem {
-  id          String    @id @default(uuid())
-  projectId   String
+  id        String    @id @default(uuid())
+  projectId String
   // null => grupsuz (en ust seviyede gorunur). Grup silinince item'lar
   // SetNull ile grupsuz seviyeye duser; hicbir sayfa kaybolmaz.
-  groupId     String?
+  groupId   String?
   // Temel sayfa tipi (SABIT liste — navDefaults.js NAV_PAGE_KEYS).
   // Ayni pageKey birden fazla menu ogesinde kullanilabilir: kullanici bir
   // gruba ayni tipten birden cok "ozel sayfa" ekleyebilir (farkli ad/filtre).
-  pageKey     String
+  pageKey   String
   // Ozel sayfa etiketi. null => varsayilan i18n etiketi kullanilir.
-  label       String?
+  label     String?
   // Ozel sayfanin Alan (disiplin) filtresi. null => filtre yok, tam liste.
   // Tipler sabit kaldigi icin ayrisma bu filtre uzerinden saglanir.
   fieldFilter String?
@@ -326,63 +334,62 @@ model NavItem {
   // filtre yok, o pageKey'in tum tipleri birlikte gosterilir. Gecerli
   // degerler navDefaults.js PAGE_TYPE_OPTIONS ile sinirlidir.
   typeFilter  String?
-  order       Int       @default(0)
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  group       NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  order     Int       @default(0)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  group     NavGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
 }
 
 // --- Gereksinimler (User / System / Software / Hardware) --------------------
 model Requirement {
-  id                 String                @id @default(uuid())
-  projectId          String
+  id          String   @id @default(uuid())
+  projectId   String
   // PBS (Urun Agaci) hiyerarsisi — adjacency list (Issue #9).
   // TraceabilityLink 'Satisfies' cok-ebeveynli izlenebilirlik semantigini
   // korur; parentId ise agac gezinme icin TEK ebeveynli yapiyi tutar.
-  parentId           String?
-  text_id            String
-  title              String                @default("") // opsiyonel — bos ise UI aciklamayi baslik yerine gosterir
-  description        String                @default("")
-  type               String // 'User Requirement' | 'System Requirement' | 'Software Requirement' | 'Hardware Requirement'
-  field              String? // dinamik Alan / disiplin
-  status             String                @default("In Review")
+  parentId    String?
+  text_id     String
+  title       String   @default("") // opsiyonel — bos ise UI aciklamayi baslik yerine gosterir
+  description String   @default("")
+  type        String   // 'User Requirement' | 'System Requirement' | 'Software Requirement' | 'Hardware Requirement'
+  field       String? // dinamik Alan / disiplin
+  status      String   @default("In Review")
   // Modular oznitelikler (Priority, DAL Level, ve projeye ozel her turlu ek
   // alan) artik sabit kolon degil; AttributeDefinition tarafindan tanimlanan
   // semaya gore bu JSONB torbada saklanir. Bkz. src/attributes.js.
-  attributes         Json                  @default("{}")
-  author             String?
-  approvalStatus     String                @default("Pending") // 'Pending' | 'Approved'
-  locked             Boolean               @default(false) // onaylandiginda kilitlenir
-  clearanceLevel     Int                   @default(1) // Issue #85: ABAC (#87) icin — varsayilan 1
-  relatedDocuments   String[]              @default([]) // Etki analizinde gosterilen ilgili dokuman/etiket listesi
+  attributes  Json     @default("{}")
+  author      String?
+  approvalStatus String @default("Pending") // 'Pending' | 'Approved'
+  locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  clearanceLevel Int    @default(1)         // Issue #85: ABAC (#87) icin — varsayilan 1
+  relatedDocuments String[] @default([])    // Etki analizinde gosterilen ilgili dokuman/etiket listesi
   // --- Kaynak izlenebilirligi (dokumandan metin secerek olusturma) --------
   //  Gereksinim bir dokuman pasajindan turetildiyse burada baglanir.
   //  ONEMLI: Dokuman silinince gereksinim SILINMEZ; yalnizca bag bosa duser
   //  (onDelete: SetNull). Alinti ve dokuman adi ANLIK KOPYA olarak saklanir
   //  ki bag koptuktan sonra da UI "kaynak dokuman silinmis: <ad>" diyebilsin.
   sourceDocumentId   String?
-  sourceStart        Int? // extractedText icindeki karakter araligi [start, end)
+  sourceStart        Int?    // extractedText icindeki karakter araligi [start, end)
   sourceEnd          Int?
   sourceQuote        String? // secilen pasajin kopyasi (dokuman silinse de kalir)
   sourceDocumentName String? // dokuman adinin anlik kopyasi
-  // --- Sorumlu personel (is atama) ---------------------------------------
-  //  Sozlukteki "Assigned To" IZLENEBILIRLIK BAGI ile karistirilmamalidir:
-  //  o bag bir terim ile gereksinim arasindaki iliskidir; bu alan ise isin
-  //  KIMDE oldugunu tutar. Personel silinince kayit silinmez, atama bosa
-  //  duser (SetNull) — gereksinim projeye aittir, kisiye degil.
-  assigneeId         String?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @default(now()) @updatedAt
-  project            Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  sourceDocument     ProjectDocument?      @relation("RequirementSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
-  parent             Requirement?          @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children           Requirement[]         @relation("RequirementTree")
-  history            RequirementHistory[]
-  assignee           Personnel?            @relation("RequirementAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  // --- Sorumlu kullanici (is atama) ---------------------------------------
+  //  #97/A karari: atama USER tabanlidir (eski Personnel degil); atanabilmek
+  //  icin kullanicinin projede ProjectMember uyeligi olmalidir. Kullanici
+  //  silinince gereksinim SILINMEZ, atama bosa duser (SetNull).
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceDocument ProjectDocument? @relation("RequirementSource", fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  parent      Requirement?  @relation("RequirementTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Requirement[] @relation("RequirementTree")
+  history     RequirementHistory[]
+  assignee    User?     @relation("RequirementAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   // Coklu atama: bir gereksinim birden fazla kisiye verilebilir. assigneeId
   // bu listenin ILK elemaninin kopyasidir (bkz. src/assignees.js).
-  assignees          RequirementAssignee[]
+  assignees   RequirementAssignee[]
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
@@ -400,25 +407,25 @@ model Requirement {
 //  degistirdi tek yerden izlenir). Otomatik status/approval cascade'leri bu
 //  tabloya YAZMAZ (yalnizca PUT ile yapilan icerik degisimleri tetikler).
 model RequirementHistory {
-  id               String      @id @default(uuid())
+  id               String   @id @default(uuid())
   projectId        String
   requirementId    String
-  version          Int // gereksinim bazli, 1'den baslar
+  version          Int      // gereksinim bazli, 1'den baslar
   // Ana tablo alan kopyasi (degisiklik ONCESI durum)
   text_id          String
-  title            String      @default("")
-  description      String      @default("")
+  title            String   @default("")
+  description      String   @default("")
   type             String
   field            String?
   status           String
-  approvalStatus   String      @default("Pending")
-  locked           Boolean     @default(false)
-  attributes       Json        @default("{}")
+  approvalStatus   String   @default("Pending")
+  locked           Boolean  @default(false)
+  attributes       Json     @default("{}")
   author           String?
-  relatedDocuments String[]    @default([])
-  changedAt        DateTime    @default(now())
+  relatedDocuments String[] @default([])
+  changedAt        DateTime @default(now())
   changedBy        String?
-  auditLogId       String?     @unique
+  auditLogId       String?  @unique
   requirement      Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
   project          Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   auditLog         AuditLog?   @relation(fields: [auditLogId], references: [id], onDelete: SetNull)
@@ -430,34 +437,34 @@ model RequirementHistory {
 
 // --- Test Senaryolari (Acceptance / System / Sub-system Test) ---------------
 model TestCase {
-  id             String             @id @default(uuid())
-  projectId      String
-  text_id        String
-  title          String             @default("")
-  description    String             @default("")
-  type           String // 'Acceptance Test' | 'System Test' | 'Sub-system Test'
-  field          String? // gereksinimden otomatik kopyalanir
-  status         String             @default("In Review") // 'Approved' (Passed) | 'Rejected' (Failed) | 'In Review'
+  id          String   @id @default(uuid())
+  projectId   String
+  text_id     String
+  title       String   @default("")
+  description String   @default("")
+  type        String   // 'Acceptance Test' | 'System Test' | 'Sub-system Test'
+  field       String? // gereksinimden otomatik kopyalanir
+  status      String   @default("In Review") // 'Approved' (Passed) | 'Rejected' (Failed) | 'In Review'
   // Modular oznitelikler (Priority, DAL Level, projeye ozel ek alanlar).
-  attributes     Json               @default("{}")
-  author         String?
-  approvalStatus String             @default("Pending") // 'Pending' | 'Approved'
-  locked         Boolean            @default(false) // onaylandiginda kilitlenir
-  // Sorumlu personel — bkz. Requirement.assigneeId.
-  assigneeId     String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @default(now()) @updatedAt
-  project        Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee       Personnel?         @relation("TestCaseAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  attributes  Json     @default("{}")
+  author      String?
+  approvalStatus String @default("Pending") // 'Pending' | 'Approved'
+  locked         Boolean @default(false)    // onaylandiginda kilitlenir
+  // Sorumlu kullanici — bkz. Requirement.assigneeId (#97/A: User tabanli).
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?    @relation("TestCaseAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   // Coklu atama — bkz. Requirement.assignees.
-  assignees      TestCaseAssignee[]
+  assignees   TestCaseAssignee[]
 
   @@unique([projectId, text_id])
   @@index([projectId, type])
   @@index([projectId, assigneeId])
 }
 
-// --- Coklu sorumlu personel atamasi (Issue: birden fazla atanan kisi) ------
+// --- Coklu sorumlu kullanici atamasi (Issue #114/#115) ---------------------
 //  Bir gereksinime/teste BIRDEN FAZLA sorumlu atanabilir. Sira ONEMLIDIR:
 //  atama sirasi `order` ile saklanir, UI atananlari bu sirayla gosterir
 //  (bkz. ViewModal "Atanan Kisiler" bolumu).
@@ -466,31 +473,32 @@ model TestCase {
 //  bu listenin ILK elemanina esitlenir (eski istemciler ve raporlar tek
 //  atamayi okumaya devam eder). Tek dogruluk kaynagi bu tablodur.
 //
-//  Personel silinince YALNIZCA atama satiri silinir (Cascade); gereksimin
-//  kendisi silinmez — kayit projeye aittir, kisiye degil.
+//  Issue #97/A: eskiden Personnel'a baglanan bu tablolar artik User'a baglidir
+//  (tek kimlik dunyasi). Kullanici silinince YALNIZCA atama satiri silinir
+//  (Cascade); kaydin kendisi silinmez — kayit projeye aittir, kisiye degil.
 model RequirementAssignee {
   requirementId String
-  personnelId   String
+  userId        String
   order         Int         @default(0)
   createdAt     DateTime    @default(now())
   requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
-  personnel     Personnel   @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([requirementId, personnelId])
-  @@index([personnelId])
+  @@id([requirementId, userId])
+  @@index([userId])
   @@index([requirementId, order])
 }
 
 model TestCaseAssignee {
-  testCaseId  String
-  personnelId String
-  order       Int       @default(0)
-  createdAt   DateTime  @default(now())
-  testCase    TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
-  personnel   Personnel @relation(fields: [personnelId], references: [id], onDelete: Cascade)
+  testCaseId String
+  userId     String
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  testCase   TestCase  @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([testCaseId, personnelId])
-  @@index([personnelId])
+  @@id([testCaseId, userId])
+  @@index([userId])
   @@index([testCaseId, order])
 }
 
@@ -502,11 +510,11 @@ model TestCaseAssignee {
 model AttributeDefinition {
   id           String   @id @default(uuid())
   projectId    String
-  entityType   String // 'requirement' | 'testcase' | 'both'
-  key          String // makine-okur anahtar, orn. 'priority', 'risk_score'
-  label        String // UI'da gosterilen etiket
+  entityType   String   // 'requirement' | 'testcase' | 'both'
+  key          String   // makine-okur anahtar, orn. 'priority', 'risk_score'
+  label        String   // UI'da gosterilen etiket
   dataType     String   @default("text") // 'text' | 'number' | 'boolean' | 'date' | 'select'
-  options      Json? // dataType='select' icin [{ "value": "...", "label": "..." }, ...]
+  options      Json?    // dataType='select' icin [{ "value": "...", "label": "..." }, ...]
   required     Boolean  @default(false)
   defaultValue String?
   order        Int      @default(0)
@@ -561,26 +569,25 @@ model GlossaryTerm {
 
 // --- Degisiklik Tarihcesi (Audit Log) ---------------------------------------
 model AuditLog {
-  id           String              @id @default(uuid())
-  projectId    String
-  action       String
-  entityType   String?
-  entityId     String?
-  textId       String?
-  field        String?
-  oldValue     String?
-  newValue     String?
-  message      String?
+  id         String   @id @default(uuid())
+  projectId  String
+  action     String
+  entityType String?
+  entityId   String?
+  textId     String?
+  field      String?
+  oldValue   String?
+  newValue   String?
+  message    String?
   // Silme (ve ileride baska "geri alinamaz" islemler) icin ZORUNLU gerekce
   // metni — izlenebilirlik: "neden silindi" DB degisikligiyle BIRLIKTE
   // saklanir. Yalnizca DELETE/UNLINK/*_DELETE turu action'larda doldurulur;
   // digerlerinde (CREATE/UPDATE) null kalir. Sunucu tarafinda zorunlu
-  // kilinir (bkz. server.js requireReason) — burada nullable olmasinin tek
-  // sebebi eski action turlerinin bu alani hic kullanmamasidir.
-  reason       String?
-  actor        String?
-  createdAt    DateTime            @default(now())
-  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // kilinir (bkz. server.js requireReason).
+  reason     String?
+  actor      String?
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   historyEntry RequirementHistory? // Issue #57: versiyon satirinin bagli oldugu audit kaydi
 
   @@index([projectId])

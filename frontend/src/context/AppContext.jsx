@@ -29,9 +29,9 @@ export function AppProvider({ children }) {
   const [fields, setFields] = useState(EMPTY)
   const [attributeDefs, setAttributeDefs] = useState(EMPTY)
   const [auditLog, setAuditLog] = useState(EMPTY)
-  const [roles, setRoles] = useState(EMPTY)
-  const [personnel, setPersonnel] = useState(EMPTY)
   const [approvals, setApprovals] = useState(EMPTY)
+  // Atanabilir kisiler (proje uyeleri) — Issue #97/A: Personnel yerine User.
+  const [assignees, setAssignees] = useState(EMPTY)
   const [snapshots, setSnapshots] = useState(EMPTY)
   // Sol menu duzeni (gruplar + sayfa yerlesimi) — Issue #9 / Adim 6
   const [nav, setNav] = useState(null)
@@ -67,15 +67,14 @@ export function AppProvider({ children }) {
       setFields(EMPTY)
       setAttributeDefs(EMPTY)
       setAuditLog(EMPTY)
-      setRoles(EMPTY)
-      setPersonnel(EMPTY)
       setApprovals(EMPTY)
+      setAssignees(EMPTY)
       setSnapshots(EMPTY)
       setNav(null)
       return
     }
     const pid = activeProjectId
-    const [reqs, tcs, lnks, glo, flds, attrDefs, audit, rls, prs, apps, snaps, navLayout] =
+    const [reqs, tcs, lnks, glo, flds, attrDefs, audit, apps, people, snaps, navLayout] =
       await Promise.all([
         data.listRequirements(pid),
         data.listTestCases(pid),
@@ -84,9 +83,8 @@ export function AppProvider({ children }) {
         data.listFields(pid),
         data.listAttributes(pid),
         data.listAudit(pid),
-        data.listRoles(pid),
-        data.listPersonnel(pid),
         data.listApprovals(pid),
+        data.listAssignees(pid),
         data.listSnapshots(pid),
         data.getNav(pid),
       ])
@@ -97,9 +95,8 @@ export function AppProvider({ children }) {
     setFields(flds)
     setAttributeDefs(attrDefs)
     setAuditLog(audit)
-    setRoles(rls)
-    setPersonnel(prs)
     setApprovals(apps)
+    setAssignees(people)
     // Snapshots endpoint paginated: { data, total, take, skip }
     setSnapshots(snaps?.data || EMPTY)
     setNav(navLayout)
@@ -293,35 +290,8 @@ export function AppProvider({ children }) {
       return r
     },
 
-    // Roller ----------------------------------------------------------------
-    async addRole(payload) {
-      const r = await data.createRole(pid, payload)
-      await refresh()
-      return r
-    },
-    async editRole(id, updates) {
-      const r = await data.updateRole(pid, id, updates)
-      await refresh()
-      return r
-    },
-    async removeRole(id, reason) {
-      await data.deleteRole(pid, id, reason)
-      await refresh()
-    },
-
-    // Personel --------------------------------------------------------------
-    async addPersonnel(payload) {
-      const p = await data.createPersonnel(pid, payload)
-      await refresh()
-      return p
-    },
-    async removePersonnel(id, reason) {
-      await data.deletePersonnel(pid, id, reason)
-      await refresh()
-    },
-
     // Onay (consensus) ------------------------------------------------------
-    //  body: { entityType, entityId, voterId, voterName, personnelId? }
+    //  Issue #97: body: { entityType, entityId } — kimlik JWT'den alinir.
     async voteApproval(body) {
       const r = await data.voteApproval(pid, body)
       await refresh()
@@ -397,9 +367,12 @@ export function AppProvider({ children }) {
     fields,
     attributeDefs,
     auditLog,
-    roles,
-    personnel,
     approvals,
+    // Issue #97/A: atanabilir kisiler = proje UYELERI (User). Personnel kalkti;
+    // picker/gorunum/etiketler bu listeden beslenir. `personnel` adi eski
+    // bilesenlerle uyumluluk icin ayni listeye baglanmistir (alias).
+    assignees,
+    personnel: assignees,
     snapshots,
     nav,
     // durum

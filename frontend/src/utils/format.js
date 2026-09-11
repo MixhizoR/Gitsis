@@ -33,10 +33,11 @@ export function formatDate(iso) {
   }
 }
 
-/** Personel kaydinin gorunen adi ("Ad Soyad"). */
+/** Kisi kaydinin gorunen adi — User.name (#97/A) veya eski Ad/Soyad sekli. */
 export function personnelName(p) {
   if (!p) return ''
-  return `${p.firstName || ''} ${p.lastName || ''}`.trim()
+  const full = `${p.firstName || ''} ${p.lastName || ''}`.trim()
+  return p.name || full
 }
 
 /** Bir metni belirli uzunlukta keser. */

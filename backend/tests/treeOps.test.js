@@ -81,7 +81,7 @@ before(async () => {
       role: 'Proje Yöneticisi',
     },
   });
-  pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
+  pmToken = signToken({ userId: user.id, roleKey: 'pm' });
   proj = await prisma.project.create({ data: { name: 'TreeOps Proje', description: 'Test' } });
 });
 

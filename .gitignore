@@ -27,3 +27,4 @@ repomix-output.md
 ATTRIBUTES_MIGRATION.md
 .reasonix/
 reasonix.toml
+pre-push-log.txt

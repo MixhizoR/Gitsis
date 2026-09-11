@@ -80,12 +80,8 @@ export default function TestCases({
     () => (cfg?.lockedType ? ['field', 'status', 'links'] : ['type', 'field', 'status', 'links']),
     [cfg],
   )
-  // Bug fix: backend oy kaydini PM'in GERCEK kullanici id'siyle saklar
-  // (bkz. server.js /approvals/vote: voterId = req.auth.userId), 'PM' sabit
-  // dizgesiyle degil. Burada da 'PM' kullanilirsa PM kendi oyunu verdikten
-  // hemen sonra "oy verildi" gorunumu HICBIR ZAMAN gorunmuyordu (Issue #53'te
-  // ayni sinif hata cascade.js'te duzeltilmisti; bu sayfada kalmisti).
-  const myVoterId = isPM ? currentUser?.id : currentUser?.personnelId
+  // Issue #97: tek kimlik dunyasi — oy veren kimligi her zaman kullanici id'si.
+  const myVoterId = currentUser?.id
   const canRead = can('read', comp)
   const canAdd = can('add_test', comp)
   const canFields = can('manage_fields')
@@ -141,8 +137,7 @@ export default function TestCases({
       entityType: 'testcase',
       entityId: r.id,
       voterId: myVoterId,
-      voterName: currentUser?.name || (isPM ? 'Proje Yöneticisi' : ''),
-      personnelId: isPM ? null : currentUser?.personnelId,
+      voterName: currentUser?.name || '',
     })
   }
   // Testi DERHAL "Failed" yapar — tam konsensus GEREKMEZ, tek yetkili yeterli.

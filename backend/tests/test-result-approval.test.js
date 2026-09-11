@@ -55,46 +55,49 @@ before(async () => {
 
   proj = await prisma.project.create({ data: { name: 'Test Sonucu Onay Projesi' } });
 
-  const roleApprove = await prisma.role.create({
+  // Issue #97/A: onay havuzu User + SystemRole izinleriyle kurulur.
+  //  - 'system_engineer': approve = TUM bilesenler (test-system dahil)
+  //  - 'developer': approve yok
+  const { ensureSystemRoles } = await import('../src/systemRoles.js');
+  await ensureSystemRoles(prisma);
+
+  const approveUser = await prisma.user.create({
     data: {
-      projectId: proj.id,
-      name: 'Test Muhendisi',
-      permissions: { approve: { enabled: true, components: ['test-system'] } },
+      username: 'approver-tra',
+      passwordHash: await hashPassword('approver-tra-pass-1234'),
+      name: 'Onay Muhendisi',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
     },
   });
-  const pApprove = await prisma.personnel.create({
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: approveUser.id } });
+
+  const noApproveUser = await prisma.user.create({
     data: {
-      projectId: proj.id,
-      roleId: roleApprove.id,
-      firstName: 'Onay',
-      lastName: 'Muhendisi',
-      passcode: 'TRA01',
+      username: 'observer-tra',
+      passwordHash: await hashPassword('observer-tra-pass-1234'),
+      name: 'Izin Siz',
+      role: 'Developer',
+      roleKey: 'developer',
     },
   });
-  const roleNoApprove = await prisma.role.create({
-    data: { projectId: proj.id, name: 'Gozlemci', permissions: {} },
-  });
-  await prisma.personnel.create({
-    data: {
-      projectId: proj.id,
-      roleId: roleNoApprove.id,
-      firstName: 'Izin',
-      lastName: 'Siz',
-      passcode: 'TRA02',
-    },
-  });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: noApproveUser.id } });
 
   const t0 = await request(app).post('/api/auth/login').send(PM_CREDENTIALS);
   assert.equal(t0.status, 200);
   pmToken = t0.body.accessToken;
 
-  const t1 = await request(app).post('/api/auth/passcode').send({ passcode: 'TRA01' });
+  const t1 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'approver-tra', password: 'approver-tra-pass-1234' });
   assert.equal(t1.status, 200);
-  approveToken = t1.body.token;
+  approveToken = t1.body.accessToken;
 
-  const t2 = await request(app).post('/api/auth/passcode').send({ passcode: 'TRA02' });
+  const t2 = await request(app)
+    .post('/api/auth/login')
+    .send({ username: 'observer-tra', password: 'observer-tra-pass-1234' });
   assert.equal(t2.status, 200);
-  noApproveToken = t2.body.token;
+  noApproveToken = t2.body.accessToken;
 
   reqRow = await prisma.requirement.create({
     data: { projectId: proj.id, text_id: 'REQ-SYS-500', title: 'Onay testi gereksinimi', type: 'System Requirement' },
@@ -105,8 +108,8 @@ before(async () => {
   await prisma.traceabilityLink.create({
     data: { projectId: proj.id, fromId: reqRow.id, toId: testCaseRow.id, type: 'Verifies' },
   });
-  // pApprove.id bazi testlerde dogrudan kullanilmiyor ama olusturulmus olmasi yeterli.
-  void pApprove;
+  // approveUser.id bazi testlerde dogrudan kullanilmiyor ama olusturulmus olmasi yeterli.
+  void approveUser;
 });
 
 // --- 1) status artik elle girilemez ----------------------------------------

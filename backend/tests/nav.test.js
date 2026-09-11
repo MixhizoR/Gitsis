@@ -18,26 +18,39 @@ const prisma = new PrismaClient();
 let proj;
 let otherProj;
 let pmToken;
-let personnelToken;
+let memberToken;
 
 before(async () => {
   resetDb();
 
   const { hashPassword, signToken } = await import('../src/auth.js');
   const user = await prisma.user.create({
-    data: { username: 'pm-nav', passwordHash: await hashPassword('pm-pass'), name: 'Nav PM', role: 'Proje Yöneticisi' },
+    data: {
+      username: 'pm-nav',
+      passwordHash: await hashPassword('pm-pass'),
+      name: 'Nav PM',
+      role: 'Proje Yöneticisi',
+      roleKey: 'pm',
+    },
   });
-  pmToken = signToken({ kind: 'pm', isPM: true, userId: user.id });
+  pmToken = signToken({ userId: user.id, roleKey: 'pm' });
 
   proj = await prisma.project.create({ data: { name: 'Nav Proje', description: 'Test' } });
   otherProj = await prisma.project.create({ data: { name: 'Nav Baska Proje', description: 'Test' } });
 
-  // Personel: yalnizca `proj`e atanmis (PM degil).
-  const role = await prisma.role.create({ data: { projectId: proj.id, name: 'Muhendis', permissions: {} } });
-  const person = await prisma.personnel.create({
-    data: { projectId: proj.id, roleId: role.id, firstName: 'A', lastName: 'B', passcode: 'NAV-1' },
+  // Uye: yalnizca `proj`e atanmis (PM degil). Issue #103: ProjectMember ile.
+  const member = await prisma.user.create({
+    data: {
+      username: 'member-nav',
+      passwordHash: await hashPassword('member-pass'),
+      name: 'A B',
+      role: 'System Engineer',
+      roleKey: 'system_engineer',
+    },
   });
-  personnelToken = signToken({ kind: 'personnel', isPM: false, projectId: proj.id, personnelId: person.id });
+  await prisma.projectMember.create({ data: { projectId: proj.id, userId: member.id } });
+  // Issue #103: token'da projectId tasinmaz — uyelik DB'den dogrulanir.
+  memberToken = signToken({ userId: member.id, roleKey: 'system_engineer' });
 });
 
 beforeEach(async () => {
@@ -303,19 +316,17 @@ test('DELETE /nav/groups/:id — grup silinince sayfalar KAYBOLMAZ, grupsuza dus
 // --- Yetki + IDOR ---------------------------------------------------------------
 
 test('PM olmayan kullanici menuyu DEGISTIREMEZ (403) ama OKUYABILIR', async () => {
-  const read = await request(app).get(`/api/projects/${proj.id}/nav`).set('Authorization', `Bearer ${personnelToken}`);
+  const read = await request(app).get(`/api/projects/${proj.id}/nav`).set('Authorization', `Bearer ${memberToken}`);
   assert.equal(read.status, 200);
 
   const write = await request(app)
     .post(`/api/projects/${proj.id}/nav/groups`)
-    .set('Authorization', `Bearer ${personnelToken}`)
+    .set('Authorization', `Bearer ${memberToken}`)
     .send({ name: 'Olmaz' });
   assert.equal(write.status, 403);
 });
 
-test('IDOR — personel baska projenin menusune erisemez', async () => {
-  const res = await request(app)
-    .get(`/api/projects/${otherProj.id}/nav`)
-    .set('Authorization', `Bearer ${personnelToken}`);
+test('IDOR — uye baska projenin menusune erisemez', async () => {
+  const res = await request(app).get(`/api/projects/${otherProj.id}/nav`).set('Authorization', `Bearer ${memberToken}`);
   assert.equal(res.status, 403);
 });

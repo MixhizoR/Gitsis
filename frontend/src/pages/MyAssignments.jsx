@@ -30,13 +30,14 @@ import { LINK_TYPE } from '../utils/constants.js'
 
 export default function MyAssignments() {
   const { requirements, testCases, links } = useApp()
-  const { currentUser, can, isPM } = useAuth()
+  const { currentUser, can } = useAuth()
   const { t } = useLang()
   // Modal iki bolum tarafindan paylasilir; yorum sekmesi dogru varlik turunu
   // bilmek zorunda oldugu icin satirla birlikte tur de tasinir.
   const [viewTarget, setViewTarget] = useState(null) // { row, entityType } | null
 
-  const myId = currentUser?.personnelId || null
+  // Issue #97/A: atama User tabanli — kimlik her zaman kullanici id'sidir.
+  const myId = currentUser?.id || null
 
   const byTextId = (a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true })
   // Coklu atama: kayitta atananlardan BIRI bu kisiyse is kuyruguna girer.
@@ -57,12 +58,12 @@ export default function MyAssignments() {
   // Bu sayfa salt okunurdur: duzenleme/silme kendi sayfalarindan yapilir.
   const never = () => false
 
-  if (isPM || !myId) {
+  if (!myId) {
     return (
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('nav.myWork')}</h2>
         <div className="card px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          {t('myWork.pmNote')}
+          {t('myWork.empty')}
         </div>
       </div>
     )

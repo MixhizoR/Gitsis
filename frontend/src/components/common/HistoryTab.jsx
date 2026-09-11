@@ -13,15 +13,16 @@ import { formatDateTime, stripHtml } from '../../utils/format.js'
 import { changedFieldsSummary } from '../../utils/versioning.js'
 import { IconChevron, IconHistory } from './Icons.jsx'
 
-// changedBy bir userId/personnelId UUID'dir; personel ise ad soyad goster.
-function actorName(id, personnel) {
-  const p = (personnel || []).find((x) => x.id === id)
-  if (p) return `${p.firstName} ${p.lastName}`.trim()
-  return id ? String(id).slice(0, 8) : '—'
+// Issue #97: Personnel listesi frontend'de yok; aktor adini backend
+// (GET /requirements/:id/history -> changedByName) cozer. Eski kayitlarda
+// null gelebilir — o zaman UUID'nin kisaltilmis hali gosterilir.
+function actorName(h) {
+  if (h.changedByName) return h.changedByName
+  return h.changedBy ? String(h.changedBy).slice(0, 8) : '—'
 }
 
 export default function HistoryTab({ row }) {
-  const { getRequirementHistory, personnel } = useApp()
+  const { getRequirementHistory } = useApp()
   const { t } = useLang()
   const [rows, setRows] = useState(null) // null = yukleniyor
   const [error, setError] = useState(null)
@@ -104,7 +105,7 @@ export default function HistoryTab({ row }) {
                 h={h}
                 open={open}
                 onToggle={() => setExpanded(open ? null : h.version)}
-                actor={actorName(h.changedBy, personnel)}
+                actor={actorName(h)}
                 fieldLabel={fieldLabel}
                 t={t}
               />

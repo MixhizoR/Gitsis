@@ -1,7 +1,9 @@
 // ============================================================================
 //  HistoryTab.test.jsx — Issue #57 versiyon gecmisi sekmesi component testleri.
-//  AppContext mock edilir (getRequirementHistory + personnel); LanguageContext
-//  gercek saglayici ile sarilir (mevcut smoke.test.jsx deseni).
+//  AppContext mock edilir (getRequirementHistory); LanguageContext gercek
+//  saglayici ile sarilir (mevcut smoke.test.jsx deseni).
+//  Issue #97: personnel koleksiyonu kalkti — aktor adi backend'den
+//  (changedByName) gelir; mock verisi de o sekilde kurulur.
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
@@ -17,7 +19,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../context/AppContext.jsx', () => ({
   useApp: () => ({
     attributeDefs: [],
-    personnel: [{ id: 'pers-1', firstName: 'Onay', lastName: 'Muhendis' }],
     getRequirementHistory: mocks.getRequirementHistory,
   }),
   AppProvider: ({ children }) => children,
@@ -43,7 +44,8 @@ const HISTORY = [
     field: null,
     attributes: { priority: 'Medium' },
     changedAt: '2026-09-01T10:00:00Z',
-    changedBy: 'pers-1',
+    changedBy: 'user-1',
+    changedByName: 'Onay Muhendis',
   },
   {
     id: 'h1',
