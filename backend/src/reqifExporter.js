@@ -23,11 +23,22 @@
 //     yonlendirmesini saglar (bkz. traceability.js resolveTarget) — bu
 //     otomatik yonlendirme SADECE sourceToolId "Gitsis" ise devreye girer,
 //     genel DOORS dosyalarinin yorumlanmasini ETKILEMEZ.
-//   - Icerik: baslik ReqIF.Name (DT-STRING), aciklama ReqIF.Text (DT-XHTML,
-//     gercek XHTML govde olarak, sadece duz metin degil — bicimlendirme
-//     kaybolmaz). Alan/Yazar/oznitelik torbasi (priority, dal_level, projeye
-//     ozel alanlar) Gitsis.Field / Gitsis.Author / Gitsis.Attr.<anahtar> adiyla
-//     ayri STRING oznitelikleri olarak yazilir.
+//   - Icerik: baslik ReqIF.Name ve aciklama ReqIF.Text, IKISI DE STRING
+//     (ATTRIBUTE-VALUE-STRING/THE-VALUE XML ATTRIBUTE'u) olarak yazilir —
+//     description'in HTML'i (kalin/italik gibi ic ice bicimlendirme dahil)
+//     KAYIPSIZ, oldugu gibi kacislanmis (escaped) metin olarak gomulur.
+//     BILINCLI TERCIH: standart ReqIF'te ReqIF.Text genelde XHTML (govde
+//     ic ice XML elemanlari) tipindedir, ama fast-xml-parser (reqifParser.js)
+//     preserveOrder OLMADAN metin+eleman KARISIK icerigin (orn. "<p>metin
+//     <b>kalin</b> metin</p>") SIRASINI/ICERIGINI KORUYAMAZ — bu, kelimelerin
+//     sessizce kaybolmasina yol acardi. STRING tipi bu belirsizligi TAMAMEN
+//     ortadan kaldirir (XML ATTRIBUTE degeri asla "karisik icerik" olamaz),
+//     Gitsis<->Gitsis dongusunu bicim de dahil KAYIPSIZ kapatir. Tek bedeli:
+//     DOORS bu alani zengin metin olarak DEGIL, ham HTML etiketleriyle duz
+//     metin olarak gosterir — veri kaybina kiyasla kabul edilebilir bir
+//     bicimlendirme odunudur. Alan/Yazar/oznitelik torbasi (priority,
+//     dal_level, projeye ozel alanlar) Gitsis.Field / Gitsis.Author /
+//     Gitsis.Attr.<anahtar> adiyla ayri STRING oznitelikleri olarak yazilir.
 //   - Baglar: SATISFIES/VERIFIES TraceabilityLink'leri SPEC-RELATION olarak,
 //     yalnizca HER IKI ucu da bu export'ta yer alan nesneler arasinda yazilir
 //     (kapsam disi bir ucu olan bag, DOORS tarafinda "asili referans" olurdu).
@@ -49,33 +60,6 @@ function escXmlText(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-// HTML editorunden (sanitize.js beyaz listesi) gelen isaretleme XML olarak
-// GECERLI olacak sekilde neredeyse hazirdir (kapali etiketler, self-closing
-// br/img) — tek istisna, XML'de ONCEDEN TANIMLI OLMAYAN adlandirilmis
-// varliklar (&nbsp; gibi). Bunlar sayisal karakter referansina cevrilir;
-// gercek yapisal etiketler DOKUNULMADAN (re-escape EDILMEDEN) birebir
-// gomulur — aksi halde "<p>" gibi etiketler metin olarak ikinci kez
-// escape'lenip DOORS'ta duz metin olarak gorunurdu.
-const HTML_ENTITY_TO_NUMERIC = {
-  '&nbsp;': '&#160;',
-  '&mdash;': '&#8212;',
-  '&ndash;': '&#8211;',
-  '&hellip;': '&#8230;',
-  '&rsquo;': '&#8217;',
-  '&lsquo;': '&#8216;',
-  '&rdquo;': '&#8221;',
-  '&ldquo;': '&#8220;',
-  '&copy;': '&#169;',
-  '&trade;': '&#8482;',
-  '&reg;': '&#174;',
-};
-function toXhtmlFragment(html) {
-  const trimmed = String(html || '').trim();
-  if (!trimmed) return '<xhtml:div/>';
-  const fixed = trimmed.replace(/&[a-zA-Z]+;/g, (m) => HTML_ENTITY_TO_NUMERIC[m] || m);
-  return `<xhtml:div>${fixed}</xhtml:div>`;
 }
 
 function slug(label) {
@@ -127,9 +111,9 @@ function buildSpecObjectType(typeName, attrKeys) {
         <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="${ids.name}" LONG-NAME="ReqIF.Name">
           <TYPE><DATATYPE-DEFINITION-STRING-REF>DT-STRING</DATATYPE-DEFINITION-STRING-REF></TYPE>
         </ATTRIBUTE-DEFINITION-STRING>
-        <ATTRIBUTE-DEFINITION-XHTML IDENTIFIER="${ids.text}" LONG-NAME="ReqIF.Text">
-          <TYPE><DATATYPE-DEFINITION-XHTML-REF>DT-XHTML</DATATYPE-DEFINITION-XHTML-REF></TYPE>
-        </ATTRIBUTE-DEFINITION-XHTML>
+        <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="${ids.text}" LONG-NAME="ReqIF.Text">
+          <TYPE><DATATYPE-DEFINITION-STRING-REF>DT-STRING</DATATYPE-DEFINITION-STRING-REF></TYPE>
+        </ATTRIBUTE-DEFINITION-STRING>
         <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="${ids.foreignId}" LONG-NAME="ReqIF.ForeignID">
           <TYPE><DATATYPE-DEFINITION-STRING-REF>DT-STRING</DATATYPE-DEFINITION-STRING-REF></TYPE>
         </ATTRIBUTE-DEFINITION-STRING>
@@ -154,10 +138,9 @@ function buildSpecObject(row, ids, idOf) {
         <ATTRIBUTE-VALUE-STRING THE-VALUE="${escXmlAttr(row.title || '')}">
           <DEFINITION><ATTRIBUTE-DEFINITION-STRING-REF>${ids.name}</ATTRIBUTE-DEFINITION-STRING-REF></DEFINITION>
         </ATTRIBUTE-VALUE-STRING>
-        <ATTRIBUTE-VALUE-XHTML>
-          <DEFINITION><ATTRIBUTE-DEFINITION-XHTML-REF>${ids.text}</ATTRIBUTE-DEFINITION-XHTML-REF></DEFINITION>
-          <THE-VALUE>${toXhtmlFragment(row.description)}</THE-VALUE>
-        </ATTRIBUTE-VALUE-XHTML>
+        <ATTRIBUTE-VALUE-STRING THE-VALUE="${escXmlAttr(row.description || '')}">
+          <DEFINITION><ATTRIBUTE-DEFINITION-STRING-REF>${ids.text}</ATTRIBUTE-DEFINITION-STRING-REF></DEFINITION>
+        </ATTRIBUTE-VALUE-STRING>
         <ATTRIBUTE-VALUE-STRING THE-VALUE="${escXmlAttr(foreignId)}">
           <DEFINITION><ATTRIBUTE-DEFINITION-STRING-REF>${ids.foreignId}</ATTRIBUTE-DEFINITION-STRING-REF></DEFINITION>
         </ATTRIBUTE-VALUE-STRING>`;
@@ -325,7 +308,7 @@ export function buildReqIF({ projectName, requirements = [], testCases = [], lin
   const specObjectTypesXml = [...typeDefs.values()].map((d) => d.xml).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <THE-HEADER>
     <REQ-IF-HEADER IDENTIFIER="${headerId}">
       <COMMENT>Gitsis DO-178C Requirements Management araci tarafindan export edildi.</COMMENT>
@@ -340,7 +323,6 @@ export function buildReqIF({ projectName, requirements = [], testCases = [], lin
     <REQ-IF-CONTENT>
       <DATATYPES>
         <DATATYPE-DEFINITION-STRING IDENTIFIER="DT-STRING" LONG-NAME="String" MAX-LENGTH="32000"/>
-        <DATATYPE-DEFINITION-XHTML IDENTIFIER="DT-XHTML" LONG-NAME="XHTML"/>
       </DATATYPES>
       <SPEC-TYPES>${specObjectTypesXml}${relationTypesXml}
       </SPEC-TYPES>

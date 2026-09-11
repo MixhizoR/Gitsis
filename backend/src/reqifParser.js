@@ -128,9 +128,6 @@ function serializeXHTML(node) {
     return node.map(serializeXHTML).filter(Boolean).join('');
   }
   if (typeof node === 'object') {
-    if (node['#text'] != null) {
-      return String(node['#text']);
-    }
     const allowedTags = new Set([
       'p',
       'b',
@@ -163,7 +160,19 @@ function serializeXHTML(node) {
     let html = '';
     for (const [key, val] of Object.entries(node)) {
       if (key.startsWith('@_')) continue;
-      if (key === '#text') continue;
+      // fast-xml-parser (preserveOrder OLMADAN) metin+eleman KARISIK icerikte
+      // (orn. "<p>metin <b>kalin</b> metin</p>") text/eleman SIRASINI
+      // KORUYAMAZ — TUM kardes metin parcalari tek bir '#text' anahtarinda
+      // birlesir. Once bu ONCEDEN KABUL EDILEN sira kaybi yasanir; ama BURADA
+      // '#text' erken don(return) ile es gecilirSE, ayni dugumun KARDES
+      // elemanlari (orn. yukaridaki 'kalin') TAMAMEN kaybolurdu — bu sira
+      // kaybindan CoK daha kotu bir VERI kaybidir. Bu yuzden '#text' de
+      // (varsa) DIGER kardesler gibi cikita eklenir; sadece GORECELI sirasi
+      // (genelde ilk metin parcasinin konumu) korunur, TUM icerik korunur.
+      if (key === '#text') {
+        html += String(val);
+        continue;
+      }
       if (allowedTags.has(key)) {
         const attrs = Object.entries(node)
           .filter(([k]) => k.startsWith('@_'))
