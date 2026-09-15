@@ -286,6 +286,29 @@ export const STRINGS = {
     'tbl.th.verification': 'Doğrulama Durumu',
     'tbl.unverifiable': 'Doğrulanamaz',
     'tbl.unverifiableHint': 'Bu gereksinimi doğrulayan (Verifies) bir test senaryosu bağlı değil.',
+
+    // --- Issue #105: Gereksinim doğrulama durumu ---------------------------
+    'ver.unverifiable': 'Doğrulanamaz',
+    'ver.unverifiable.hint':
+      'Bu gereksinimi doğrulayan (Verifies) hiçbir test senaryosu bağlı değil — doğrulanabilir hale gelmesi için en az bir test bağlanmalıdır.',
+    'ver.pending': 'Doğrulanmayı Bekliyor',
+    'ver.pending.hint':
+      'Doğrulayan test senaryoları bağlı, ancak hepsi henüz onaylanmadı (sonuç bekleniyor).',
+    'ver.verified': 'Doğrulandı',
+    'ver.verified.hint': 'Bu gereksinimi doğrulayan tüm test senaryoları onaylandı (geçti).',
+    'ver.failed': 'Doğrulama Başarısız',
+    'ver.failed.hint': 'Bu gereksinimi doğrulayan en az bir test senaryosu reddedildi (kaldı).',
+    'ver.counterHint': '{ok}/{n} test onaylandı',
+    'ver.title': 'Doğrulama',
+    'ver.desc':
+      'Gereksinimler kendi başlarına onaylanmaz; doğrulama durumu bağlı test senaryolarının sonucundan türetilir.',
+    'ver.noTests': 'Bağlı doğrulayan test senaryosu yok.',
+    'ver.summaryTitle': 'Doğrulama Durumu Dağılımı',
+    'ver.unknownTest': 'Bilinmeyen test',
+    'ver.resultPending': 'Sonuç bekleniyor',
+    'dash.byVerification': 'Doğrulama Durumu (Gereksinim)',
+    'dash.verified': 'Doğrulanmış Gereksinim',
+    'dash.verified.sub': '{n} gereksinimin {v} tanesi doğrulandı',
     'tbl.th.dal': 'DAL',
     'tbl.th.links': 'Bağ',
     'tbl.th.actions': 'İşlemler',
@@ -1161,6 +1184,29 @@ export const STRINGS = {
     'tbl.th.verification': 'Verification Status',
     'tbl.unverifiable': 'Unverifiable',
     'tbl.unverifiableHint': 'No test case verifying (Verifies) this requirement is linked.',
+
+    // --- Issue #105: Requirement verification status ------------------------
+    'ver.unverifiable': 'Unverifiable',
+    'ver.unverifiable.hint':
+      'No test case verifying (Verifies) this requirement is linked — link at least one test to make it verifiable.',
+    'ver.pending': 'Awaiting Verification',
+    'ver.pending.hint':
+      'Verifying test cases are linked, but not all of them are approved yet (results pending).',
+    'ver.verified': 'Verified',
+    'ver.verified.hint': 'All test cases verifying this requirement are approved (passed).',
+    'ver.failed': 'Verification Failed',
+    'ver.failed.hint': 'At least one test case verifying this requirement was rejected (failed).',
+    'ver.counterHint': '{ok}/{n} tests approved',
+    'ver.title': 'Verification',
+    'ver.desc':
+      'Requirements are not approved on their own; verification status is derived from the results of the linked test cases.',
+    'ver.noTests': 'No verifying test case is linked.',
+    'ver.summaryTitle': 'Verification Status Breakdown',
+    'ver.unknownTest': 'Unknown test',
+    'ver.resultPending': 'Result pending',
+    'dash.byVerification': 'Verification Status (Requirements)',
+    'dash.verified': 'Verified Requirements',
+    'dash.verified.sub': '{v} of {n} requirements verified',
     'tbl.th.dal': 'DAL',
     'tbl.th.links': 'Links',
     'tbl.th.actions': 'Actions',

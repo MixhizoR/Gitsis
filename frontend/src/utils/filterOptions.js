@@ -4,7 +4,7 @@
 //  turettigi icin tek kaynakta toplanir.
 // ============================================================================
 import { STATUSES } from './constants.js'
-import { UNVERIFIABLE } from '../hooks/useEntityFilters.js'
+import { VERIFICATION, VERIFICATION_ORDER, VERIFICATION_LABEL_KEY } from './verification.js'
 
 /**
  * Filtrelenebilir modular oznitelikler: varliga uyan TUM tanimlar.
@@ -25,19 +25,25 @@ export function filterableAttrDefs(attributeDefs, entityType) {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 }
 
-// Gereksinim sayfalari: DURUM sutunu kaydin kendi onayindan degil, onu
-// DOGRULAYAN test senaryosundan turetilir; bagli test yoksa "Dogrulanamaz"
-// gorunur. Filtre secenekleri de bu gorunumu birebir karsilar.
+// Gereksinim sayfalari (Issue #105): DURUM sutunu kaydin kendi onayindan
+// degil, onu DOGRULAYAN test senaryolarindan turetilir. Filtre secenekleri
+// tablodaki rozetlerin BIREBIR karsiligidir: Doğrulanamaz / Doğrulanmayı
+// Bekliyor / Doğrulandı / Doğrulama Başarısız (bkz. utils/verification.js).
 export function requirementStatusOptions(t) {
-  return [
-    { value: UNVERIFIABLE, label: t('tbl.unverifiable') },
-    ...STATUSES.map((s) => ({ value: s, label: s })),
-  ]
+  return VERIFICATION_ORDER.map((state) => ({
+    value: state,
+    label: t(VERIFICATION_LABEL_KEY[state]),
+  }))
 }
 
-/** Gereksinim satirinin DURUM sutununda gorunen deger. */
-export function requirementStatusOf(row, verifiedFor) {
-  return verifiedFor(row) ? row.status : UNVERIFIABLE
+/**
+ * Gereksinim satirinin DURUM sutununda gorunen deger (filtre karsilastirmasi
+ * da bunu kullanir — gorunen ile filtrelenen hep ayni kalir).
+ * @param {object} row
+ * @param {(row)=>object} verificationFor  buildVerificationIndex ozeti dondurur
+ */
+export function requirementStatusOf(row, verificationFor) {
+  return verificationFor(row)?.state || VERIFICATION.UNVERIFIABLE
 }
 
 // Test sayfalari: durum dogrudan test SONUCUDUR (Approved = Passed,

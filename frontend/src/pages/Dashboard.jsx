@@ -7,12 +7,21 @@ import { useLang } from '../context/LanguageContext.jsx'
 import { StatCard, BreakdownBar, ScoreRing } from '../components/common/StatCard.jsx'
 import { computeCoverage, computeSatisfyCoverage, countByField } from '../utils/coverage.js'
 import {
+  buildVerificationIndex,
+  summarizeVerification,
+  VERIFICATION,
+  VERIFICATION_BAR,
+  VERIFICATION_LABEL_KEY,
+  VERIFICATION_ORDER,
+} from '../utils/verification.js'
+import {
   IconList,
   IconLink,
   IconShield,
   IconAlert,
   IconTarget,
   IconChevron,
+  IconCheckCircle,
 } from '../components/common/Icons.jsx'
 import { REQ_TYPE, STATUS, DAL, CATEGORY_BAR } from '../utils/constants.js'
 import { formatDateTime, getDisplayLabel } from '../utils/format.js'
@@ -51,13 +60,33 @@ export default function Dashboard({ onNavigate }) {
   const byDal = useMemo(() => countByField(requirements, 'dal_level'), [requirements])
   const byCategory = useMemo(() => countByField(requirements, 'field'), [requirements])
 
+  // Issue #105: Gereksinimlerin DOGRULAMA durumu — "hic testle doğrulanmayan"
+  // (Doğrulanamaz), "doğrulanmayı bekleyen" ve "gerçekten doğrulanan" ayrimi
+  // kapsam (coverage) skorundan farklidir: kapsam yalnizca BAG varligini
+  // olcer, dogrulama ise testlerin SONUCUNU da hesaba katar.
+  const verIndex = useMemo(() => buildVerificationIndex(links, testCases), [links, testCases])
+  const ver = useMemo(() => summarizeVerification(requirements, verIndex), [requirements, verIndex])
+  // Etiketli (cevrilmis) dagilim — BreakdownBar anahtarlari dogrudan gosterir.
+  const byVerification = useMemo(() => {
+    const out = {}
+    for (const state of VERIFICATION_ORDER)
+      out[t(VERIFICATION_LABEL_KEY[state])] = ver.counts[state]
+    return out
+  }, [ver, t])
+  const verificationBar = useMemo(() => {
+    const out = {}
+    for (const state of VERIFICATION_ORDER)
+      out[t(VERIFICATION_LABEL_KEY[state])] = VERIFICATION_BAR[state]
+    return out
+  }, [t])
+
   const testCaseCount = testCases.length
   const recentAudit = auditLog.slice(0, 6)
 
   return (
     <div className="space-y-6">
       {/* Ust metrik kartlari */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label={t('dash.totalReq')}
           value={requirements.length}
@@ -83,6 +112,13 @@ export default function Dashboard({ onNavigate }) {
           sub={t('dash.coverage.sub', { covered: cov.coveredCount, total: cov.total })}
           icon={<IconShield size={18} />}
           accent={cov.score >= 80 ? 'emerald' : cov.score >= 50 ? 'amber' : 'rose'}
+        />
+        <StatCard
+          label={t('dash.verified')}
+          value={`%${ver.verifiedScore}`}
+          sub={t('dash.verified.sub', { v: ver.counts[VERIFICATION.VERIFIED], n: ver.total })}
+          icon={<IconCheckCircle size={18} />}
+          accent={ver.verifiedScore >= 80 ? 'emerald' : ver.verifiedScore >= 50 ? 'amber' : 'rose'}
         />
         <StatCard
           label={t('dash.satisfy')}
@@ -199,13 +235,16 @@ export default function Dashboard({ onNavigate }) {
 
       {/* Kirilim cubuklari */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <BreakdownBar
+          title={t('dash.byVerification')}
+          data={byVerification}
+          colorMap={verificationBar}
+        />
         <BreakdownBar title={t('dash.byType')} data={byType} colorMap={TYPE_BAR} />
         <BreakdownBar title={t('dash.byTestStatus')} data={byTestStatus} colorMap={STATUS_BAR} />
-        <BreakdownBar title={t('dash.byDal')} data={byDal} colorMap={DAL_BAR} />
       </div>
-
-      {/* Alan (disiplin) kirilimi — UI / Donanim / Veritabani / Sunucu ... */}
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BreakdownBar title={t('dash.byDal')} data={byDal} colorMap={DAL_BAR} />
         <BreakdownBar title={t('dash.byCategory')} data={byCategory} colorMap={CATEGORY_BAR} />
       </div>
 

@@ -26,7 +26,7 @@ import EntityTable from '../components/common/EntityTable.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import { componentKeyOf } from '../utils/permissions.js'
 import { isAssignedTo } from '../utils/assignees.js'
-import { LINK_TYPE } from '../utils/constants.js'
+import { buildVerificationIndex, verificationOf } from '../utils/verification.js'
 
 export default function MyAssignments() {
   const { requirements, testCases, links } = useApp()
@@ -51,8 +51,13 @@ export default function MyAssignments() {
   )
 
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
-  // Gereksinim sayfalariyla ayni kural: durum, DOGRULAYAN testten turetilir.
-  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
+  // Gereksinim sayfalariyla ayni kural (Issue #105): durum, DOGRULAYAN test
+  // senaryolarinin sonucundan turetilir (bkz. utils/verification.js).
+  const verificationIndex = useMemo(
+    () => buildVerificationIndex(links, testCases),
+    [links, testCases],
+  )
+  const verificationFor = (r) => verificationOf(verificationIndex, r.id)
   const canReadRequirement = (r) => can('read', componentKeyOf('requirement', r.type))
   const canReadTest = (tc) => can('read', componentKeyOf('test', tc.type))
   // Bu sayfa salt okunurdur: duzenleme/silme kendi sayfalarindan yapilir.
@@ -105,7 +110,7 @@ export default function MyAssignments() {
       {section('myWork.requirements', myRequirements, {
         attributeEntityType: 'requirement',
         statusLabel: t('tbl.th.verification'),
-        verifiedFor,
+        verificationFor,
         onView: (r) =>
           canReadRequirement(r) ? setViewTarget({ row: r, entityType: 'requirement' }) : null,
       })}
@@ -126,6 +131,7 @@ export default function MyAssignments() {
         row={viewTarget?.row || null}
         canWrite={false}
         showStatus={viewTarget?.entityType !== 'requirement'}
+        showVerification={viewTarget?.entityType === 'requirement'}
         commentEntityType={viewTarget?.entityType || null}
         onClose={() => setViewTarget(null)}
       />
