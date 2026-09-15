@@ -46,6 +46,9 @@ export const deleteRequirement = (pid, id, reason) =>
   api.del(`/projects/${pid}/requirements/${id}`, { reason })
 export const bulkDeleteRequirements = (pid, ids, reason) =>
   api.post(`/projects/${pid}/requirements/batch-delete`, { ids, reason })
+// Issue #120: secili gereksinimlere toplu atama (mode: add | replace | remove).
+export const bulkAssignRequirements = (pid, ids, assigneeIds, mode) =>
+  api.post(`/projects/${pid}/requirements/batch-assign`, { ids, assigneeIds, mode })
 
 // --- PBS (Urun Agaci) — lazy-load hiyerarsi (Issue #9) ----------------------
 //  Tum agac TEK seferde cekilmez: yalnizca kok dugumler, kullanici expand
@@ -90,6 +93,9 @@ export const deleteTestCase = (pid, id, reason) =>
   api.del(`/projects/${pid}/testcases/${id}`, { reason })
 export const bulkDeleteTestCases = (pid, ids, reason) =>
   api.post(`/projects/${pid}/testcases/batch-delete`, { ids, reason })
+// Issue #120: secili test senaryolarina toplu atama.
+export const bulkAssignTestCases = (pid, ids, assigneeIds, mode) =>
+  api.post(`/projects/${pid}/testcases/batch-assign`, { ids, assigneeIds, mode })
 
 // --- Izlenebilirlik baglari -------------------------------------------------
 export const listLinks = (pid) => api.get(`/projects/${pid}/links`)

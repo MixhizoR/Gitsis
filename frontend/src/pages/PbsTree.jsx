@@ -42,6 +42,8 @@ import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.
 import SplitModal from '../components/tree/SplitModal.jsx'
 import PrefixModal from '../components/tree/PrefixModal.jsx'
 import MergeModal from '../components/tree/MergeModal.jsx'
+import BulkAssignModal from '../components/common/BulkAssignModal.jsx'
+import BulkAssignResultToast from '../components/common/BulkAssignResultToast.jsx'
 import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
 import {
   IconLoader,
@@ -50,6 +52,7 @@ import {
   IconPlus,
   IconEdit,
   IconList,
+  IconUsers,
 } from '../components/common/Icons.jsx'
 import { REQ_PAGES, REQ_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
 import { buildVerificationIndex, verificationOf } from '../utils/verification.js'
@@ -92,6 +95,9 @@ export default function PbsTree() {
   const [splitNode, setSplitNode] = useState(null)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [selected, setSelected] = useState(() => new Map()) // id -> row
+  // Issue #120: secili dugumlere toplu atama + islem sonucu ozeti.
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [assignResult, setAssignResult] = useState(null)
   const [dragNode, setDragNode] = useState(null)
   const [prefixOpen, setPrefixOpen] = useState(false)
   const [attrMgrOpen, setAttrMgrOpen] = useState(false)
@@ -369,6 +375,15 @@ export default function PbsTree() {
           >
             <IconLink size={14} /> {t('tree.merge')}
           </button>
+          {canEditRow(selectedList[0]) && (
+            <button
+              onClick={() => setBulkAssignOpen(true)}
+              data-testid="bulk-assign-btn"
+              className="flex items-center gap-1.5 rounded-lg border border-brand-300 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:border-brand-700 dark:text-brand-300"
+            >
+              <IconUsers size={14} /> {t('bulk.assignBtn')}
+            </button>
+          )}
           {selectedList.length === 1 && canEditRow(selectedList[0]) && !selectedList[0].locked && (
             <button
               onClick={() => setSplitNode(selectedList[0])}
@@ -490,6 +505,17 @@ export default function PbsTree() {
         onClose={() => setMergeOpen(false)}
         onSubmit={handleMerge}
       />
+      <BulkAssignModal
+        open={bulkAssignOpen}
+        onClose={() => setBulkAssignOpen(false)}
+        rows={selectedList}
+        entity="requirement"
+        onDone={(result) => {
+          setAssignResult(result)
+          setSelected(new Map())
+        }}
+      />
+      <BulkAssignResultToast result={assignResult} onClose={() => setAssignResult(null)} />
       <AttributeManager open={attrMgrOpen} onClose={() => setAttrMgrOpen(false)} />
       <PrefixModal
         open={prefixOpen}

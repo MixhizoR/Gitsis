@@ -77,6 +77,12 @@ import {
   auditAssignment,
   backfillAssignees,
   resyncLegacyAssignee,
+  getAssigneeIdsMap,
+  applyAssignMode,
+  sameAssignees,
+  setAssigneesBulk,
+  auditAssignmentsBulk,
+  ASSIGN_MODES,
 } from './assignees.js';
 
 const prisma = new PrismaClient();
@@ -291,6 +297,81 @@ async function batchDelete(pid, model, ids, entityType, reason, actor) {
     });
   }
   return foundIds.length;
+}
+
+// --- Toplu atama yardimcisi (Issue #120) -----------------------------------
+//  Listeden coklu secimle secilen kayitlara TEK istekte atama yapar.
+//  Kayit basina PUT atilmaz: secimin tamami sabit sayida sorguyla yazilir
+//  (bkz. assignees.js setAssigneesBulk / auditAssignmentsBulk).
+//
+//  Tek tek duzenlemeyle AYNI kapilardan gecer:
+//    - proje siniri  : yalnizca bu projenin kayitlari
+//    - ABAC (#87)    : clearance seviyesi ustundeki gereksinimler gorunmez,
+//                      dolayisiyla toplu atamaya da girmez (sessizce atlanir;
+//                      yanitta sayisi doner)
+//    - kilit         : onaylanmis (locked) kayitlar ATLANIR, hata degildir —
+//                      cagiran "N guncellendi, M atlandi" diye bildirir
+//    - uyelik        : atanan kisi projenin uyesi olmali (resolveAssigneeIds)
+async function batchAssign(req, pid, entity, body) {
+  const model = entity === 'requirement' ? 'requirement' : 'testCase';
+  const ids = body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) throw bad('En az bir id zorunlu.');
+
+  const mode = body?.mode || 'add';
+  if (!ASSIGN_MODES.includes(mode)) throw bad(`Gecersiz mod: "${mode}".`);
+
+  // Atanacak kisiler: 'replace' modunda bos liste "tum atamalari kaldir"
+  // demektir; 'add'/'remove' icin bos liste anlamsizdir (islem yapilmaz).
+  const assigneeIds = (await resolveAssigneeIds(prisma, pid, body)) ?? [];
+  if (assigneeIds.length === 0 && mode !== 'replace') {
+    throw bad('En az bir kullanici secilmeli.');
+  }
+
+  const allRows = await prisma[model].findMany({ where: { id: { in: ids }, projectId: pid } });
+  if (allRows.length === 0) throw bad('Kayit bulunamadi.', 404);
+
+  // ABAC: gorulemeyen gereksinim atamaya da girmez (testlerde clearance yok).
+  const level = req.auth?.clearanceLevel ?? 1;
+  const visible =
+    entity === 'requirement' ? allRows.filter((r) => r.clearanceLevel == null || r.clearanceLevel <= level) : allRows;
+  const skippedHidden = allRows.length - visible.length;
+
+  const rows = visible.filter((r) => !r.locked);
+  const skippedLocked = visible.length - rows.length;
+  if (rows.length === 0) {
+    throw bad('Secilen kayitlarin tamami onaylanmis ve kilitli; atama yapilamaz.', 403);
+  }
+
+  // Mevcut atamalar TEK sorguda (N+1 yok), sonra kayit basina yeni liste.
+  const currentMap = await getAssigneeIdsMap(
+    prisma,
+    entity,
+    rows.map((r) => r.id),
+  );
+  const plan = new Map();
+  const changes = [];
+  for (const row of rows) {
+    const before = currentMap.get(row.id) || [];
+    const after = applyAssignMode(before, assigneeIds, mode);
+    if (sameAssignees(before, after)) continue; // zaten istenen halde
+    plan.set(row.id, after);
+    changes.push({ row, before, after });
+  }
+
+  if (plan.size > 0) {
+    await prisma.$transaction(async (tx) => {
+      await setAssigneesBulk(tx, entity, plan);
+    });
+    await auditAssignmentsBulk(prisma, pid, entity, changes, actorOf(req));
+  }
+
+  return {
+    ok: true,
+    updated: plan.size,
+    unchanged: rows.length - plan.size,
+    skippedLocked,
+    skippedHidden,
+  };
 }
 
 // --- Issue #57: approve izni denetimi ---------------------------------------
@@ -1764,6 +1845,18 @@ app.post(
   }),
 );
 
+// Issue #120: secili gereksinimlere TOPLU kisi atama.
+//  POST /api/projects/:pid/requirements/batch-assign
+//  govde: { ids: [...], assigneeIds: [...], mode: 'add'|'replace'|'remove' }
+//  Atama gereksinimin METNINI degistirmez: history/suspect tetiklenmez
+//  (tek tek PUT ile ayni kural, bkz. contentFieldsChanged).
+app.post(
+  '/api/projects/:pid/requirements/batch-assign',
+  wrap(async (req, res) => {
+    res.json(await batchAssign(req, req.params.pid, 'requirement', req.body));
+  }),
+);
+
 // --- PBS agaci yapisal islemleri (Issue #9 / Adim 3) -------------------------
 //  Tasima/bolme/birlestirme atomik transaction icinde (treeOps.js); dongusel
 //  tasima ve tip uyumsuzlugu 400 doner; text_id'ler asla bozulmaz/yeniden
@@ -1967,6 +2060,15 @@ app.post(
     const n = await batchDelete(pid, 'testCase', req.body?.ids, 'testcase', reason, actorOf(req));
     await cascade(pid);
     res.json({ ok: true, deleted: n });
+  }),
+);
+
+// Issue #120: secili test senaryolarina TOPLU kisi atama.
+//  POST /api/projects/:pid/testcases/batch-assign
+app.post(
+  '/api/projects/:pid/testcases/batch-assign',
+  wrap(async (req, res) => {
+    res.json(await batchAssign(req, req.params.pid, 'testcase', req.body));
   }),
 );
 
