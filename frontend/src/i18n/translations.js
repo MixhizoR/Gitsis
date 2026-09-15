@@ -895,6 +895,31 @@ export const STRINGS = {
     'bulk.selectAll': 'Tümünü seç',
     'bulk.deleteBtn': 'Seçilenleri Toplu Sil',
     'bulk.linkBtn': 'Seçilenleri Toplu Linkle',
+
+    // --- Issue #120: Toplu kisi atama --------------------------------------
+    'bulk.assignBtn': 'Toplu Ata',
+    'bulk.assign.title': 'Toplu Kişi Atama',
+    'bulk.assign.subtitle': '{count} kayıt seçildi',
+    'bulk.assign.confirm': 'Atamayı Uygula',
+    'bulk.assign.modeLabel': 'Mevcut atamalara ne olsun?',
+    'bulk.assign.mode.add': 'Ekle',
+    'bulk.assign.mode.replace': 'Değiştir',
+    'bulk.assign.mode.remove': 'Kaldır',
+    'bulk.assign.mode.add.hint':
+      'Seçilen kişiler mevcut atananların sonuna eklenir; zaten atanmışsa yinelenmez ve birincil sorumlu değişmez.',
+    'bulk.assign.mode.replace.hint':
+      'Mevcut atamalar silinir, yalnızca burada seçilen kişiler kalır (listedeki ilk kişi birincil sorumlu olur).',
+    'bulk.assign.mode.remove.hint':
+      'Seçilen kişiler atamadan çıkarılır; kalan atananların sırası korunur.',
+    'bulk.assign.peopleLabel': 'Kişiler (sıra önemlidir — ilk kişi birincil sorumludur)',
+    'bulk.assign.clearHint':
+      'Kimse seçilmedi: "Değiştir" modu seçili kayıtların TÜM atamalarını kaldırır.',
+    'bulk.assign.lockedWarn':
+      '{locked} kayıt onaylanmış ve kilitli olduğu için atlanacak; işlem {n} kayda uygulanacak.',
+    'bulk.assign.result.updated': '{n} kayıt güncellendi.',
+    'bulk.assign.result.locked': '{n} kilitli (atlandı)',
+    'bulk.assign.result.hidden': '{n} erişim dışı (atlandı)',
+    'bulk.assign.result.unchanged': '{n} zaten aynıydı',
     'bulk.clear': 'Seçimi temizle',
     'bulk.undo.deleted': '{count} kayıt silindi.',
     'bulk.undo.hint': 'Geri almak için {s} saniyeniz var…',
@@ -1751,6 +1776,31 @@ export const STRINGS = {
     'bulk.selectAll': 'Select all',
     'bulk.deleteBtn': 'Delete Selected',
     'bulk.linkBtn': 'Link Selected',
+
+    // --- Issue #120: Bulk assignment ---------------------------------------
+    'bulk.assignBtn': 'Bulk Assign',
+    'bulk.assign.title': 'Bulk Assign People',
+    'bulk.assign.subtitle': '{count} records selected',
+    'bulk.assign.confirm': 'Apply Assignment',
+    'bulk.assign.modeLabel': 'What happens to existing assignments?',
+    'bulk.assign.mode.add': 'Add',
+    'bulk.assign.mode.replace': 'Replace',
+    'bulk.assign.mode.remove': 'Remove',
+    'bulk.assign.mode.add.hint':
+      'Selected people are appended to the current assignees; duplicates are skipped and the primary owner stays the same.',
+    'bulk.assign.mode.replace.hint':
+      'Current assignments are cleared and only the people selected here remain (the first one becomes the primary owner).',
+    'bulk.assign.mode.remove.hint':
+      'Selected people are removed from the assignment; the order of the remaining assignees is kept.',
+    'bulk.assign.peopleLabel': 'People (order matters — the first is the primary owner)',
+    'bulk.assign.clearHint':
+      'Nobody selected: "Replace" mode removes ALL assignments from the selected records.',
+    'bulk.assign.lockedWarn':
+      '{locked} records are approved and locked, so they will be skipped; the change applies to {n} records.',
+    'bulk.assign.result.updated': '{n} records updated.',
+    'bulk.assign.result.locked': '{n} locked (skipped)',
+    'bulk.assign.result.hidden': '{n} not accessible (skipped)',
+    'bulk.assign.result.unchanged': '{n} already matched',
     'bulk.clear': 'Clear selection',
     'bulk.undo.deleted': '{count} records deleted.',
     'bulk.undo.hint': 'You have {s} seconds to undo…',

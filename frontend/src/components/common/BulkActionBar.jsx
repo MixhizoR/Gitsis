@@ -1,12 +1,23 @@
 // ============================================================================
 //  BulkActionBar.jsx  —  Birden fazla satir secildiginde tablonun hemen ustunde
 //  beliren "Toplu Islemler" paneli. Secim sayisini gosterir; Toplu Sil ve
-//  (destekleniyorsa) Toplu Linkle eylemlerini sunar.
+//  (destekleniyorsa) Toplu Linkle / Toplu Ata eylemlerini sunar.
+//
+//  Issue #120: "Toplu Ata" yalnizca `onAssign` verilir VE `canAssign` true
+//  olursa gorunur — izin kurali tek tek duzenlemeyle aynidir (write).
 // ============================================================================
-import { IconTrash, IconLink, IconClose } from './Icons.jsx'
+import { IconTrash, IconLink, IconUsers, IconClose } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 
-export default function BulkActionBar({ count, onDelete, onLink, onClear, canLink = true }) {
+export default function BulkActionBar({
+  count,
+  onDelete,
+  onLink,
+  onAssign,
+  onClear,
+  canLink = true,
+  canAssign = true,
+}) {
   const { t } = useLang()
   if (!count || count < 2) return null
 
@@ -24,6 +35,15 @@ export default function BulkActionBar({ count, onDelete, onLink, onClear, canLin
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {canAssign && onAssign && (
+          <button
+            onClick={onAssign}
+            data-testid="bulk-assign-btn"
+            className="btn-secondary !py-1.5"
+          >
+            <IconUsers size={16} /> {t('bulk.assignBtn')}
+          </button>
+        )}
         {canLink && onLink && (
           <button onClick={onLink} className="btn-secondary !py-1.5">
             <IconLink size={16} /> {t('bulk.linkBtn')}

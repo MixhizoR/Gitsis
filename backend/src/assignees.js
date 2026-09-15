@@ -261,3 +261,122 @@ export async function resyncLegacyAssignee(prisma, projectId) {
        AND t."assigneeId" IS DISTINCT FROM sub."userId";
   `;
 }
+
+// ===========================================================================
+//  TOPLU ATAMA (Issue #120)
+//  Listeden coklu secimle secilen kayitlara tek istekte atama yapilir.
+//  Kayit basina ayri PUT atilmaz: asagidaki yardimcilar TUM secim icin sabit
+//  sayida sorgu calistirir (bkz. setAssigneesBulk / auditAssignmentsBulk).
+// ===========================================================================
+
+/** Toplu atamanin mevcut atamalara ne yapacagi. */
+export const ASSIGN_MODES = ['add', 'replace', 'remove'];
+
+/**
+ * Bir kaydin YENI atama listesini hesaplar (saf fonksiyon).
+ *
+ *   add     -> secilenler mevcutlarin SONUNA eklenir (zaten varsa yinelenmez;
+ *              boylece birincil sorumlu — listenin ilki — korunur)
+ *   replace -> mevcutlar silinir, yalnizca secilenler kalir (sira aynen)
+ *   remove  -> secilenler listeden cikarilir, kalanlarin sirasi korunur
+ *
+ * @param {string[]} current mevcut atamalar (sirali)
+ * @param {string[]} ids     islem uygulanacak kullanici id'leri (sirali)
+ * @param {'add'|'replace'|'remove'} mode
+ * @returns {string[]} yeni atama listesi
+ */
+export function applyAssignMode(current, ids, mode) {
+  const cur = current || [];
+  const sel = ids || [];
+  if (mode === 'replace') return [...new Set(sel)];
+  if (mode === 'remove') {
+    const drop = new Set(sel);
+    return cur.filter((id) => !drop.has(id));
+  }
+  // 'add': mevcut sira korunur, yeni olanlar sona eklenir.
+  const have = new Set(cur);
+  return [...cur, ...sel.filter((id) => !have.has(id))];
+}
+
+/** Iki atama listesi (sira dahil) ayni mi? Sira degisimi de degisikliktir. */
+export function sameAssignees(a, b) {
+  const x = a || [];
+  const y = b || [];
+  return x.length === y.length && x.every((id, i) => id === y[i]);
+}
+
+/**
+ * Cok sayida kaydin atamasini SABIT sayida sorguyla yazar (N+1 yok):
+ *   1 deleteMany + 1 createMany + birincil sorumlu basina 1 updateMany.
+ * Legacy `assigneeId` kolonu yine listenin ILK elemanina esitlenir.
+ *
+ * @param {object} tx    prisma veya transaction istemcisi
+ * @param {string} entity 'requirement' | 'testcase'
+ * @param {Map<string,string[]>} plan rowId -> yeni sirali id listesi
+ */
+export async function setAssigneesBulk(tx, entity, plan) {
+  const cfg = cfgOf(entity);
+  const rowIds = [...plan.keys()];
+  if (rowIds.length === 0) return;
+
+  await tx[cfg.delegate].deleteMany({ where: { [cfg.fk]: { in: rowIds } } });
+
+  const pairs = [];
+  // Birincil sorumluya (liste ilk elemani) gore grupla: ayni degeri alan tum
+  // satirlar TEK updateMany ile yazilir (cogu toplu islemde bu 1-2 sorgudur).
+  const byPrimary = new Map();
+  for (const [rowId, ids] of plan) {
+    ids.forEach((userId, order) => pairs.push({ [cfg.fk]: rowId, userId, order }));
+    const primary = ids[0] ?? null;
+    if (!byPrimary.has(primary)) byPrimary.set(primary, []);
+    byPrimary.get(primary).push(rowId);
+  }
+  if (pairs.length > 0) await tx[cfg.delegate].createMany({ data: pairs, skipDuplicates: true });
+
+  const delegate = entity === 'requirement' ? 'requirement' : 'testCase';
+  for (const [primary, ids] of byPrimary) {
+    await tx[delegate].updateMany({ where: { id: { in: ids } }, data: { assigneeId: primary } });
+  }
+}
+
+/**
+ * Toplu atama icin ASSIGN denetim kayitlarini TEK createMany ile yazar.
+ * Adlar tek sorguda cozulur (tek tek auditAssignment cagirmak kayit basina
+ * iki sorgu demek olurdu).
+ *
+ * @param {Array<{row, before, after}>} changes yalnizca DEGISEN kayitlar
+ */
+export async function auditAssignmentsBulk(prisma, pid, entity, changes, actor) {
+  if (!changes || changes.length === 0) return;
+  const cfg = cfgOf(entity);
+  const everyId = [...new Set(changes.flatMap((c) => [...(c.before || []), ...(c.after || [])]))];
+  const names = new Map();
+  if (everyId.length > 0) {
+    const people = await prisma.user.findMany({
+      where: { id: { in: everyId } },
+      select: { id: true, name: true },
+    });
+    for (const p of people) names.set(p.id, (p.name || '').trim() || p.id);
+  }
+  const label = (ids) => (ids || []).map((id) => names.get(id) || 'silinmis kullanici').join(', ');
+
+  await prisma.auditLog.createMany({
+    data: changes.map(({ row, before, after }) => {
+      const fromText = label(before);
+      const toText = label(after);
+      let message;
+      if ((before || []).length === 0) message = `Toplu atama: "${row.title}" -> ${toText}.`;
+      else if ((after || []).length === 0) message = `Toplu atama kaldirildi: "${row.title}" (onceki: ${fromText}).`;
+      else message = `Toplu atama degisti: "${row.title}": ${fromText} -> ${toText}.`;
+      return {
+        projectId: pid,
+        action: 'ASSIGN',
+        entityType: cfg.auditEntityType,
+        entityId: row.id,
+        textId: row.text_id,
+        actor,
+        message,
+      };
+    }),
+  });
+}
