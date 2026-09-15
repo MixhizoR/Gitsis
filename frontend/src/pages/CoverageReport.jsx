@@ -6,16 +6,33 @@ import { useMemo } from 'react'
 import { useApp } from '../context/AppContext.jsx'
 import { useLang } from '../context/LanguageContext.jsx'
 import { computeCoverage } from '../utils/coverage.js'
+import {
+  buildVerificationIndex,
+  summarizeVerification,
+  verificationOf,
+  VERIFICATION_ORDER,
+  VERIFICATION_LABEL_KEY,
+  VERIFICATION_STYLES,
+} from '../utils/verification.js'
 import { ScoreRing } from '../components/common/StatCard.jsx'
-import { StatusBadge, TypeBadge, DalBadge } from '../components/common/Badge.jsx'
+import { TypeBadge, DalBadge, VerificationBadge } from '../components/common/Badge.jsx'
 import { IconShield, IconAlert, IconCheck } from '../components/common/Icons.jsx'
 import { DAL } from '../utils/constants.js'
 import { getDisplayLabel, stripHtml, truncate } from '../utils/format.js'
 
 export default function CoverageReport() {
-  const { requirements, links } = useApp()
+  const { requirements, testCases, links } = useApp()
   const { t } = useLang()
   const cov = useMemo(() => computeCoverage(requirements, links), [requirements, links])
+
+  // Issue #105: Kapsam skoru yalnizca BAG varligini olcer. Asagidaki serit,
+  // ayni kapsanabilir gereksinimlerin DOGRULAMA durumunu ayristirir: hic
+  // testle doğrulanmayan / doğrulanmayı bekleyen / doğrulanan / başarısız.
+  const verIndex = useMemo(() => buildVerificationIndex(links, testCases), [links, testCases])
+  const ver = useMemo(
+    () => summarizeVerification([...cov.covered, ...cov.uncovered], verIndex),
+    [cov, verIndex],
+  )
 
   // DAL A/B kapsam disi olanlar ozellikle kritik.
   const criticalGaps = cov.uncovered.filter(
@@ -66,6 +83,28 @@ export default function CoverageReport() {
               {t('cov.criticalWarn', { n: criticalGaps })}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Dogrulama durumu seridi (Issue #105) */}
+      <div className="card p-5" data-testid="verification-summary">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+          {t('ver.summaryTitle')}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('ver.desc')}</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {VERIFICATION_ORDER.map((state) => (
+            <div
+              key={state}
+              data-testid={`verification-count-${state}`}
+              className={
+                'rounded-lg px-4 py-3 text-center ring-1 ring-inset ' + VERIFICATION_STYLES[state]
+              }
+            >
+              <div className="text-2xl font-extrabold tabular-nums">{ver.counts[state]}</div>
+              <div className="mt-0.5 text-xs font-semibold">{t(VERIFICATION_LABEL_KEY[state])}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -128,7 +167,7 @@ export default function CoverageReport() {
                         <TypeBadge value={r.type} />
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <StatusBadge value={r.status} />
+                        <VerificationBadge info={verificationOf(verIndex, r.id)} t={t} />
                       </td>
                       <td className="px-4 py-3 align-top">
                         <DalBadge value={r.dal_level} />

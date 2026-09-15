@@ -6,7 +6,8 @@
 //  ALAN, ONCELIK, DAL, BAG, ISLEMLER sutunlari ve satir islemleri (goruntule /
 //  bag yonet / etki analizi / duzenle / sil) birebir ayni. Gereksinimler
 //  KENDI baslarina onaylanmaz; DURUM sutunu bu gereksinimi DOGRULAYAN
-//  (Verifies) test senaryolarindan turetilir (bkz. verifiedFor / Hierarchy.jsx).
+//  (Verifies) test senaryolarinin sonucundan turetilir (bkz.
+//  utils/verification.js / Hierarchy.jsx).
 //  Ustune iki sey ekler:
 //    1) HIYERARSI: satirlar agac olarak girintilenir, alt kirilimlar
 //       expand edildikce API'den lazy yuklenir (tum agac tek seferde CEKILMEZ)
@@ -50,7 +51,8 @@ import {
   IconEdit,
   IconList,
 } from '../components/common/Icons.jsx'
-import { REQ_PAGES, REQ_TYPE, LINK_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
+import { REQ_PAGES, REQ_TYPE, DEFAULT_CODE_PREFIX } from '../utils/constants.js'
+import { buildVerificationIndex, verificationOf } from '../utils/verification.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
 import {
   filterableAttrDefs,
@@ -62,6 +64,7 @@ export default function PbsTree() {
   const {
     projectId,
     requirements,
+    testCases,
     links,
     fields,
     attributeDefs,
@@ -132,8 +135,13 @@ export default function PbsTree() {
   // --- Tablo yardimcilari (Hierarchy ile ayni sozlesme) --------------------
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
   // Gereksinimler KENDI baslarina onaylanmaz (bkz. Hierarchy.jsx) — Durum
-  // sutunu bu gereksinimi DOGRULAYAN (Verifies) test senaryolarindan turetilir.
-  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
+  // sutunu bu gereksinimi DOGRULAYAN (Verifies) test senaryolarinin
+  // SONUCUNDAN turetilir (Issue #105, bkz. utils/verification.js).
+  const verificationIndex = useMemo(
+    () => buildVerificationIndex(links, testCases),
+    [links, testCases],
+  )
+  const verificationFor = (r) => verificationOf(verificationIndex, r.id)
   const saveDescription = (r, html) => editRequirement(r.id, { description: html })
 
   // --- Gorunur satirlar ----------------------------------------------------
@@ -158,14 +166,23 @@ export default function PbsTree() {
 
   const rows = useMemo(() => {
     if (!filtersActive) return tree.flatRows.filter((r) => !pendingSet.has(r.id))
-    const statusOf = (r) => requirementStatusOf(r, verifiedFor)
+    const statusOf = (r) => requirementStatusOf(r, verificationFor)
     return requirements
       .filter((r) => !pendingSet.has(r.id))
       .filter((r) => matchesFilters(r, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-    // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
+    // verificationFor `verificationIndex` uzerinden hesaplanir; bagimlilik
+    // olarak indeks yeterli (o da links + testCases'ten turer).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersActive, tree.flatRows, requirements, fx.filters, pendingSet, links, filterAttrDefs])
+  }, [
+    filtersActive,
+    tree.flatRows,
+    requirements,
+    fx.filters,
+    pendingSet,
+    verificationIndex,
+    filterAttrDefs,
+  ])
 
   // Gereksinimler baska bir yerden degistiginde (form kaydi, onay oylamasi,
   // toplu islem...) agac satirlari bayat kalmasin: AppContext'teki listenin
@@ -405,7 +422,7 @@ export default function PbsTree() {
           canDeleteRow={canDeleteRow}
           canManageLinksRow={canLinksRow}
           statusLabel={t('tbl.th.verification')}
-          verifiedFor={verifiedFor}
+          verificationFor={verificationFor}
           selectable
           selectedIds={new Set(selected.keys())}
           onToggleRow={(id) => {
@@ -444,6 +461,7 @@ export default function PbsTree() {
         row={viewRow}
         canWrite={viewRow ? canEditRow(viewRow) : false}
         showStatus={false}
+        showVerification
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}
         onOpenSource={setSourceRow}

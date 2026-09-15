@@ -8,18 +8,19 @@
 //  Atanan kisiler listede (EntityTable) AYRI BIR SUTUN OLARAK GOSTERILMEZ:
 //  coklu atamada satiri sisirdigi icin tek yeri burasidir.
 // ============================================================================
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Modal from './Modal.jsx'
 import RichTextEditor from './RichTextEditor.jsx'
 import HistoryTab from './HistoryTab.jsx'
 import CommentsTab from '../comments/CommentsTab.jsx'
 import { useComments } from '../../hooks/useComments.js'
-import { StatusBadge, PriorityBadge, TypeBadge, DalBadge } from './Badge.jsx'
+import { StatusBadge, PriorityBadge, TypeBadge, DalBadge, VerificationBadge } from './Badge.jsx'
 import { IconCheck } from './Icons.jsx'
 import { useLang } from '../../context/LanguageContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import { getDisplayLabel } from '../../utils/format.js'
 import { assigneeNamesOf } from '../../utils/assignees.js'
+import { buildVerificationIndex, verificationOf } from '../../utils/verification.js'
 
 const BUILTIN_KEYS = new Set(['priority', 'dal_level'])
 
@@ -38,12 +39,16 @@ export default function ViewModal({
   // Yalnizca kaynagi gereksinim olan sayfalar (Hierarchy) iletir; testlerin
   // backend'de versiyon gecmisi yoktur, bu yuzden varsayilan false'dur.
   showHistory = false,
+  // Issue #105: gereksinimlerde "Doğrulama" bolumu — bu kaydi DOGRULAYAN
+  // (Verifies) test senaryolari, tek tek sonuclariyla listelenir. Boylece
+  // "neden hala bekliyor / neden başarısız" sorusu modalda cevaplanir.
+  showVerification = false,
   onClose,
   onSaveDescription,
   statusLabel: _statusLabel,
 }) {
   const { t } = useLang()
-  const { attributeDefs, personnel, projectId } = useApp()
+  const { attributeDefs, personnel, projectId, links, testCases } = useApp()
   const [html, setHtml] = useState('')
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('detail')
@@ -57,6 +62,12 @@ export default function ViewModal({
     showComments ? row?.id : null,
   )
   const showTabs = showHistory || showComments
+
+  // Dogrulama ozeti yalnizca istendiginde (gereksinim sayfalari) hesaplanir.
+  const verification = useMemo(() => {
+    if (!showVerification || !row?.id) return null
+    return verificationOf(buildVerificationIndex(links, testCases), row.id)
+  }, [showVerification, row?.id, links, testCases])
 
   useEffect(() => {
     if (open) setHtml(row?.description || '')
@@ -159,7 +170,11 @@ export default function ViewModal({
           <div className="mb-4 flex flex-wrap items-center gap-2">
             {row.type && <TypeBadge value={row.type} />}
             {row.priority && <PriorityBadge value={row.priority} />}
-            {showStatus && row.status && <StatusBadge value={row.status} />}
+            {showVerification && verification ? (
+              <VerificationBadge info={verification} t={t} />
+            ) : (
+              showStatus && row.status && <StatusBadge value={row.status} />
+            )}
             {row.dal_level && <DalBadge value={row.dal_level} />}
             {row.field && (
               <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
@@ -197,6 +212,44 @@ export default function ViewModal({
                   </li>
                 ))}
               </ol>
+            </div>
+          )}
+
+          {/* Dogrulama (Issue #105): bu gereksinimi dogrulayan test senaryolari
+              ve tek tek sonuclari. Gereksinim kendi basina onaylanmaz. */}
+          {showVerification && verification && (
+            <div className="mb-4" data-testid="view-verification">
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t('ver.title')}
+              </div>
+              {verification.total === 0 ? (
+                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                  {t('ver.unverifiable.hint')}
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {verification.tests.map((tc) => (
+                    <li
+                      key={tc.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-1.5 dark:border-slate-700"
+                    >
+                      <span className="min-w-0 truncate text-sm text-slate-700 dark:text-slate-200">
+                        <span className="mr-2 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
+                          {tc.text_id || t('ver.unknownTest')}
+                        </span>
+                        {tc.title || ''}
+                      </span>
+                      {tc.status ? (
+                        <StatusBadge value={tc.status} />
+                      ) : (
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {t('ver.resultPending')}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
