@@ -10,6 +10,12 @@
 //  URL query string senkronizasyonu YAPILMAZ: uygulama sayfa gezinmesini
 //  App.jsx icindeki `page` state'i ile yurutur (URL rotasi yoktur), dolayisiyla
 //  yazilacak bir adres cubugu durumu da yok.
+//
+//  KALICI GORUNUMLER: Issue #105 ile ayni olcut kumesi isimlendirilip
+//  BACKEND'de (kullanici bazli) saklanabilir — bkz. hooks/useEntityViews.js.
+//  Buradaki sessionStorage davranisi DEGISMEDI: bir gorunum secilmedigi
+//  surece sayfa eskisi gibi calisir; gorunum secilince olcutler `replace`
+//  ile bir kerede yuklenir.
 // ============================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { assigneeIdsOf } from '../utils/assignees.js'
@@ -131,7 +137,16 @@ export function useEntityFilters(storageKey) {
 
   const clear = useCallback(() => setFilters({ ...EMPTY_FILTERS, attrs: {} }), [])
 
+  // Kayitli Gorunum (Saved View) uygulanirken TUM olcut kumesi bir kerede
+  // degistirilir — tek tek `set` cagirmak hem ara render'lar uretir hem de
+  // gorunumde OLMAYAN bir olcutun eski degerini geride birakirdi.
+  // Bkz. hooks/useEntityViews.js.
+  const replace = useCallback(
+    (next) => setFilters({ ...EMPTY_FILTERS, ...(next || {}), attrs: { ...(next?.attrs || {}) } }),
+    [],
+  )
+
   const activeCount = useMemo(() => countActive(filters), [filters])
 
-  return { filters, set, setAttr, clear, activeCount }
+  return { filters, set, setAttr, clear, replace, activeCount }
 }

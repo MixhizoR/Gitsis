@@ -11,6 +11,9 @@
 //  "Doğrulanmayı Bekliyor" / "Doğrulandı" / "Doğrulama Başarısız" ayrimini
 //  acikca gosterir; ayni degerler Durum filtresinde de secilebilir.
 //  pageKey ayni zamanda izin bileson anahtaridir (req-user / req-system / ...).
+//  Kayitli Gorunum (Issue #105): filtre + sutun duzeni + satir duzeni bir
+//  isimle kalici saklanir (ViewBar / useEntityViews); gorunum secilmediginde
+//  sayfa eskisi gibi (sessionStorage filtreleri, varsayilan sutunlar) calisir.
 // ============================================================================
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
@@ -31,6 +34,7 @@ import ViewModal from '../components/common/ViewModal.jsx'
 import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
+import ViewBar, { TablePager } from '../components/common/ViewBar.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { REQ_PAGES } from '../utils/constants.js'
@@ -40,6 +44,8 @@ import { getDisplayLabel } from '../utils/format.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
+import { useEntityViews } from '../hooks/useEntityViews.js'
+import { columnCatalog, entityAttrDefs, paginate, sortRows } from '../utils/viewConfig.js'
 import {
   filterableAttrDefs,
   requirementStatusOptions,
@@ -77,7 +83,7 @@ export default function Hierarchy({
     projectId,
   } = useApp()
   const { t } = useLang()
-  const { can } = useAuth()
+  const { can, isPM } = useAuth()
   const fx = useEntityFilters(navKey)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -140,6 +146,31 @@ export default function Hierarchy({
   )
   const statusOptions = useMemo(() => requirementStatusOptions(t), [t])
 
+  // --- Kayitli Gorunum (Saved View) ------------------------------------------
+  //  Sutun katalogu EntityTable'in cizebilecegi TUM sutunlardir; oznitelik
+  //  sutunlari icin EntityTable ile AYNI liste kullanilir (entityAttrDefs).
+  const columnAttrDefs = useMemo(
+    () => entityAttrDefs(attributeDefs, 'requirement'),
+    [attributeDefs],
+  )
+  const catalog = useMemo(
+    () =>
+      columnCatalog({
+        t,
+        columns: tableColumns,
+        attrDefs: columnAttrDefs,
+        statusLabel: t('tbl.th.verification'),
+      }),
+    [t, tableColumns, columnAttrDefs],
+  )
+  const vw = useEntityViews({
+    projectId,
+    navKey,
+    catalog,
+    filters: fx.filters,
+    onApplyFilters: fx.replace,
+  })
+
   const rows = useMemo(() => {
     const statusOf = (r) => requirementStatusOf(r, verificationFor)
     return requirements
@@ -154,7 +185,16 @@ export default function Hierarchy({
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
-  const visibleIds = useMemo(() => visibleRows.map((r) => r.id), [visibleRows])
+  // Gorunumun satir duzeni: once siralama olcutu, sonra sayfalama.
+  const sortedRows = useMemo(() => sortRows(visibleRows, vw.rowLayout), [visibleRows, vw.rowLayout])
+  const pageInfo = useMemo(
+    () => paginate(sortedRows, vw.rowLayout.pageSize, vw.page),
+    [sortedRows, vw.rowLayout.pageSize, vw.page],
+  )
+  // Toplu secim O ANDA GORUNEN sayfayla sinirlidir: "tumunu sec" kutusu
+  // ekranda olmayan satirlari da isaretleseydi kullanici ne sildigini
+  // goremezdi (sayfa degisince secim dogal olarak sifirlanir).
+  const visibleIds = useMemo(() => pageInfo.rows.map((r) => r.id), [pageInfo.rows])
   const sel = useBulkSelection(visibleIds)
 
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
@@ -187,8 +227,8 @@ export default function Hierarchy({
   }
 
   const selectedRows = useMemo(
-    () => visibleRows.filter((r) => sel.selectedSet.has(r.id)),
-    [visibleRows, sel.selectedSet],
+    () => pageInfo.rows.filter((r) => sel.selectedSet.has(r.id)),
+    [pageInfo.rows, sel.selectedSet],
   )
 
   if (!cfg) return null
@@ -230,18 +270,39 @@ export default function Hierarchy({
         </div>
       </div>
 
-      <FilterBar
-        filters={fx.filters}
-        onSet={fx.set}
-        onSetAttr={fx.setAttr}
-        onClear={fx.clear}
-        types={effectiveCfg.lockedType ? null : types}
-        fields={fieldFilter ? null : fields}
-        statusOptions={statusOptions}
-        assignees={personnel}
-        attrDefs={filterAttrDefs}
-        activeCount={fx.activeCount}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-[240px] flex-1">
+          <FilterBar
+            filters={fx.filters}
+            onSet={fx.set}
+            onSetAttr={fx.setAttr}
+            onClear={fx.clear}
+            types={effectiveCfg.lockedType ? null : types}
+            fields={fieldFilter ? null : fields}
+            statusOptions={statusOptions}
+            assignees={personnel}
+            attrDefs={filterAttrDefs}
+            activeCount={fx.activeCount}
+          />
+        </div>
+        <ViewBar
+          views={vw.views}
+          selected={vw.selected}
+          selectedId={vw.selectedId}
+          onSelect={vw.selectView}
+          dirty={vw.dirty}
+          catalog={catalog}
+          columnLayout={vw.columnLayout}
+          onColumnLayout={vw.setColumnLayout}
+          rowLayout={vw.rowLayout}
+          onRowLayout={vw.setRowLayout}
+          onSave={vw.update}
+          onSaveAs={vw.saveAs}
+          onMakeDefault={vw.makeDefault}
+          onDelete={vw.remove}
+          canShare={isPM}
+        />
+      </div>
 
       <BulkActionBar
         count={sel.count}
@@ -254,8 +315,9 @@ export default function Hierarchy({
       />
 
       <EntityTable
-        rows={visibleRows}
+        rows={pageInfo.rows}
         columns={tableColumns}
+        columnKeys={vw.columnKeys}
         attributeEntityType="requirement"
         linkCountFor={linkCountFor}
         suspectCountFor={suspectCountFor}
@@ -276,6 +338,13 @@ export default function Hierarchy({
         onToggleAll={sel.toggleAll}
         allSelected={sel.allSelected}
         someSelected={sel.someSelected}
+      />
+
+      <TablePager
+        page={pageInfo.page}
+        pageCount={pageInfo.pageCount}
+        total={pageInfo.total}
+        onPage={vw.setPage}
       />
 
       <RequirementForm

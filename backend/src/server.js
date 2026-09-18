@@ -39,6 +39,7 @@ import {
 import { cleanRichText } from './sanitize.js';
 import { ensureSystemRoles, resolveUserRole, isPMRole, isAdminRole } from './systemRoles.js';
 import { requireReason } from './reason.js';
+import { listViews, createView, updateView, deleteView, setDefaultView, loadWritable } from './views.js';
 import traceabilityRoutes from './traceability.js';
 import documentRoutes from './documents.js';
 import commentRoutes from './comments.js';
@@ -1534,6 +1535,98 @@ app.delete(
       entityId: req.params.id,
       message: `Oznitelik silindi: "${before.label}".`,
       reason,
+      actor: actorOf(req),
+    });
+    res.json({ ok: true });
+  }),
+);
+
+// ===========================================================================
+//  KAYITLI GORUNUMLER (saved views) — filtre + sutun + satir duzeni
+//  Kullanici bazli kalici gorunumler; proje geneli (paylasilan) gorunumler
+//  scope='project' ile modellenir ve yalnizca PM tarafindan yonetilir.
+//  Bkz. src/views.js.
+// ===========================================================================
+const viewCtx = (req) => ({
+  projectId: req.params.pid,
+  userId: req.auth?.userId || null,
+  isPM: req.auth?.roleKey === 'pm',
+});
+
+app.get(
+  '/api/projects/:pid/views',
+  wrap(async (req, res) => {
+    const { projectId, userId } = viewCtx(req);
+    if (!userId) throw bad('Gecersiz kimlik.', 401);
+    res.json(await listViews(prisma, projectId, userId, req.query.navKey));
+  }),
+);
+
+app.post(
+  '/api/projects/:pid/views',
+  wrap(async (req, res) => {
+    const ctx = viewCtx(req);
+    if (!ctx.userId) throw bad('Gecersiz kimlik.', 401);
+    const view = await createView(prisma, { ...ctx, navKey: req.body?.navKey, body: req.body });
+    await audit(ctx.projectId, {
+      action: 'VIEW_CREATE',
+      entityType: 'view',
+      entityId: view.id,
+      message: `Gorunum kaydedildi: "${view.name}" (${view.navKey}).`,
+      actor: actorOf(req),
+    });
+    res.status(201).json(view);
+  }),
+);
+
+app.patch(
+  '/api/projects/:pid/views/:id',
+  wrap(async (req, res) => {
+    const ctx = viewCtx(req);
+    if (!ctx.userId) throw bad('Gecersiz kimlik.', 401);
+    const view = await updateView(prisma, { ...ctx, id: req.params.id, body: req.body });
+    await audit(ctx.projectId, {
+      action: 'VIEW_UPDATE',
+      entityType: 'view',
+      entityId: view.id,
+      message: `Gorunum guncellendi: "${view.name}" (${view.navKey}).`,
+      actor: actorOf(req),
+    });
+    res.json(view);
+  }),
+);
+
+// Varsayilan gorunum: sayfa acildiginda otomatik secilen. Ayni sahip+sayfa
+// icin en fazla bir tane olur (bkz. views.js setDefaultView).
+app.post(
+  '/api/projects/:pid/views/:id/default',
+  wrap(async (req, res) => {
+    const ctx = viewCtx(req);
+    if (!ctx.userId) throw bad('Gecersiz kimlik.', 401);
+    const view = await setDefaultView(prisma, { ...ctx, id: req.params.id });
+    await audit(ctx.projectId, {
+      action: 'VIEW_DEFAULT',
+      entityType: 'view',
+      entityId: view.id,
+      message: `Varsayilan gorunum: "${view.name}" (${view.navKey}).`,
+      actor: actorOf(req),
+    });
+    res.json(view);
+  }),
+);
+
+app.delete(
+  '/api/projects/:pid/views/:id',
+  wrap(async (req, res) => {
+    const ctx = viewCtx(req);
+    if (!ctx.userId) throw bad('Gecersiz kimlik.', 401);
+    const before = await loadWritable(prisma, { ...ctx, id: req.params.id });
+    await deleteView(prisma, { ...ctx, id: req.params.id });
+    await audit(ctx.projectId, {
+      action: 'VIEW_DELETE',
+      entityType: 'view',
+      entityId: before.id,
+      message: `Gorunum silindi: "${before.name}" (${before.navKey}).`,
       actor: actorOf(req),
     });
     res.json({ ok: true });

@@ -173,7 +173,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 | `backend/src/auth.js` | JWT sign/verify, bcrypt, middleware (`requireAuth`, `requirePM`, `projectAccessGuard`) |
 | `backend/src/cascade.js` | Bulk status (`recomputeStatusesBulk`) & approval (`recomputeApprovalsBulk`) recomputation |
 | `backend/src/constants.js` | Single source of truth for taxonomy, hierarchy rules, link rules |
-| `backend/prisma/schema.prisma` | Full DB schema (User, SystemRole, Project, Requirement, TestCase, TraceabilityLink, GlossaryTerm, Approval, ProjectSnapshot, AuditLog, ProjectField) — `Role`/`Personnel` removed in #97 |
+| `backend/prisma/schema.prisma` | Full DB schema (User, SystemRole, Project, Requirement, TestCase, TraceabilityLink, GlossaryTerm, Approval, ProjectSnapshot, AuditLog, ProjectField, SavedView) — `Role`/`Personnel` removed in #97 |
 | `backend/src/seed.js` | Default Drone/IHA demo project (auto-runs on empty DB via Docker `migrate` service) |
 | `frontend/src/main.jsx` | Provider nesting order, font imports, `?reset` URL param clears localStorage |
 | `frontend/src/App.jsx` | Three-gate routing: Login → ProjectSelect (PM only) → Workspace |
@@ -226,6 +226,7 @@ node scripts/seed-coffee-project.mjs  # Load optional Espresso demo (backend mus
 | Modify requirement hierarchy rules | `backend/src/constants.js` (`SATISFIES_PARENT_OF` for the PBS tree's single parent, `SATISFIES_ALLOWED_PARENTS` for Satisfies traceability links, `VERIFIES_TARGET_TYPES`) |
 | Change approval logic | `backend/src/cascade.js` (`recomputeApprovalsBulk`) |
 | Add frontend page | `frontend/src/pages/`, register in `App.jsx` |
+| Change saved views (filters + columns + row layout) | `backend/src/views.js` + `frontend/src/utils/viewConfig.js`, `hooks/useEntityViews.js`, `components/common/ViewBar.jsx` |
 | Add new entity type | Prisma schema → backend routes → `dataService.js` → `AppContext.jsx` actions → UI |
 | Fix IDOR issue | `backend/src/auth.js` `projectAccessGuard` |
 | Update taxonomy | `backend/src/constants.js` + `frontend/src/utils/constants.js` (keep in sync) |
