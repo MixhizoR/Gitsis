@@ -151,6 +151,15 @@ export function AppProvider({ children }) {
       await data.bulkDeleteRequirements(pid, ids, reason)
       await refresh()
     },
+    // Issue #120: TEK istekte toplu atama. Yanit "kac kayit guncellendi /
+    // kilitli oldugu icin atlandi" ozetini tasir; cagiran bunu kullaniciya
+    // gosterir (sessizce yutulmaz).
+    async bulkAssignRequirements(ids, assigneeIds, mode) {
+      if (!ids || ids.length === 0) return null
+      const r = await data.bulkAssignRequirements(pid, ids, assigneeIds, mode)
+      await refresh()
+      return r
+    },
 
     // Test senaryolari ------------------------------------------------------
     async addTestCase(payload) {
@@ -171,6 +180,12 @@ export function AppProvider({ children }) {
       if (!ids || ids.length === 0) return
       await data.bulkDeleteTestCases(pid, ids, reason)
       await refresh()
+    },
+    async bulkAssignTestCases(ids, assigneeIds, mode) {
+      if (!ids || ids.length === 0) return null
+      const r = await data.bulkAssignTestCases(pid, ids, assigneeIds, mode)
+      await refresh()
+      return r
     },
 
     // Sozluk ----------------------------------------------------------------

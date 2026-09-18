@@ -23,6 +23,8 @@ import AttributeManager from '../components/requirements/AttributeManager.jsx'
 import LinkManager from '../components/traceability/LinkManager.jsx'
 import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
+import BulkAssignModal from '../components/common/BulkAssignModal.jsx'
+import BulkAssignResultToast from '../components/common/BulkAssignResultToast.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
@@ -72,6 +74,9 @@ export default function TestCases({
   const [editing, setEditing] = useState(null)
   const [linkTarget, setLinkTarget] = useState(null)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
+  // Issue #120: toplu atama modali + islem sonucu ozeti (atlanan kayitlar).
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [assignResult, setAssignResult] = useState(null)
   const [viewRow, setViewRow] = useState(null)
   const [matrixRow, setMatrixRow] = useState(null)
   const [attrMgr, setAttrMgr] = useState(false)
@@ -281,8 +286,10 @@ export default function TestCases({
         count={sel.count}
         onDelete={canDeleteRow() ? handleBulkDelete : undefined}
         onLink={canLinksRow() ? () => setBulkLinkOpen(true) : undefined}
+        onAssign={canEditRow() ? () => setBulkAssignOpen(true) : undefined}
         onClear={sel.clear}
         canLink={canLinksRow()}
+        canAssign={canEditRow()}
       />
 
       <EntityTable
@@ -343,6 +350,17 @@ export default function TestCases({
         sources={selectedRows}
         onDone={sel.clear}
       />
+      <BulkAssignModal
+        open={bulkAssignOpen}
+        onClose={() => setBulkAssignOpen(false)}
+        rows={selectedRows}
+        entity="testcase"
+        onDone={(result) => {
+          setAssignResult(result)
+          sel.clear()
+        }}
+      />
+      <BulkAssignResultToast result={assignResult} onClose={() => setAssignResult(null)} />
       <ViewModal
         open={Boolean(viewRow)}
         row={viewRow}

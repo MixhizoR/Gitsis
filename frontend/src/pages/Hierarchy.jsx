@@ -6,7 +6,10 @@
 //  Toplu islem: coklu secim + 5 sn geri alinabilir toplu silme + toplu linkle.
 //  Izin: 12 kademeli RBAC (can). Gereksinimler KENDI baslarina onaylanmaz;
 //  Durum sutunu bu gereksinimi DOGRULAYAN test senaryolarindan turetilir
-//  (bkz. verifiedFor) — onay/kilit yalnizca test tarafinda (bkz. TestCases.jsx).
+//  (bkz. utils/verification.js) — onay/kilit yalnizca test tarafinda
+//  (bkz. TestCases.jsx). Issue #105: Durum sutunu "Doğrulanamaz" /
+//  "Doğrulanmayı Bekliyor" / "Doğrulandı" / "Doğrulama Başarısız" ayrimini
+//  acikca gosterir; ayni degerler Durum filtresinde de secilebilir.
 //  pageKey ayni zamanda izin bileson anahtaridir (req-user / req-system / ...).
 //  Kayitli Gorunum (Issue #105): filtre + sutun duzeni + satir duzeni bir
 //  isimle kalici saklanir (ViewBar / useEntityViews); gorunum secilmediginde
@@ -24,6 +27,8 @@ import LinkManager from '../components/traceability/LinkManager.jsx'
 import ImpactAnalysisModal from '../components/traceability/ImpactAnalysisModal.jsx'
 import BulkActionBar from '../components/common/BulkActionBar.jsx'
 import BulkLinkModal from '../components/common/BulkLinkModal.jsx'
+import BulkAssignModal from '../components/common/BulkAssignModal.jsx'
+import BulkAssignResultToast from '../components/common/BulkAssignResultToast.jsx'
 import UndoToast from '../components/common/UndoToast.jsx'
 import ViewModal from '../components/common/ViewModal.jsx'
 import SourceDocumentModal from '../components/documents/SourceDocumentModal.jsx'
@@ -32,8 +37,9 @@ import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
 import ViewBar, { TablePager } from '../components/common/ViewBar.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
-import { REQ_PAGES, LINK_TYPE } from '../utils/constants.js'
+import { REQ_PAGES } from '../utils/constants.js'
 import { suspectLinksForRequirement } from '../utils/suspect.js'
+import { buildVerificationIndex, verificationOf } from '../utils/verification.js'
 import { getDisplayLabel } from '../utils/format.js'
 import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
@@ -67,6 +73,7 @@ export default function Hierarchy({
   }, [cfg, typeFilter])
   const {
     requirements,
+    testCases,
     links,
     fields,
     attributeDefs,
@@ -84,6 +91,9 @@ export default function Hierarchy({
   const [fieldMgr, setFieldMgr] = useState(false)
   const [attrMgr, setAttrMgr] = useState(false)
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false)
+  // Issue #120: toplu atama modali + islem sonucu ozeti (atlanan kayitlar).
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [assignResult, setAssignResult] = useState(null)
   const [viewRow, setViewRow] = useState(null)
   // Kaynak dokumani acilacak gereksinim (ViewModal "Kaynak" satirindan).
   const [sourceRow, setSourceRow] = useState(null)
@@ -106,9 +116,14 @@ export default function Hierarchy({
         : ['type', 'field', 'status', 'links'],
     [effectiveCfg],
   )
-  // Bu gereksinimi dogrulayan (Verifies) en az bir test bagli mi? Degilse
-  // "Dogrulanamaz" gosterilir — durum r.status'tan degil, baglantidan okunur.
-  const verifiedFor = (r) => links.some((l) => l.type === LINK_TYPE.VERIFIES && l.fromId === r.id)
+  // Issue #105: Durum sutunu gereksinimin KENDI onayindan degil, onu
+  // DOGRULAYAN (Verifies) test senaryolarinin sonucundan turetilir. Indeks
+  // proje genelinde TEK GECISTE kurulur (satir basina filtreleme yok).
+  const verificationIndex = useMemo(
+    () => buildVerificationIndex(links, testCases),
+    [links, testCases],
+  )
+  const verificationFor = (r) => verificationOf(verificationIndex, r.id)
 
   // --- Izin cozumleyiciler ---------------------------------------------------
   const canRead = can('read', comp)
@@ -157,15 +172,16 @@ export default function Hierarchy({
   })
 
   const rows = useMemo(() => {
-    const statusOf = (r) => requirementStatusOf(r, verifiedFor)
+    const statusOf = (r) => requirementStatusOf(r, verificationFor)
     return requirements
       .filter((r) => types.includes(r.type))
       .filter((r) => !fieldFilter || r.field === fieldFilter)
       .filter((r) => matchesFilters(r, fx.filters, statusOf, filterAttrDefs))
       .sort((a, b) => a.text_id.localeCompare(b.text_id, undefined, { numeric: true }))
-    // verifiedFor `links` uzerinden hesaplanir; bagimlilik olarak links yeterli.
+    // verificationFor `verificationIndex` uzerinden hesaplanir; bagimlilik
+    // olarak indeks yeterli (o da links + testCases'ten turer).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requirements, types, fx.filters, fieldFilter, links, filterAttrDefs])
+  }, [requirements, types, fx.filters, fieldFilter, verificationIndex, filterAttrDefs])
 
   // Bekleyen (soft-delete) satirlari gizle.
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
@@ -292,8 +308,10 @@ export default function Hierarchy({
         count={sel.count}
         onDelete={canDeleteRow() ? handleBulkDelete : undefined}
         onLink={canLinksRow() ? () => setBulkLinkOpen(true) : undefined}
+        onAssign={canEditRow() ? () => setBulkAssignOpen(true) : undefined}
         onClear={sel.clear}
         canLink={canLinksRow()}
+        canAssign={canEditRow()}
       />
 
       <EntityTable
@@ -313,7 +331,7 @@ export default function Hierarchy({
         canDeleteRow={canDeleteRow}
         canManageLinksRow={canLinksRow}
         statusLabel={t('tbl.th.verification')}
-        verifiedFor={verifiedFor}
+        verificationFor={verificationFor}
         selectable
         selectedIds={sel.selectedSet}
         onToggleRow={sel.toggleRow}
@@ -350,11 +368,23 @@ export default function Hierarchy({
         sources={selectedRows}
         onDone={sel.clear}
       />
+      <BulkAssignModal
+        open={bulkAssignOpen}
+        onClose={() => setBulkAssignOpen(false)}
+        rows={selectedRows}
+        entity="requirement"
+        onDone={(result) => {
+          setAssignResult(result)
+          sel.clear()
+        }}
+      />
+      <BulkAssignResultToast result={assignResult} onClose={() => setAssignResult(null)} />
       <ViewModal
         open={Boolean(viewRow)}
         row={viewRow}
         canWrite={can('write', comp)}
         showStatus={false}
+        showVerification
         showHistory
         onClose={() => setViewRow(null)}
         onSaveDescription={saveDescription}

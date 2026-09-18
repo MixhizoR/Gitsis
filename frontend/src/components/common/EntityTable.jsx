@@ -25,7 +25,7 @@
 //    - Izin bazli kalem/cop kilidi + onaylanan satirin donmasi (freeze).
 //  Test/gereksinim sayfalari izin fonksiyonlarini prop olarak gecer.
 // ============================================================================
-import { StatusBadge, TypeBadge, AttrBadge } from './Badge.jsx'
+import { StatusBadge, TypeBadge, AttrBadge, VerificationBadge } from './Badge.jsx'
 import {
   IconEdit,
   IconTrash,
@@ -84,6 +84,12 @@ export default function EntityTable({
   // gosterilir (r.status zaten backend cascade'i ile test sonuclarindan
   // hesaplanir — bkz. backend/src/cascade.js). Verilmezse eski davranis.
   verifiedFor,
+  // Issue #105: Dogrulama durumunun TAM hali. (row) => buildVerificationIndex
+  // ozeti; verilirse Durum sutununda dort ayri durum gosterilir
+  // ("Doğrulanamaz" / "Doğrulanmayı Bekliyor" / "Doğrulandı" /
+  // "Doğrulama Başarısız") + kac testin onaylandigi sayaci. `verifiedFor`
+  // yalnizca "bagli test var mi" ayrimini yapabildigi icin bu onceliklidir.
+  verificationFor,
   // --- Izin/onay entegrasyonu ---
   showApproval = false,
   canEditRow = T,
@@ -241,6 +247,10 @@ export default function EntityTable({
           dash
         )
       case 'status':
+        // Issue #105 (dogrulama durumu): `verificationFor` verildiyse dort
+        // ayri durum + sayac rozeti gosterilir; yoksa eski "Dogrulanamaz"
+        // ayrimina (verifiedFor) duser.
+        if (verificationFor) return <VerificationBadge info={verificationFor(r)} t={t} />
         return verifiedFor && !verifiedFor(r) ? (
           <span
             className="inline-flex items-center whitespace-nowrap rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 ring-1 ring-inset ring-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700"

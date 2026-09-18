@@ -10,8 +10,9 @@
 //     (tablodaki 'type' sutunuyla ayni kural)
 //   - Alan / Durum / modular oznitelik filtreleri ve AND kombinasyonu
 //   - Oznitelikler HER TIPTE filtrelenebilir (select / number / text ...)
-//   - Durum filtresi gereksinim semantigini kullanir: bagli dogrulayan test
-//     yoksa "Dogrulanamaz"
+//   - Durum filtresi gereksinim semantigini kullanir (Issue #105): dort
+//     dogrulama durumu — Doğrulanamaz / Doğrulanmayı Bekliyor / Doğrulandı /
+//     Doğrulama Başarısız
 //   - Temizle: arama dahil tum olcutleri sifirlar
 //   - sessionStorage kaliciligi (sayfa terk edilip donuldugunde filtre kalir)
 //   - Atanan Kisi tabloda SUTUN DEGILDIR (coklu atama; ViewModal'da gosterilir)
@@ -23,14 +24,21 @@ import { LanguageProvider } from '../../context/LanguageContext.jsx'
 
 const { canMock, appMock } = vi.hoisted(() => ({
   canMock: vi.fn(() => true),
-  appMock: { requirements: [], links: [], fields: [], attributeDefs: [], personnel: [] },
+  appMock: {
+    requirements: [],
+    testCases: [],
+    links: [],
+    fields: [],
+    attributeDefs: [],
+    personnel: [],
+  },
 }))
 
 vi.mock('../../context/AppContext.jsx', () => ({
   useApp: () => ({
     projectId: 'p-1',
     requirements: appMock.requirements,
-    testCases: [],
+    testCases: appMock.testCases,
     links: appMock.links,
     fields: appMock.fields,
     attributeDefs: appMock.attributeDefs,
@@ -118,6 +126,7 @@ describe('Hierarchy — ortak filtre cubugu', () => {
       { id: 'p2', firstName: 'Mehmet', lastName: 'Kaya' },
     ]
     appMock.links = []
+    appMock.testCases = []
     appMock.requirements = [
       req({ id: 'r-1', text_id: 'EH-USR-001', title: 'Kullanici girisi' }),
       req({
@@ -200,19 +209,40 @@ describe('Hierarchy — ortak filtre cubugu', () => {
     expect(codes()).toEqual(['EH-USR-001'])
   })
 
-  it('Durum filtresi gereksinim semantigini kullanir: dogrulayan test yoksa "Doğrulanamaz"', () => {
-    // r-1 bir test tarafindan dogrulanir, r-2 dogrulanmaz.
+  it('Durum filtresi dogrulama durumlarini kullanir (Issue #105)', () => {
+    // r-1 onayli bir testle dogrulanir, r-2'nin dogrulayan testi yoktur.
     appMock.links = [{ id: 'l1', type: 'Verifies', fromId: 'r-1', toId: 'tc-1' }]
+    appMock.testCases = [{ id: 'tc-1', text_id: 'EH-ACC-001', status: 'Approved' }]
     renderPage()
 
     openFilters()
-    fireEvent.change(screen.getByTestId('filter-status'), {
-      target: { value: '__unverifiable__' },
-    })
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'unverifiable' } })
     expect(codes()).toEqual(['EH-USR-002'])
 
-    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'In Review' } })
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'verified' } })
     expect(codes()).toEqual(['EH-USR-001'])
+
+    fireEvent.change(screen.getByTestId('filter-status'), { target: { value: 'pending' } })
+    expect(screen.getByText('Sonuç bulunamadı')).toBeInTheDocument()
+  })
+
+  it('bekleyen ve basarisiz dogrulama tabloda ayri rozetlerle gorunur (Issue #105)', () => {
+    // r-1: testi henuz sonuclanmadi -> "Doğrulanmayı Bekliyor"
+    // r-2: testi reddedildi         -> "Doğrulama Başarısız"
+    appMock.links = [
+      { id: 'l1', type: 'Verifies', fromId: 'r-1', toId: 'tc-1' },
+      { id: 'l2', type: 'Verifies', fromId: 'r-2', toId: 'tc-2' },
+    ]
+    appMock.testCases = [
+      { id: 'tc-1', text_id: 'EH-ACC-001', status: 'In Review' },
+      { id: 'tc-2', text_id: 'EH-ACC-002', status: 'Rejected' },
+    ]
+    renderPage()
+
+    const states = screen.getAllByTestId('verification-badge').map((el) => el.dataset.state)
+    expect(states).toEqual(['pending', 'failed'])
+    expect(screen.getByText('Doğrulanmayı Bekliyor')).toBeInTheDocument()
+    expect(screen.getByText('Doğrulama Başarısız')).toBeInTheDocument()
   })
 
   it('birden fazla olcut AND ile birlesir', () => {

@@ -28,11 +28,11 @@ export const EMPTY_FILTERS = { q: '', type: '', field: '', status: '', assignee:
 // "filtre yok" anlamina geldigi icin ayri bir sentinel gerekir.
 export const UNASSIGNED = '__unassigned__'
 
-// Durum filtresinin gereksinim sayfalarindaki ozel degeri: gereksinimler KENDI
-// baslarina onaylanmaz, DURUM sutunu onlari DOGRULAYAN test senaryosundan
-// turetilir (bkz. EntityTable verifiedFor). Bagli test yoksa sutunda
-// "Dogrulanamaz" yazar; filtre de ayni gorunumu hedefleyebilmelidir.
-export const UNVERIFIABLE = '__unverifiable__'
+// Durum filtresi gereksinim sayfalarinda DOGRULAMA durumudur: gereksinimler
+// KENDI baslarina onaylanmaz, sutun onlari DOGRULAYAN test senaryolarindan
+// turetilir (Issue #105, bkz. utils/verification.js). Degerler oradan gelir;
+// burada yalnizca eski cagiranlar icin yeniden disa aktarilir.
+export { VERIFICATION as VERIFICATION_STATES } from '../utils/verification.js'
 
 function read(storageKey) {
   try {
@@ -87,7 +87,7 @@ export function attrMatches(def, cellValue, filterValue) {
 /**
  * Bir satirin TUM olcutlere uyup uymadigi (AND).
  * `statusOf` durumu sayfaya gore cozer: test sayfalarinda dogrudan r.status,
- * gereksinim sayfalarinda "dogrulanamaz" ayrimi (bkz. UNVERIFIABLE).
+ * gereksinim sayfalarinda dogrulama durumu (bkz. utils/verification.js).
  * `attrDefs` oznitelik karsilastirmasinin tipini belirler (bkz. attrMatches);
  * verilmezse tum oznitelikler metin gibi eslestirilir.
  */

@@ -9,6 +9,12 @@ import {
   DAL_STYLES,
   CATEGORY_STYLES,
 } from '../../utils/constants.js'
+import {
+  VERIFICATION,
+  VERIFICATION_STYLES,
+  VERIFICATION_LABEL_KEY,
+  VERIFICATION_HINT_KEY,
+} from '../../utils/verification.js'
 
 function Pill({ children, className = '' }) {
   return (
@@ -25,6 +31,36 @@ function Pill({ children, className = '' }) {
 
 export function StatusBadge({ value }) {
   return <Pill className={STATUS_STYLES[value] || ''}>{value}</Pill>
+}
+
+/**
+ * Issue #105: Gereksinim DOGRULAMA rozeti. Gereksinimler kendi baslarina
+ * onaylanmaz; durum onlari dogrulayan test senaryolarindan turetilir
+ * (bkz. utils/verification.js). `info` = buildVerificationIndex ciktisi.
+ */
+export function VerificationBadge({ info, t, showCount = true }) {
+  const state = info?.state || VERIFICATION.UNVERIFIABLE
+  const label = t(VERIFICATION_LABEL_KEY[state])
+  const hint = t(VERIFICATION_HINT_KEY[state])
+  const total = info?.total || 0
+  // Sayac rozet uzerinde: "2/3" = 3 bagli testin 2'si onayli.
+  const counter = showCount && total > 0 ? ` ${info.approved}/${total}` : ''
+  return (
+    <span
+      data-testid="verification-badge"
+      data-state={state}
+      title={
+        total > 0 ? `${hint} (${t('ver.counterHint', { ok: info.approved, n: total })})` : hint
+      }
+      className={
+        'inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ' +
+        (VERIFICATION_STYLES[state] || '')
+      }
+    >
+      {label}
+      {counter && <span className="ml-1 tabular-nums opacity-70">{counter}</span>}
+    </span>
+  )
 }
 
 export function PriorityBadge({ value }) {
