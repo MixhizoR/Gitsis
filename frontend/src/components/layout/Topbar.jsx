@@ -20,6 +20,7 @@ const TITLE_KEY = {
   glossary: 'glossary',
   coverage: 'coverage',
   traceability: 'traceability',
+  'mind-map': 'mindMap',
   'traceability-export': 'traceabilityExport',
   'traceability-import': 'traceabilityImport',
   suspect: 'suspect',

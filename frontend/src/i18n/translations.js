@@ -45,6 +45,7 @@ export const STRINGS = {
     'nav.dashboard': 'Gösterge Paneli',
     'nav.requirements': 'Gereksinimler',
     'nav.traceability': 'İzlenebilirlik Matrisi',
+    'nav.mindMap': 'Zihin Haritası',
     'nav.traceabilityExport': 'İzlenebilirlik Dışa Aktarımı',
     'nav.traceabilityImport': 'İzlenebilirlik İçe Aktarımı',
     'nav.coverage': 'Kapsam Raporu',
@@ -123,6 +124,8 @@ export const STRINGS = {
     'page.requirements.sub': 'Gereksinimleri oluştur, düzenle, filtrele ve bağla',
     'page.traceability.title': 'İzlenebilirlik Matrisi',
     'page.traceability.sub': 'Satisfies / Verifies ilişkilerinin kuş bakışı görünümü',
+    'page.mindMap.title': 'Zihin Haritası',
+    'page.mindMap.sub': 'İzlenebilirlik zinciri — dallar açıldıkça yüklenir',
     'page.traceabilityExport.title': 'İzlenebilirlik Dışa Aktarımı',
     'page.traceabilityExport.sub': 'İzlenebilirlik verilerini dışa aktar',
     'page.traceabilityImport.title': 'İzlenebilirlik İçe Aktarımı',
@@ -533,6 +536,28 @@ export const STRINGS = {
     'trace.m2Title': '② Verifies Matrisi · System / Software / Hardware Requirement → Test Case',
     'trace.m2Desc':
       'Hangi test senaryosunun hangi gereksinimi doğruladığını gösterir. Boş satırlar kapsam dışıdır.',
+
+    // --- Zihin haritası (Issue #122) ---
+    'mindmap.intro':
+      'İzlenebilirlik zincirini dallanan bir ağaç olarak gösterir. Dal ucundaki noktaya tıklayarak dalı açın/kapatın; düğüme tıklayınca kaydın detayı açılır.',
+    'mindmap.level.user': 'Kullanıcı',
+    'mindmap.level.system': 'Sistem',
+    'mindmap.level.subsystem': 'Alt Sistem',
+    'mindmap.level.test': 'Test',
+    'mindmap.expandAll': 'Tümünü Aç',
+    'mindmap.collapseAll': 'Tümünü Kapat',
+    'mindmap.counts': '{visible} / {total} düğüm · {links} bağ',
+    'mindmap.empty': 'Bu projede henüz haritalanacak bir kayıt yok.',
+    'mindmap.truncated':
+      'Harita {n} düğümde kesildi. Okunabilirlik ve performans için bazı dalları kapatın.',
+    'mindmap.exportError': 'Harita dışa aktarılamadı.',
+    'mindmap.canvasLabel': 'İzlenebilirlik zihin haritası',
+    'mindmap.expandBranch': '{id} dalını aç ({n} alt kayıt)',
+    'mindmap.collapseBranch': '{id} dalını kapat',
+    'mindmap.zoomIn': 'Yakınlaştır',
+    'mindmap.zoomOut': 'Uzaklaştır',
+    'mindmap.fit': 'Ekrana sığdır',
+    'mindmap.resetZoom': 'Yakınlaştırmayı sıfırla',
 
     // --- Etki Analizi (Impact Analysis) ---
     'impact.title': 'Etki Analizi',
@@ -1010,6 +1035,7 @@ export const STRINGS = {
     'nav.dashboard': 'Dashboard',
     'nav.requirements': 'Requirements',
     'nav.traceability': 'Traceability Matrix',
+    'nav.mindMap': 'Mind Map',
     'nav.traceabilityExport': 'Traceability Export',
     'nav.traceabilityImport': 'Traceability Import',
     'nav.coverage': 'Coverage Report',
@@ -1087,6 +1113,8 @@ export const STRINGS = {
     'page.requirements.sub': 'Create, edit, filter and link requirements',
     'page.traceability.title': 'Traceability Matrix',
     'page.traceability.sub': "Bird's-eye view of Satisfies / Verifies relations",
+    'page.mindMap.title': 'Mind Map',
+    'page.mindMap.sub': 'Traceability chain — branches load as you expand',
     'page.traceabilityExport.title': 'Traceability Export',
     'page.traceabilityExport.sub': 'Export traceability data',
     'page.traceabilityImport.title': 'Traceability Import',
@@ -1448,6 +1476,28 @@ export const STRINGS = {
     'trace.m1Desc': 'Shows which software/hardware requirement satisfies which system requirement.',
     'trace.m2Title': '② Verifies Matrix · System / Software / Hardware Requirement → Test Case',
     'trace.m2Desc': 'Shows which test case verifies which requirement. Empty rows are uncovered.',
+
+    // --- Mind map (Issue #122) ---
+    'mindmap.intro':
+      'Shows the traceability chain as a branching tree. Click the dot at the end of a branch to expand/collapse it; click a node to open the record detail.',
+    'mindmap.level.user': 'User',
+    'mindmap.level.system': 'System',
+    'mindmap.level.subsystem': 'Sub-system',
+    'mindmap.level.test': 'Test',
+    'mindmap.expandAll': 'Expand all',
+    'mindmap.collapseAll': 'Collapse all',
+    'mindmap.counts': '{visible} / {total} nodes · {links} links',
+    'mindmap.empty': 'There is nothing to map in this project yet.',
+    'mindmap.truncated':
+      'The map was cut off at {n} nodes. Collapse some branches for readability and performance.',
+    'mindmap.exportError': 'The map could not be exported.',
+    'mindmap.canvasLabel': 'Traceability mind map',
+    'mindmap.expandBranch': 'Expand branch {id} ({n} children)',
+    'mindmap.collapseBranch': 'Collapse branch {id}',
+    'mindmap.zoomIn': 'Zoom in',
+    'mindmap.zoomOut': 'Zoom out',
+    'mindmap.fit': 'Fit to screen',
+    'mindmap.resetZoom': 'Reset zoom',
 
     // --- Impact Analysis ---
     'impact.title': 'Impact Analysis',

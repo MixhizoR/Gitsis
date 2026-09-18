@@ -18,6 +18,7 @@ import {
   IconAlert,
   IconPlus,
   IconTarget,
+  IconMindMap,
 } from '../common/Icons.jsx'
 import Logo from '../common/Logo.jsx'
 import NavManager from './NavManager.jsx'
@@ -48,6 +49,10 @@ const TOP = [
 const BOTTOM = [
   { key: 'coverage', labelKey: 'nav.coverage', icon: IconShield },
   { key: 'traceability', labelKey: 'nav.traceability', icon: IconMatrix },
+  // Issue #122: izlenebilirlik zincirinin zihin haritasi gorunumu. "Baglanti
+  // Agaci" (pbs-tree) AYRI ve DEGISMEMIS bir sayfadir; bu yeni sekme onun
+  // yerine gecmez, yanina eklenir.
+  { key: 'mind-map', labelKey: 'nav.mindMap', icon: IconMindMap },
   { key: 'traceability-export', labelKey: 'nav.traceabilityExport', icon: IconMatrix },
   { key: 'traceability-import', labelKey: 'nav.traceabilityImport', icon: IconMatrix },
   { key: 'suspect', labelKey: 'nav.suspect', icon: IconAlert },

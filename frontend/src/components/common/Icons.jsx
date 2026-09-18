@@ -45,6 +45,19 @@ export const IconList = (p) => (
   </Svg>
 )
 
+export const IconMindMap = (p) => (
+  <Svg {...p}>
+    <rect x="1.5" y="9.5" width="6.5" height="5" rx="1.6" />
+    <rect x="16" y="2.6" width="6.5" height="4.6" rx="1.6" />
+    <rect x="16" y="9.7" width="6.5" height="4.6" rx="1.6" />
+    <rect x="16" y="16.8" width="6.5" height="4.6" rx="1.6" />
+    <path d="M8 12h3.5" />
+    <path d="M11.5 12V4.9h4.5" />
+    <path d="M11.5 12h4.5" />
+    <path d="M11.5 12v7.1h4.5" />
+  </Svg>
+)
+
 export const IconMatrix = (p) => (
   <Svg {...p}>
     <rect x="3" y="3" width="18" height="18" rx="2" />
