@@ -9,6 +9,9 @@
 //  Toplu islem: coklu secim + 5 sn geri alinabilir toplu silme + toplu linkle.
 //  Izin/onay: 12 kademeli RBAC (can) + consensus onay + kilit (freeze).
 //  pageKey ayni zamanda izin bileson anahtaridir (test-acceptance / ...).
+//  Kayitli Gorunum (Issue #105): filtre + sutun duzeni + satir duzeni bir
+//  isimle kalici saklanir (ViewBar / useEntityViews); gorunum secilmediginde
+//  sayfa eskisi gibi (sessionStorage filtreleri, varsayilan sutunlar) calisir.
 // ============================================================================
 import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext.jsx'
@@ -25,6 +28,7 @@ import ViewModal from '../components/common/ViewModal.jsx'
 import ApprovalMatrixModal from '../components/common/ApprovalMatrixModal.jsx'
 import ReasonModal from '../components/common/ReasonModal.jsx'
 import FilterBar, { FilterSummary } from '../components/common/FilterBar.jsx'
+import ViewBar, { TablePager } from '../components/common/ViewBar.jsx'
 import { TypeBadge } from '../components/common/Badge.jsx'
 import { IconPlus } from '../components/common/Icons.jsx'
 import { TEST_PAGES } from '../utils/constants.js'
@@ -34,6 +38,8 @@ import { useBulkSelection } from '../hooks/useBulkSelection.js'
 import { useUndoableDelete } from '../hooks/useUndoableDelete.js'
 import { useEntityFilters, matchesFilters } from '../hooks/useEntityFilters.js'
 import { filterableAttrDefs, testStatusOptions } from '../utils/filterOptions.js'
+import { useEntityViews } from '../hooks/useEntityViews.js'
+import { columnCatalog, entityAttrDefs, paginate, sortRows } from '../utils/viewConfig.js'
 
 export default function TestCases({
   pageKey,
@@ -57,6 +63,7 @@ export default function TestCases({
     unlockApproval,
     rejectApproval,
     getApprovalMatrix,
+    projectId,
   } = useApp()
   const { t } = useLang()
   const { can, isPM, currentUser } = useAuth()
@@ -106,6 +113,30 @@ export default function TestCases({
   )
   const statusOptions = useMemo(() => testStatusOptions(), [])
 
+  // --- Kayitli Gorunum (Saved View) ------------------------------------------
+  //  Sutun katalogu EntityTable'in cizebilecegi TUM sutunlardir (onay
+  //  sutunlari dahil); oznitelik sutunlari icin EntityTable ile AYNI liste
+  //  kullanilir (entityAttrDefs).
+  const columnAttrDefs = useMemo(() => entityAttrDefs(attributeDefs, 'testcase'), [attributeDefs])
+  const catalog = useMemo(
+    () =>
+      columnCatalog({
+        t,
+        columns: tableColumns,
+        attrDefs: columnAttrDefs,
+        showApproval: true,
+        statusLabel: t('tbl.th.testResult'),
+      }),
+    [t, tableColumns, columnAttrDefs],
+  )
+  const vw = useEntityViews({
+    projectId,
+    navKey,
+    catalog,
+    filters: fx.filters,
+    onApplyFilters: fx.replace,
+  })
+
   const rows = useMemo(() => {
     const statusOf = (tc) => tc.status
     return testCases
@@ -116,7 +147,14 @@ export default function TestCases({
   }, [testCases, cfg, fx.filters, fieldFilter, filterAttrDefs])
 
   const visibleRows = useMemo(() => rows.filter((r) => !pendingSet.has(r.id)), [rows, pendingSet])
-  const visibleIds = useMemo(() => visibleRows.map((r) => r.id), [visibleRows])
+  // Gorunumun satir duzeni: once siralama olcutu, sonra sayfalama.
+  const sortedRows = useMemo(() => sortRows(visibleRows, vw.rowLayout), [visibleRows, vw.rowLayout])
+  const pageInfo = useMemo(
+    () => paginate(sortedRows, vw.rowLayout.pageSize, vw.page),
+    [sortedRows, vw.rowLayout.pageSize, vw.page],
+  )
+  // Toplu secim O ANDA GORUNEN sayfayla sinirlidir (bkz. Hierarchy.jsx).
+  const visibleIds = useMemo(() => pageInfo.rows.map((r) => r.id), [pageInfo.rows])
   const sel = useBulkSelection(visibleIds)
 
   const linkCountFor = (id) => links.filter((l) => l.fromId === id || l.toId === id).length
@@ -168,8 +206,8 @@ export default function TestCases({
   }
 
   const selectedRows = useMemo(
-    () => visibleRows.filter((r) => sel.selectedSet.has(r.id)),
-    [visibleRows, sel.selectedSet],
+    () => pageInfo.rows.filter((r) => sel.selectedSet.has(r.id)),
+    [pageInfo.rows, sel.selectedSet],
   )
 
   if (!cfg) return null
@@ -206,17 +244,38 @@ export default function TestCases({
         </div>
       </div>
 
-      <FilterBar
-        filters={fx.filters}
-        onSet={fx.set}
-        onSetAttr={fx.setAttr}
-        onClear={fx.clear}
-        fields={fieldFilter ? null : fields}
-        statusOptions={statusOptions}
-        assignees={personnel}
-        attrDefs={filterAttrDefs}
-        activeCount={fx.activeCount}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-[240px] flex-1">
+          <FilterBar
+            filters={fx.filters}
+            onSet={fx.set}
+            onSetAttr={fx.setAttr}
+            onClear={fx.clear}
+            fields={fieldFilter ? null : fields}
+            statusOptions={statusOptions}
+            assignees={personnel}
+            attrDefs={filterAttrDefs}
+            activeCount={fx.activeCount}
+          />
+        </div>
+        <ViewBar
+          views={vw.views}
+          selected={vw.selected}
+          selectedId={vw.selectedId}
+          onSelect={vw.selectView}
+          dirty={vw.dirty}
+          catalog={catalog}
+          columnLayout={vw.columnLayout}
+          onColumnLayout={vw.setColumnLayout}
+          rowLayout={vw.rowLayout}
+          onRowLayout={vw.setRowLayout}
+          onSave={vw.update}
+          onSaveAs={vw.saveAs}
+          onMakeDefault={vw.makeDefault}
+          onDelete={vw.remove}
+          canShare={isPM}
+        />
+      </div>
 
       <BulkActionBar
         count={sel.count}
@@ -227,8 +286,9 @@ export default function TestCases({
       />
 
       <EntityTable
-        rows={visibleRows}
+        rows={pageInfo.rows}
         columns={tableColumns}
+        columnKeys={vw.columnKeys}
         attributeEntityType="testcase"
         statusLabel={t('tbl.th.testResult')}
         linkCountFor={linkCountFor}
@@ -254,6 +314,13 @@ export default function TestCases({
         onToggleAll={sel.toggleAll}
         allSelected={sel.allSelected}
         someSelected={sel.someSelected}
+      />
+
+      <TablePager
+        page={pageInfo.page}
+        pageCount={pageInfo.pageCount}
+        total={pageInfo.total}
+        onPage={vw.setPage}
       />
 
       <TestForm

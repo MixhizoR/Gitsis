@@ -61,6 +61,8 @@ model User {
   testCaseAssignments    TestCaseAssignee[]
 
   refreshTokens  RefreshToken[]
+  // Issue #105: kullanici bazli kayitli gorunumler (filtre + sutun + satir duzeni).
+  savedViews     SavedView[]
 }
 
 // --- Proje uyeligi (Issue #103, coktan-coga) --------------------------------
@@ -155,6 +157,7 @@ model Project {
   history      RequirementHistory[]
   documents    ProjectDocument[]
   comments     Comment[]
+  savedViews   SavedView[]
 }
 
 // --- Proje SILME gerekcesi (izlenebilirlik) ---------------------------------
@@ -591,4 +594,46 @@ model AuditLog {
   historyEntry RequirementHistory? // Issue #57: versiyon satirinin bagli oldugu audit kaydi
 
   @@index([projectId])
+}
+
+// --- Kayitli Gorunumler (Saved Views) --------------------------------------
+//  Bir liste sayfasinin (navKey) FILTRE + SUTUN + SATIR duzenini isimlendirip
+//  kalici saklar. sessionStorage'daki gecici filtre durumunun aksine bu kayit
+//  KULLANICI bazlidir ve oturum kapaninca kaybolmaz.
+//
+//  scope:
+//    'user'    -> yalnizca sahibi gorur (userId dolu)
+//    'project' -> proje geneli / paylasilan gorunum (userId NULL). Su an
+//                 yalnizca PM olusturabilir; ileride paylasim/izin kurallari
+//                 bu alan uzerinden genisletilir (modelleme hazir).
+//
+//  filters   : useEntityFilters semasi { q, type, field, status, assignee, attrs }
+//  columns   : SIRALI sutun duzeni [{ key, visible }] — sira listedeki sira.
+//  rowLayout : { pageSize, sortBy, sortDir } — sayfa boyutu + siralama.
+//  Hepsi JSONB: sutun kumesi projeye gore degisir (modular oznitelikler),
+//  sabit kolon semasi tutmak anlamsiz olurdu.
+//
+//  isDefault: sayfa acildiginda otomatik secilen gorunum. Ayni (proje, sahip,
+//  navKey) ucgeninde EN FAZLA BIR tane olur (uygulama katmaninda garanti
+//  edilir — bkz. src/views.js setDefaultView).
+model SavedView {
+  id        String   @id @default(uuid())
+  projectId String
+  // null => proje geneli (paylasilan) gorunum; dolu => kisisel gorunum.
+  userId    String?
+  // Hangi liste sayfasina ait (nav item anahtari — useEntityFilters ile ayni).
+  navKey    String
+  name      String
+  scope     String   @default("user") // 'user' | 'project'
+  isDefault Boolean  @default(false)
+  filters   Json     @default("{}")
+  columns   Json     @default("[]")
+  rowLayout Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, navKey])
+  @@index([projectId, userId, navKey])
 }

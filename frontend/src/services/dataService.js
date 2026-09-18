@@ -82,6 +82,17 @@ export const updateNavItem = (pid, id, data) => api.patch(`/projects/${pid}/nav/
 //  Menuden kaldirir; gereksinim/test VERILERINE dokunmaz.
 export const deleteNavItem = (pid, id) => api.del(`/projects/${pid}/nav/items/${id}`)
 
+// --- Kayitli Gorunumler (Saved Views, Issue #105) --------------------------
+//  Bir liste sayfasinin (navKey) filtre + sutun + satir duzenini isimle
+//  kalici saklar. Kisisel gorunumler kullanici bazlidir; scope='project'
+//  olanlar proje geneli (paylasilan) gorunumlerdir (yalnizca PM yonetir).
+export const listViews = (pid, navKey) =>
+  api.get(`/projects/${pid}/views`, navKey ? { navKey } : undefined)
+export const createView = (pid, payload) => api.post(`/projects/${pid}/views`, payload)
+export const updateView = (pid, id, payload) => api.patch(`/projects/${pid}/views/${id}`, payload)
+export const setDefaultView = (pid, id) => api.post(`/projects/${pid}/views/${id}/default`)
+export const deleteView = (pid, id) => api.del(`/projects/${pid}/views/${id}`)
+
 // --- Test Senaryolari -------------------------------------------------------
 export const listTestCases = (pid) => api.get(`/projects/${pid}/testcases`)
 export const createTestCase = (pid, data) => api.post(`/projects/${pid}/testcases`, data)
